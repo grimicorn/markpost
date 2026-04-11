@@ -13,6 +13,9 @@
       "@t/*": [
         "./src/types/*"
       ],
+      "@fns/*": [
+        "./src/functions/*"
+      ],
     },
     // Environment Settings
     // See also https://aka.ms/tsconfig/module

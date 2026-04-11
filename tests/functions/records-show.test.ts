@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Context } from "@netlify/functions";
-import handler from "../../../src/functions/records-show";
+import handler from "@fns/records-show";
 
 const VALID_TOKEN = "test-secret-token";
 const MOCK_UUID = "00000000-0000-0000-0000-000000000001";

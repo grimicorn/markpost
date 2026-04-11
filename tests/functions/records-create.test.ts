@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import handler from "../../../src/functions/records-create";
+import handler from "@fns/records-create";
 
 const VALID_TOKEN = "test-secret-token";
 const MOCK_UUID = "00000000-0000-0000-0000-000000000001";
