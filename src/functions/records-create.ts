@@ -1,5 +1,5 @@
 import { getDb } from "@libs/db";
-import type { Config, Context } from "@netlify/functions";
+import type { Config } from "@netlify/functions";
 import { v4 as uuidv4 } from "uuid";
 import type { RecordRequest } from "@t/record.types";
 import { apiCheckAuth } from "@libs/auth";
@@ -7,8 +7,9 @@ import { apiErrorHandler } from "@libs/errors";
 import { apiValidate } from "@libs/validator";
 import { apiResponse } from "@libs/response";
 import { apiValidateRequest } from "@libs/request";
+import { standardizeRecordResponse } from "@libs/records";
 
-export default async (request: Request, context: Context) => {
+export default async (request: Request) => {
   try {
     apiValidateRequest(request, "POST");
     apiCheckAuth(request);
@@ -19,7 +20,8 @@ export default async (request: Request, context: Context) => {
     const record = {
       uuid: uuidv4(),
       createdAt: new Date().toISOString(),
-      ...body.data.attributes,
+      title: body.data.attributes.title,
+      content: body.data.attributes.content,
     };
 
     await getDb().setJSON(record.uuid, record);
@@ -27,16 +29,7 @@ export default async (request: Request, context: Context) => {
     // @todo Standardize/Type the response data?
     return apiResponse(
       {
-        data: {
-          type: "records",
-          id: record.uuid,
-          attributes: {
-            ...record,
-          },
-          links: {
-            self: `${context.site.url}/api/records/${record.uuid}`,
-          },
-        },
+        data: standardizeRecordResponse(record),
       },
       201,
     );

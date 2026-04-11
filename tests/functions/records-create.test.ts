@@ -1,20 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { Context } from "@netlify/functions";
 import handler from "../../../src/functions/records-create";
 
 const VALID_TOKEN = "test-secret-token";
 const MOCK_UUID = "00000000-0000-0000-0000-000000000001";
 const MOCK_DATE = "2026-04-11T00:00:00.000Z";
-const SITE_URL = "https://example.com";
 
 vi.mock("uuid", () => ({ v4: () => MOCK_UUID }));
 vi.mock("@libs/db.js", () => ({
   getDb: () => ({ setJSON: vi.fn().mockResolvedValue({}) }),
 }));
-
-const mockContext = {
-  site: { url: SITE_URL },
-} as unknown as Context;
 
 const makeRequest = (options: {
   method?: string;
@@ -63,19 +57,19 @@ afterEach(() => {
 describe("POST /api/records/create", () => {
   describe("success", () => {
     it("returns 201 on a valid request", async () => {
-      const response = await handler(makeRequest({}), mockContext);
+      const response = await handler(makeRequest({}));
       expect(response.status).toBe(201);
     });
 
     it("response Content-Type is application/vnd.api+json", async () => {
-      const response = await handler(makeRequest({}), mockContext);
+      const response = await handler(makeRequest({}));
       expect(response.headers.get("Content-Type")).toBe(
         "application/vnd.api+json",
       );
     });
 
     it("response body includes the record data", async () => {
-      const response = await handler(makeRequest({}), mockContext);
+      const response = await handler(makeRequest({}));
       const body = (await response.json()) as ResponseBody;
       expect(body.data).toMatchObject({
         type: "records",
@@ -90,20 +84,15 @@ describe("POST /api/records/create", () => {
     });
 
     it("response body includes a self link", async () => {
-      const response = await handler(makeRequest({}), mockContext);
+      const response = await handler(makeRequest({}));
       const body = (await response.json()) as ResponseBody;
-      expect(body.data?.links.self).toBe(
-        `${SITE_URL}/api/records/${MOCK_UUID}`,
-      );
+      expect(body.data?.links.self).toBe(`/api/records/${MOCK_UUID}`);
     });
   });
 
   describe("method validation", () => {
     it("returns 405 when method is not POST", async () => {
-      const response = await handler(
-        makeRequest({ method: "GET" }),
-        mockContext,
-      );
+      const response = await handler(makeRequest({ method: "GET" }));
       expect(response.status).toBe(405);
       const body = (await response.json()) as ResponseBody;
       expect(body.errors?.[0]?.status).toBe("405");
@@ -112,10 +101,7 @@ describe("POST /api/records/create", () => {
 
   describe("Content-Type validation", () => {
     it("returns 415 when Content-Type is missing", async () => {
-      const response = await handler(
-        makeRequest({ contentType: "" }),
-        mockContext,
-      );
+      const response = await handler(makeRequest({ contentType: "" }));
       expect(response.status).toBe(415);
       const body = (await response.json()) as ResponseBody;
       expect(body.errors?.[0]?.status).toBe("415");
@@ -124,7 +110,6 @@ describe("POST /api/records/create", () => {
     it("returns 415 when Content-Type is application/json", async () => {
       const response = await handler(
         makeRequest({ contentType: "application/json" }),
-        mockContext,
       );
       expect(response.status).toBe(415);
     });
@@ -132,7 +117,7 @@ describe("POST /api/records/create", () => {
 
   describe("authentication", () => {
     it("returns 401 when Authorization header is missing", async () => {
-      const response = await handler(makeRequest({ auth: "" }), mockContext);
+      const response = await handler(makeRequest({ auth: "" }));
       expect(response.status).toBe(401);
       const body = (await response.json()) as ResponseBody;
       expect(body.errors?.[0]?.status).toBe("401");
@@ -141,7 +126,6 @@ describe("POST /api/records/create", () => {
     it("returns 401 when token is incorrect", async () => {
       const response = await handler(
         makeRequest({ auth: "Bearer wrong-token" }),
-        mockContext,
       );
       expect(response.status).toBe(401);
     });
@@ -151,7 +135,6 @@ describe("POST /api/records/create", () => {
     it("returns 422 when title is missing", async () => {
       const response = await handler(
         makeRequest({ body: { data: { attributes: { content: "World" } } } }),
-        mockContext,
       );
       expect(response.status).toBe(422);
       const body = (await response.json()) as ResponseBody;
@@ -162,7 +145,6 @@ describe("POST /api/records/create", () => {
     it("returns 422 when content is missing", async () => {
       const response = await handler(
         makeRequest({ body: { data: { attributes: { title: "Hello" } } } }),
-        mockContext,
       );
       expect(response.status).toBe(422);
     });
@@ -170,7 +152,6 @@ describe("POST /api/records/create", () => {
     it("returns 422 with both errors when title and content are missing", async () => {
       const response = await handler(
         makeRequest({ body: { data: { attributes: {} } } }),
-        mockContext,
       );
       expect(response.status).toBe(422);
       const body = (await response.json()) as ResponseBody;
