@@ -1,4 +1,4 @@
-name: Lint + Test CI
+name: CI
 on:
   push:
     branches: [main]
