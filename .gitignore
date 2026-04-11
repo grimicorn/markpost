@@ -1,6 +1,7 @@
 # Local Netlify folder
 .netlify
-/.envrc
-/node_modules
-/deno.lock
+.envrc
+node_modules
+deno.lock
 .DS_Store
+/dist

@@ -9,7 +9,8 @@
     "lint": "npx eslint ./src && npx prettier --check ./src",
     "lint:fix": "npx prettier ./src --write && npx eslint --fix ./src",
     "dev": "netlify dev",
-    "prepare": "husky"
+    "prepare": "husky",
+    "build": "mkdir -p ./dist/public && cp -r ./src/public ./dist"
   },
   "repository": {
     "type": "git",
