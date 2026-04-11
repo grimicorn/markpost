@@ -13,10 +13,10 @@ const MOCK_RECORD = {
   content: "World",
 };
 
+const mockGet = vi.hoisted(() => vi.fn());
+
 vi.mock("@libs/db.js", () => ({
-  getDb: () => ({
-    get: vi.fn().mockResolvedValue(JSON.stringify(MOCK_RECORD)),
-  }),
+  getDb: () => ({ get: mockGet }),
 }));
 
 const makeContext = (uuid: string) =>
@@ -62,6 +62,7 @@ type ResponseBody = {
 
 beforeEach(() => {
   process.env.API_TOKEN = VALID_TOKEN;
+  mockGet.mockResolvedValue(JSON.stringify(MOCK_RECORD));
 });
 
 afterEach(() => {
@@ -156,6 +157,16 @@ describe("GET /api/records/:uuid", () => {
         makeContext(MOCK_UUID),
       );
       expect(response.status).toBe(401);
+    });
+  });
+
+  describe("record not found", () => {
+    it("returns 200 with null data when record does not exist", async () => {
+      mockGet.mockRejectedValueOnce(new Error("Not found"));
+      const response = await handler(makeRequest({}), makeContext(MOCK_UUID));
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as ResponseBody;
+      expect(body.data).toBeNull();
     });
   });
 });
