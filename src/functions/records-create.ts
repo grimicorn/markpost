@@ -21,13 +21,21 @@ export default async (request: Request, context: Context) => {
       createdAt: new Date().toISOString(),
       ...body.data.attributes,
     };
-    const response = await getDb().setJSON(record.uuid, record);
 
+    await getDb().setJSON(record.uuid, record);
+
+    // @todo Standardize/Type the response data?
     return apiResponse(
       {
-        data: { ...response, ...record },
-        links: {
-          self: `${context.site.url}/api/records/${record.uuid}`,
+        data: {
+          type: "records",
+          id: record.uuid,
+          attributes: {
+            ...record,
+          },
+          links: {
+            self: `${context.site.url}/api/records/${record.uuid}`,
+          },
         },
       },
       201,
@@ -38,5 +46,5 @@ export default async (request: Request, context: Context) => {
 };
 
 export const config: Config = {
-  path: "/api/records",
+  path: "/api/records/create",
 };

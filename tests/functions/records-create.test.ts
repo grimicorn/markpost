@@ -29,7 +29,7 @@ const makeRequest = (options: {
     body = { data: { attributes: { title: "Hello", content: "World" } } },
   } = options;
 
-  return new Request("https://example.com/api/records", {
+  return new Request("https://example.com/api/records/create", {
     method,
     headers: {
       ...(contentType ? { "Content-Type": contentType } : {}),
@@ -40,8 +40,12 @@ const makeRequest = (options: {
 };
 
 type ResponseBody = {
-  data: Record<string, unknown>;
-  links?: { self: string };
+  data?: {
+    type: string;
+    id: string;
+    attributes: Record<string, unknown>;
+    links: { self: string };
+  };
   errors?: { status: string; title: string; detail?: string }[];
 };
 
@@ -56,7 +60,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("POST /api/records", () => {
+describe("POST /api/records/create", () => {
   describe("success", () => {
     it("returns 201 on a valid request", async () => {
       const response = await handler(makeRequest({}), mockContext);
@@ -74,17 +78,23 @@ describe("POST /api/records", () => {
       const response = await handler(makeRequest({}), mockContext);
       const body = (await response.json()) as ResponseBody;
       expect(body.data).toMatchObject({
-        uuid: MOCK_UUID,
-        createdAt: MOCK_DATE,
-        title: "Hello",
-        content: "World",
+        type: "records",
+        id: MOCK_UUID,
+        attributes: {
+          uuid: MOCK_UUID,
+          createdAt: MOCK_DATE,
+          title: "Hello",
+          content: "World",
+        },
       });
     });
 
     it("response body includes a self link", async () => {
       const response = await handler(makeRequest({}), mockContext);
       const body = (await response.json()) as ResponseBody;
-      expect(body.links?.self).toBe(`${SITE_URL}/api/records/${MOCK_UUID}`);
+      expect(body.data?.links.self).toBe(
+        `${SITE_URL}/api/records/${MOCK_UUID}`,
+      );
     });
   });
 

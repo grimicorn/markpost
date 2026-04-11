@@ -1,14 +1,16 @@
 $kind: http-request
-name: /records
-url: "{{baseUrl}}/api/records"
+name: /records/create
+url: "{{baseUrl}}/api/records/create"
 method: POST
 headers:
-  Content-Type: application/vnd.api+json
+  - key: Content-Type
+    value: application/vnd.api+json
 body:
   type: json
   content: |-
     {
         "data": {
+            "type": "records",
             "attributes": {
                 "title": "Title 3",
                 "content": "Content 3"
