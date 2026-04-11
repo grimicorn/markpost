@@ -1,6 +1,10 @@
 import type { Record } from "@t/record.types";
 
-export const standardizeRecordResponse = (record: Record) => {
+export const standardizeRecordResponse = (record?: Record | null) => {
+  if (!record) {
+    return null;
+  }
+
   return {
     type: "records",
     id: record.uuid,

@@ -38,5 +38,6 @@ export default async (request: Request) => {
 };
 
 export const config: Config = {
-  path: "/api/records/create",
+  path: "/api/records",
+  method: "POST",
 };

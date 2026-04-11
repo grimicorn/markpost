@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import handler from "@fns/records-create";
+import handler from "@fns/records-delete";
 
 const VALID_TOKEN = "test-secret-token";
-const MOCK_UUID = "00000000-0000-0000-0000-000000000001";
-const MOCK_DATE = "2026-04-11T00:00:00.000Z";
+const MOCK_UUIDS = ["00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000002"];
 
-vi.mock("uuid", () => ({ v4: () => MOCK_UUID }));
+const mockDelete = vi.fn().mockResolvedValue(undefined);
+
 vi.mock("@libs/db.js", () => ({
-  getDb: () => ({ setJSON: vi.fn().mockResolvedValue({}) }),
+  getDb: () => ({ delete: mockDelete }),
 }));
 
 const makeRequest = (options: {
@@ -17,10 +17,10 @@ const makeRequest = (options: {
   body?: object;
 }) => {
   const {
-    method = "POST",
+    method = "DELETE",
     contentType = "application/vnd.api+json",
     auth = `Bearer ${VALID_TOKEN}`,
-    body = { data: { attributes: { title: "Hello", content: "World" } } },
+    body = { data: { attributes: { uuids: MOCK_UUIDS } } },
   } = options;
 
   return new Request("https://example.com/api/records", {
@@ -29,36 +29,29 @@ const makeRequest = (options: {
       ...(contentType ? { "Content-Type": contentType } : {}),
       ...(auth ? { Authorization: auth } : {}),
     },
-    body: method !== "GET" ? JSON.stringify(body) : undefined,
+    body: JSON.stringify(body),
   });
 };
 
 type ResponseBody = {
-  data?: {
-    type: string;
-    id: string;
-    attributes: Record<string, unknown>;
-    links: { self: string };
-  };
+  meta?: { deleted: number };
   errors?: { status: string; title: string; detail?: string }[];
 };
 
 beforeEach(() => {
   process.env.API_TOKEN = VALID_TOKEN;
-  vi.useFakeTimers();
-  vi.setSystemTime(new Date(MOCK_DATE));
+  mockDelete.mockClear();
 });
 
 afterEach(() => {
   delete process.env.API_TOKEN;
-  vi.useRealTimers();
 });
 
-describe("POST /api/records", () => {
+describe("DELETE /api/records", () => {
   describe("success", () => {
-    it("returns 201 on a valid request", async () => {
+    it("returns 200 on a valid request", async () => {
       const response = await handler(makeRequest({}));
-      expect(response.status).toBe(201);
+      expect(response.status).toBe(200);
     });
 
     it("response Content-Type is application/vnd.api+json", async () => {
@@ -68,31 +61,24 @@ describe("POST /api/records", () => {
       );
     });
 
-    it("response body includes the record data", async () => {
+    it("response body includes meta.deleted count", async () => {
       const response = await handler(makeRequest({}));
       const body = (await response.json()) as ResponseBody;
-      expect(body.data).toMatchObject({
-        type: "records",
-        id: MOCK_UUID,
-        attributes: {
-          uuid: MOCK_UUID,
-          createdAt: MOCK_DATE,
-          title: "Hello",
-          content: "World",
-        },
-      });
+      expect(body.meta?.deleted).toBe(MOCK_UUIDS.length);
     });
 
-    it("response body includes a self link", async () => {
-      const response = await handler(makeRequest({}));
-      const body = (await response.json()) as ResponseBody;
-      expect(body.data?.links.self).toBe(`/api/records/${MOCK_UUID}`);
+    it("calls delete for each uuid", async () => {
+      await handler(makeRequest({}));
+      expect(mockDelete).toHaveBeenCalledTimes(MOCK_UUIDS.length);
+      MOCK_UUIDS.forEach((uuid) => {
+        expect(mockDelete).toHaveBeenCalledWith(uuid);
+      });
     });
   });
 
   describe("method validation", () => {
-    it("returns 405 when method is not POST", async () => {
-      const response = await handler(makeRequest({ method: "GET" }));
+    it("returns 405 when method is not DELETE", async () => {
+      const response = await handler(makeRequest({ method: "POST" }));
       expect(response.status).toBe(405);
       const body = (await response.json()) as ResponseBody;
       expect(body.errors?.[0]?.status).toBe("405");
@@ -132,30 +118,14 @@ describe("POST /api/records", () => {
   });
 
   describe("validation", () => {
-    it("returns 422 when title is missing", async () => {
-      const response = await handler(
-        makeRequest({ body: { data: { attributes: { content: "World" } } } }),
-      );
-      expect(response.status).toBe(422);
-      const body = (await response.json()) as ResponseBody;
-      expect(body.errors?.[0]?.status).toBe("422");
-      expect(body.errors?.[0]?.title).toBe("Invalid Attribute");
-    });
-
-    it("returns 422 when content is missing", async () => {
-      const response = await handler(
-        makeRequest({ body: { data: { attributes: { title: "Hello" } } } }),
-      );
-      expect(response.status).toBe(422);
-    });
-
-    it("returns 422 with both errors when title and content are missing", async () => {
+    it("returns 422 when uuids is missing", async () => {
       const response = await handler(
         makeRequest({ body: { data: { attributes: {} } } }),
       );
       expect(response.status).toBe(422);
       const body = (await response.json()) as ResponseBody;
-      expect(body.errors).toHaveLength(2);
+      expect(body.errors?.[0]?.status).toBe("422");
+      expect(body.errors?.[0]?.title).toBe("Invalid Attribute");
     });
   });
 });

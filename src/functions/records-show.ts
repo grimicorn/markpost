@@ -32,7 +32,12 @@ export default async (request: Request, context: Context) => {
       );
     }
 
-    const record = JSON.parse(await getDb().get(uuid, { type: "text" }));
+    let record = null;
+    try {
+      record = JSON.parse(await getDb().get(uuid, { type: "text" }));
+    } catch (error) {
+      console.error(error);
+    }
 
     return apiResponse(
       {
@@ -47,4 +52,5 @@ export default async (request: Request, context: Context) => {
 
 export const config: Config = {
   path: "/api/records/:uuid",
+  method: "GET",
 };

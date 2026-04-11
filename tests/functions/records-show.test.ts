@@ -50,7 +50,12 @@ type ResponseBody = {
     id: string;
     attributes: Record<string, unknown>;
     links: { self: string };
-    errors?: { status: string; title: string; detail?: string; source?: { parameter: string } }[];
+    errors?: {
+      status: string;
+      title: string;
+      detail?: string;
+      source?: { parameter: string };
+    }[];
   };
   errors?: { status: string; title: string; detail?: string }[];
 };

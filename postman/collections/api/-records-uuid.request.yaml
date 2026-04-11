@@ -3,5 +3,5 @@ name: /records/:uuid
 url: "{{baseUrl}}/api/records/:uuid"
 method: GET
 pathVariables:
-  uuid: c0f3cdc8-215f-4568-9506-df96483ef507
+  uuid: e31b61d2-fc42-449c-a797-0d65dc0a9f00
 order: 2737984240037280

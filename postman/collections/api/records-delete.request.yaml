@@ -1,10 +1,9 @@
 $kind: http-request
 name: /records
 url: "{{baseUrl}}/api/records"
-method: POST
+method: DELETE
 headers:
-  - key: Content-Type
-    value: application/vnd.api+json
+  Content-Type: application/vnd.api+json
 body:
   type: json
   content: |-
@@ -12,12 +11,13 @@ body:
         "data": {
             "type": "records",
             "attributes": {
-                "title": "Title 3",
-                "content": "Content 3"
+                "uuids": [
+                    "e31b61d2-fc42-449c-a797-0d65dc0a9f00"
+                ]
             }
         }
     }
 settings:
   disabledSystemHeaders:
     - content-type
-order: 1775917722143
+order: 3452748594436017
