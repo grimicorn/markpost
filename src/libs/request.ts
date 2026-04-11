@@ -1,4 +1,4 @@
-import { ApiError } from "@libs/errors.js";
+import { ApiError } from "@libs/errors";
 
 export const apiValidateRequest = (request: Request, method: string) => {
   if (request.method?.toUpperCase() !== method.toUpperCase()) {

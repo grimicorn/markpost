@@ -1,5 +1,5 @@
-import { ApiError } from "@libs/errors.js";
-import type { ApiRequest } from "@types/api.types.js";
+import { ApiError } from "@libs/errors";
+import type { ApiRequest } from "@t/api.types";
 import titleize from "titleize";
 
 type Attribute = { key: string; message?: string };

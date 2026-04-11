@@ -2,7 +2,7 @@
   "name": "sync.danholloran.me",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "",
   "scripts": {
     "test": "vitest",
     "lint": "npx eslint ./src && npx prettier ./src",

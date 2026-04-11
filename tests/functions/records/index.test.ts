@@ -35,7 +35,7 @@ const makeRequest = (options: {
       ...(contentType ? { "Content-Type": contentType } : {}),
       ...(auth ? { Authorization: auth } : {}),
     },
-    ...(method !== "GET" ? { body: JSON.stringify(body) } : {}),
+    body: method !== "GET" ? JSON.stringify(body) : undefined,
   });
 };
 

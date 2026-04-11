@@ -1,4 +1,4 @@
-import { ApiError } from "@libs/errors.js";
+import { ApiError } from "@libs/errors";
 
 export const apiCheckAuth = (request: Request) => {
   const authHeader = request.headers.get("Authorization");

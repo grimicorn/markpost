@@ -1,4 +1,4 @@
-import type { ApiRequest } from "@types/api.types.js";
+import type { ApiRequest } from "@t/api.types";
 
 export type Record = {
   title: string;

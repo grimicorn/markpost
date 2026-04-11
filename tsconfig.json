@@ -10,13 +10,14 @@
       "@libs/*": [
         "./src/libs/*"
       ],
-      "@types/*": [
+      "@t/*": [
         "./src/types/*"
       ],
     },
     // Environment Settings
     // See also https://aka.ms/tsconfig/module
-    "module": "nodenext",
+    "module": "esnext",
+    "moduleResolution": "bundler",
     "target": "esnext",
     // For nodejs:
     "lib": [
@@ -38,5 +39,6 @@
     "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
     "skipLibCheck": true,
-  }
+  },
+  "include": ["src/**/*"]
 }

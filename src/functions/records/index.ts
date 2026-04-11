@@ -1,12 +1,12 @@
-import { getDb } from "@libs/db.js";
+import { getDb } from "@libs/db";
 import type { Config, Context } from "@netlify/functions";
 import { v4 as uuidv4 } from "uuid";
-import type { RecordRequest } from "@types/record.types";
-import { apiCheckAuth } from "@libs/auth.js";
-import { apiErrorHandler } from "@libs/errors.js";
-import { apiValidate } from "@libs/validator.js";
-import { apiResponse } from "@libs/response.js";
-import { apiValidateRequest } from "@libs/request.js";
+import type { RecordRequest } from "@t/record.types";
+import { apiCheckAuth } from "@libs/auth";
+import { apiErrorHandler } from "@libs/errors";
+import { apiValidate } from "@libs/validator";
+import { apiResponse } from "@libs/response";
+import { apiValidateRequest } from "@libs/request";
 
 export default async (request: Request, context: Context) => {
   try {

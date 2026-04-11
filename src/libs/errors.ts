@@ -1,4 +1,4 @@
-import { apiResponse } from "@libs/response.js";
+import { apiResponse } from "@libs/response";
 
 export class ApiError extends Error {
   response: Response;
