@@ -4,7 +4,6 @@ import titleize from "titleize";
 
 type Attribute = { key: string; message?: string };
 
-// @todo Test apiValidate
 export const apiValidate = (body: ApiRequest, attributes: Attribute[]) => {
   const errors: Attribute[] = [];
 

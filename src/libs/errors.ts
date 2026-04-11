@@ -9,7 +9,6 @@ export class ApiError extends Error {
   }
 }
 
-// @todo Test apiErrorHandler
 export const apiErrorHandler = (error: Error): Response => {
   if (error instanceof ApiError) {
     return error.response;

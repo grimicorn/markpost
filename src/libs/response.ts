@@ -1,4 +1,3 @@
-// @todo Test apiResponse
 export const apiResponse = (
   body: object,
   status: number, // @todo Type this to a valid HTTP response???

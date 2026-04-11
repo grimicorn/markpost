@@ -1,12 +1,12 @@
 import { ApiError } from "@libs/errors.js";
 
-// @todo Test apiCheckAuth
 export const apiCheckAuth = (request: Request) => {
   const authHeader = request.headers.get("Authorization");
 
-  const token = authHeader?.replace(/^Bearer /g, "");
-
-  if (token === process.env.API_TOKEN) {
+  if (
+    authHeader?.startsWith("Bearer ") &&
+    authHeader.slice(7) === process.env.API_TOKEN
+  ) {
     return;
   }
 

@@ -1,6 +1,5 @@
 import { ApiError } from "@libs/errors.js";
 
-// @todo Test apiValidateRequest
 export const apiValidateRequest = (request: Request, method: string) => {
   if (request.method?.toUpperCase() !== method.toUpperCase()) {
     throw new ApiError(
