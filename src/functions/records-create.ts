@@ -26,7 +26,6 @@ export default async (request: Request) => {
 
     await getDb().setJSON(record.uuid, record);
 
-    // @todo Standardize/Type the response data?
     return apiResponse(
       {
         data: standardizeRecordResponse(record),

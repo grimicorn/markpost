@@ -1,6 +1,10 @@
 import { ApiError } from "@libs/errors";
 
-export const apiValidateRequest = (request: Request, method: string) => {
+export const apiValidateRequest = (
+  request: Request,
+  method: string,
+  requireContentType = true,
+) => {
   if (request.method?.toUpperCase() !== method.toUpperCase()) {
     throw new ApiError(
       {
@@ -17,7 +21,10 @@ export const apiValidateRequest = (request: Request, method: string) => {
   }
 
   const contentType = request.headers.get("Content-Type");
-  if (!contentType?.includes("application/vnd.api+json")) {
+  if (
+    requireContentType &&
+    !contentType?.includes("application/vnd.api+json")
+  ) {
     throw new ApiError(
       {
         errors: [
