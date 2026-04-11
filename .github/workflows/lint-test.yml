@@ -1,4 +1,4 @@
-name: Vitest CI
+name: Lint + Test CI
 on:
   push:
     branches: [main]
