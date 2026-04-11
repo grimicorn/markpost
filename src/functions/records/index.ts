@@ -8,7 +8,6 @@ import { apiValidate } from "@libs/validator.js";
 import { apiResponse } from "@libs/response.js";
 import { apiValidateRequest } from "@libs/request.js";
 
-// @todo Test POST /api/records
 export default async (request: Request, context: Context) => {
   try {
     apiValidateRequest(request, "POST");
