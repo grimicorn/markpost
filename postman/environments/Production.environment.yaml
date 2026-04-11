@@ -1,0 +1,8 @@
+name: Production
+values:
+  - key: baseUrl
+    value: ''
+    enabled: true
+  - key: apiToken
+    value: ''
+    enabled: true
