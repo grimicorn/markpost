@@ -1,0 +1,8 @@
+$kind: collection
+name: api
+auth:
+  - id: 7a41df4d-7612-4853-9d1a-9207f694a5f9
+    type: bearer
+    name: Bearer Token
+    credentials:
+      token: "{{apiToken}}"
