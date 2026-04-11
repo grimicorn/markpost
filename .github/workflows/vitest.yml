@@ -18,7 +18,10 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm ci --ignore-scripts
+        run: npm ci
+        env:
+          npm_config_os: linux
+          npm_config_cpu: x64
 
       - name: Run tests
         run: npm run test
