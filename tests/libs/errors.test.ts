@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { ApiError, apiErrorHandler } from "@libs/errors.js";
+import { ApiError, apiErrorHandler } from "@libs/errors";
 
 type ErrorBody = {
   errors: { status: string; title: string; detail: string }[];
@@ -7,7 +7,15 @@ type ErrorBody = {
 
 const makeApiError = (status = 400) =>
   new ApiError(
-    { errors: [{ status: String(status), title: "Bad Request", detail: "Something went wrong." }] },
+    {
+      errors: [
+        {
+          status: String(status),
+          title: "Bad Request",
+          detail: "Something went wrong.",
+        },
+      ],
+    },
     status,
   );
 

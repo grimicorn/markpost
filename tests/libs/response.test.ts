@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { apiResponse } from "@libs/response.js";
+import { apiResponse } from "@libs/response";
 
 type ResponseBody = Record<string, unknown>;
 

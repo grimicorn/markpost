@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { apiValidateRequest } from "@libs/request.js";
-import { ApiError } from "@libs/errors.js";
+import { apiValidateRequest } from "@libs/request";
+import { ApiError } from "@libs/errors";
 
 type ApiErrorBody = {
   errors: {

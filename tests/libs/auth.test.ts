@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { apiCheckAuth } from "@libs/auth.js";
-import { ApiError } from "@libs/errors.js";
+import { apiCheckAuth } from "@libs/auth";
+import { ApiError } from "@libs/errors";
 
 type ErrorBody = {
   errors: { status: string; title: string; detail: string }[];

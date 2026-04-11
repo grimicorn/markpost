@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { apiValidate } from "@libs/validator.js";
-import { ApiError } from "@libs/errors.js";
+import { apiValidate } from "@libs/validator";
+import { ApiError } from "@libs/errors";
 
 type ErrorBody = {
   errors: {
@@ -16,7 +16,9 @@ const makeBody = (attributes: object) => ({ data: { attributes } });
 describe("apiValidate", () => {
   it("does not throw when all required attributes are present", () => {
     const body = makeBody({ title: "Hello", content: "World" });
-    expect(() => apiValidate(body, [{ key: "title" }, { key: "content" }])).not.toThrow();
+    expect(() =>
+      apiValidate(body, [{ key: "title" }, { key: "content" }]),
+    ).not.toThrow();
   });
 
   it("does not throw when no attributes are required", () => {
