@@ -1,0 +1,41 @@
+{
+  "name": "sync.danholloran.me",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "vitest",
+    "lint": "npx eslint ./src && npx prettier ./src",
+    "lint:fix": "npx prettier ./src --write && npx eslint --fix ./src",
+    "dev": "netlify dev"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://grimicorn@github.com/grimicorn/sync.danholloran.me.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/grimicorn/sync.danholloran.me/issues"
+  },
+  "homepage": "https://github.com/grimicorn/sync.danholloran.me#readme",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^25.6.0",
+    "eslint": "^10.2.0",
+    "eslint-plugin-vue": "^10.8.0",
+    "globals": "^17.4.0",
+    "jiti": "^2.6.1",
+    "netlify-cli": "^24.11.1",
+    "prettier": "3.8.2",
+    "typescript": "^6.0.2",
+    "typescript-eslint": "^8.58.1"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^10.7.4",
+    "@netlify/functions": "^5.2.0",
+    "uuid": "^13.0.0"
+  }
+}
