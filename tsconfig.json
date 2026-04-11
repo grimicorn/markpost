@@ -7,6 +7,9 @@
     "verbatimModuleSyntax": true,
     "outDir": "./dist",
     "paths": {
+      "@/*": [
+        "./src/*"
+      ],
       "@libs/*": [
         "./src/libs/*"
       ],
@@ -43,5 +46,7 @@
     "moduleDetection": "force",
     "skipLibCheck": true,
   },
-  "include": ["src/**/*"]
+  "include": [
+    "src/**/*"
+  ]
 }
