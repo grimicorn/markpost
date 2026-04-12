@@ -7,15 +7,13 @@ export const apiValidateRequest = (
 ) => {
   if (request.method?.toUpperCase() !== method.toUpperCase()) {
     throw new ApiError(
-      {
-        errors: [
-          {
-            status: "405",
-            title: "Method Not Allowed",
-            detail: `${request.method} method is not allowed`,
-          },
-        ],
-      },
+      [
+        {
+          status: "405",
+          title: "Method Not Allowed",
+          detail: `${request.method} method is not allowed`,
+        },
+      ],
       405,
     );
   }
@@ -26,15 +24,13 @@ export const apiValidateRequest = (
     !contentType?.includes("application/vnd.api+json")
   ) {
     throw new ApiError(
-      {
-        errors: [
-          {
-            status: "415",
-            title: "Unsupported Media Type",
-            detail: "Content-Type must be application/vnd.api+json",
-          },
-        ],
-      },
+      [
+        {
+          status: "415",
+          title: "Unsupported Media Type",
+          detail: "Content-Type must be application/vnd.api+json",
+        },
+      ],
       415,
     );
   }

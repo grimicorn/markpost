@@ -136,7 +136,7 @@ describe("GET /api/records/:uuid", () => {
       );
       expect(response.status).toBe(405);
       const body = (await response.json()) as ResponseBody;
-      expect(body.errors?.[0]?.status).toBe("405");
+      expect(body.data?.errors?.[0]?.status).toBe("405");
     });
   });
 
@@ -148,7 +148,7 @@ describe("GET /api/records/:uuid", () => {
       );
       expect(response.status).toBe(401);
       const body = (await response.json()) as ResponseBody;
-      expect(body.errors?.[0]?.status).toBe("401");
+      expect(body.data?.errors?.[0]?.status).toBe("401");
     });
 
     it("returns 401 when token is incorrect", async () => {

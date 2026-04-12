@@ -2,7 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import handler from "@fns/records-delete";
 
 const VALID_TOKEN = "test-secret-token";
-const MOCK_UUIDS = ["00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000002"];
+const MOCK_UUIDS = [
+  "00000000-0000-0000-0000-000000000001",
+  "00000000-0000-0000-0000-000000000002",
+];
 
 const mockDelete = vi.fn().mockResolvedValue(undefined);
 
@@ -81,7 +84,7 @@ describe("DELETE /api/records", () => {
       const response = await handler(makeRequest({ method: "POST" }));
       expect(response.status).toBe(405);
       const body = (await response.json()) as ResponseBody;
-      expect(body.errors?.[0]?.status).toBe("405");
+      expect(body.data?.errors?.[0]?.status).toBe("405");
     });
   });
 
@@ -90,7 +93,7 @@ describe("DELETE /api/records", () => {
       const response = await handler(makeRequest({ contentType: "" }));
       expect(response.status).toBe(415);
       const body = (await response.json()) as ResponseBody;
-      expect(body.errors?.[0]?.status).toBe("415");
+      expect(body.data?.errors?.[0]?.status).toBe("415");
     });
 
     it("returns 415 when Content-Type is application/json", async () => {
@@ -106,7 +109,7 @@ describe("DELETE /api/records", () => {
       const response = await handler(makeRequest({ auth: "" }));
       expect(response.status).toBe(401);
       const body = (await response.json()) as ResponseBody;
-      expect(body.errors?.[0]?.status).toBe("401");
+      expect(body.data?.errors?.[0]?.status).toBe("401");
     });
 
     it("returns 401 when token is incorrect", async () => {
@@ -124,8 +127,8 @@ describe("DELETE /api/records", () => {
       );
       expect(response.status).toBe(422);
       const body = (await response.json()) as ResponseBody;
-      expect(body.errors?.[0]?.status).toBe("422");
-      expect(body.errors?.[0]?.title).toBe("Invalid Attribute");
+      expect(body.data?.errors?.[0]?.status).toBe("422");
+      expect(body.data?.errors?.[0]?.title).toBe("Invalid Attribute");
     });
   });
 });

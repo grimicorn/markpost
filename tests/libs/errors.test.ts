@@ -2,20 +2,20 @@ import { describe, it, expect, vi } from "vitest";
 import { ApiError, apiErrorHandler } from "@libs/errors";
 
 type ErrorBody = {
-  errors: { status: string; title: string; detail: string }[];
+  data: {
+    errors: { status: string; title: string; detail: string }[];
+  };
 };
 
 const makeApiError = (status = 400) =>
   new ApiError(
-    {
-      errors: [
-        {
-          status: String(status),
-          title: "Bad Request",
-          detail: "Something went wrong.",
-        },
-      ],
-    },
+    [
+      {
+        status: String(status),
+        title: "Bad Request",
+        detail: "Something went wrong.",
+      },
+    ],
     status,
   );
 
@@ -41,8 +41,8 @@ describe("ApiError", () => {
   it("response body contains the provided error shape", async () => {
     const error = makeApiError(400);
     const body = (await error.response.json()) as ErrorBody;
-    expect(body.errors[0]?.status).toBe("400");
-    expect(body.errors[0]?.title).toBe("Bad Request");
+    expect(body.data.errors[0]?.status).toBe("400");
+    expect(body.data.errors[0]?.title).toBe("Bad Request");
   });
 });
 
@@ -52,7 +52,7 @@ describe("apiErrorHandler", () => {
     const response = apiErrorHandler(error);
     expect(response.status).toBe(404);
     const body = (await response.json()) as ErrorBody;
-    expect(body.errors[0]?.title).toBe("Bad Request");
+    expect(body.data.errors[0]?.title).toBe("Bad Request");
   });
 
   it("returns a 500 response for unknown errors", async () => {
@@ -60,8 +60,8 @@ describe("apiErrorHandler", () => {
     const response = apiErrorHandler(new Error("boom"));
     expect(response.status).toBe(500);
     const body = (await response.json()) as ErrorBody;
-    expect(body.errors[0]?.status).toBe("500");
-    expect(body.errors[0]?.title).toBe("Internal Server Error");
+    expect(body.data.errors[0]?.status).toBe("500");
+    expect(body.data.errors[0]?.title).toBe("Internal Server Error");
     consoleSpy.mockRestore();
   });
 

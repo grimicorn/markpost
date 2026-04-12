@@ -36,8 +36,8 @@ describe("apiValidate", () => {
       const { response } = error as ApiError;
       expect(response.status).toBe(422);
       const parsed = (await response.json()) as ErrorBody;
-      expect(parsed.errors[0]?.status).toBe("422");
-      expect(parsed.errors[0]?.title).toBe("Invalid Attribute");
+      expect(parsed.data.errors[0]?.status).toBe("422");
+      expect(parsed.data.errors[0]?.title).toBe("Invalid Attribute");
     }
   });
 
@@ -49,7 +49,9 @@ describe("apiValidate", () => {
     } catch (error) {
       const { response } = error as ApiError;
       const parsed = (await response.json()) as ErrorBody;
-      expect(parsed.errors[0]?.source.pointer).toBe("/data/attributes/title");
+      expect(parsed.data.errors[0]?.source.pointer).toBe(
+        "/data/attributes/title",
+      );
     }
   });
 
@@ -61,7 +63,7 @@ describe("apiValidate", () => {
     } catch (error) {
       const { response } = error as ApiError;
       const parsed = (await response.json()) as ErrorBody;
-      expect(parsed.errors[0]?.detail).toBe("Title is required");
+      expect(parsed.data.errors[0]?.detail).toBe("Title is required");
     }
   });
 
@@ -73,7 +75,7 @@ describe("apiValidate", () => {
     } catch (error) {
       const { response } = error as ApiError;
       const parsed = (await response.json()) as ErrorBody;
-      expect(parsed.errors[0]?.detail).toBe("Title cannot be blank.");
+      expect(parsed.data.errors[0]?.detail).toBe("Title cannot be blank.");
     }
   });
 
@@ -85,9 +87,13 @@ describe("apiValidate", () => {
     } catch (error) {
       const { response } = error as ApiError;
       const parsed = (await response.json()) as ErrorBody;
-      expect(parsed.errors).toHaveLength(2);
-      expect(parsed.errors[0]?.source.pointer).toBe("/data/attributes/title");
-      expect(parsed.errors[1]?.source.pointer).toBe("/data/attributes/content");
+      expect(parsed.data.errors).toHaveLength(2);
+      expect(parsed.data.errors[0]?.source.pointer).toBe(
+        "/data/attributes/title",
+      );
+      expect(parsed.data.errors[1]?.source.pointer).toBe(
+        "/data/attributes/content",
+      );
     }
   });
 });

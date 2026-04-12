@@ -18,14 +18,12 @@ export const apiValidate = (body: ApiRequest, attributes: Attribute[]) => {
   }
 
   throw new ApiError(
-    {
-      errors: errors.map(({ key, message }) => ({
-        status: "422",
-        source: { pointer: `/data/attributes/${key}` },
-        title: "Invalid Attribute",
-        detail: message ?? `${titleize(key)} is required`,
-      })),
-    },
+    errors.map(({ key, message }) => ({
+      status: "422",
+      source: { pointer: `/data/attributes/${key}` },
+      title: "Invalid Attribute",
+      detail: message ?? `${titleize(key)} is required`,
+    })),
     422,
   );
 };

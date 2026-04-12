@@ -11,15 +11,13 @@ export const apiCheckAuth = (request: Request) => {
   }
 
   throw new ApiError(
-    {
-      errors: [
-        {
-          status: "401",
-          title: "Unauthorized",
-          detail: "A valid API token is required.",
-        },
-      ],
-    },
+    [
+      {
+        status: "401",
+        title: "Unauthorized",
+        detail: "A valid API token is required.",
+      },
+    ],
     401,
   );
 };

@@ -39,9 +39,9 @@ describe("apiValidateRequest", () => {
         const { response } = error as ApiError;
         expect(response.status).toBe(405);
         const body = (await response.json()) as ApiErrorBody;
-        expect(body.errors[0]?.status).toBe("405");
-        expect(body.errors[0]?.title).toBe("Method Not Allowed");
-        expect(body.errors[0]?.detail).toContain("GET");
+        expect(body.data.errors[0]?.status).toBe("405");
+        expect(body.data.errors[0]?.title).toBe("Method Not Allowed");
+        expect(body.data.errors[0]?.detail).toContain("GET");
       }
     });
   });
@@ -70,8 +70,8 @@ describe("apiValidateRequest", () => {
         const { response } = error as ApiError;
         expect(response.status).toBe(415);
         const body = (await response.json()) as ApiErrorBody;
-        expect(body.errors[0]?.status).toBe("415");
-        expect(body.errors[0]?.title).toBe("Unsupported Media Type");
+        expect(body.data.errors[0]?.status).toBe("415");
+        expect(body.data.errors[0]?.title).toBe("Unsupported Media Type");
       }
     });
 
@@ -85,8 +85,8 @@ describe("apiValidateRequest", () => {
         const { response } = error as ApiError;
         expect(response.status).toBe(415);
         const body = (await response.json()) as ApiErrorBody;
-        expect(body.errors[0]?.status).toBe("415");
-        expect(body.errors[0]?.detail).toBe(
+        expect(body.data.errors[0]?.status).toBe("415");
+        expect(body.data.errors[0]?.detail).toBe(
           "Content-Type must be application/vnd.api+json",
         );
       }

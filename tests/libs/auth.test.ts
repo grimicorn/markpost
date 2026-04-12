@@ -38,8 +38,8 @@ describe("apiCheckAuth", () => {
       const { response } = error as ApiError;
       expect(response.status).toBe(401);
       const body = (await response.json()) as ErrorBody;
-      expect(body.errors[0]?.status).toBe("401");
-      expect(body.errors[0]?.title).toBe("Unauthorized");
+      expect(body.data.errors[0]?.status).toBe("401");
+      expect(body.data.errors[0]?.title).toBe("Unauthorized");
     }
   });
 
@@ -53,7 +53,9 @@ describe("apiCheckAuth", () => {
       const { response } = error as ApiError;
       expect(response.status).toBe(401);
       const body = (await response.json()) as ErrorBody;
-      expect(body.errors[0]?.detail).toBe("A valid API token is required.");
+      expect(body.data.errors[0]?.detail).toBe(
+        "A valid API token is required.",
+      );
     }
   });
 

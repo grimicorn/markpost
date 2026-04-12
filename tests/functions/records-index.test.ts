@@ -177,9 +177,7 @@ describe("GET /api/records", () => {
         makeRequest({ search: "?page[number]=1&page[size]=2" }),
       );
       const body = (await response.json()) as ResponseBody;
-      expect(body.links?.next).toBe(
-        "/api/records?page[number]=2&page[size]=2",
-      );
+      expect(body.links?.next).toBe("/api/records?page[number]=2&page[size]=2");
     });
 
     it("sets prev link when not on the first page", async () => {
@@ -187,9 +185,7 @@ describe("GET /api/records", () => {
         makeRequest({ search: "?page[number]=2&page[size]=2" }),
       );
       const body = (await response.json()) as ResponseBody;
-      expect(body.links?.prev).toBe(
-        "/api/records?page[number]=1&page[size]=2",
-      );
+      expect(body.links?.prev).toBe("/api/records?page[number]=1&page[size]=2");
     });
 
     it("next is null on the last page", async () => {
@@ -214,7 +210,7 @@ describe("GET /api/records", () => {
       const response = await handler(makeRequest({ method: "POST" }));
       expect(response.status).toBe(405);
       const body = (await response.json()) as ResponseBody;
-      expect(body.errors?.[0]?.status).toBe("405");
+      expect(body.data?.errors?.[0]?.status).toBe("405");
     });
   });
 
@@ -223,7 +219,7 @@ describe("GET /api/records", () => {
       const response = await handler(makeRequest({ auth: "" }));
       expect(response.status).toBe(401);
       const body = (await response.json()) as ResponseBody;
-      expect(body.errors?.[0]?.status).toBe("401");
+      expect(body.data?.errors?.[0]?.status).toBe("401");
     });
 
     it("returns 401 when token is incorrect", async () => {

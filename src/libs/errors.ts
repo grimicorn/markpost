@@ -1,11 +1,12 @@
+import type { ApiError as ApiErrorType } from "@/types/api.types";
 import { apiResponse } from "@libs/response";
 
 export class ApiError extends Error {
   response: Response;
 
-  constructor(body: object, status: number) {
+  constructor(errors: ApiErrorType[], status: number) {
     super();
-    this.response = apiResponse(body, status);
+    this.response = apiResponse({ data: { errors } }, status);
   }
 }
 
@@ -18,13 +19,15 @@ export const apiErrorHandler = (error: Error): Response => {
 
   return apiResponse(
     {
-      errors: [
-        {
-          status: "500",
-          title: "Internal Server Error",
-          detail: "Unknown error occurred.",
-        },
-      ],
+      data: {
+        errors: [
+          {
+            status: "500",
+            title: "Internal Server Error",
+            detail: "Unknown error occurred.",
+          },
+        ],
+      },
     },
     500,
   );
