@@ -1,0 +1,23 @@
+$kind: http-request
+name: /records
+url: "{{baseUrl}}/api/records"
+method: DELETE
+headers:
+  Content-Type: application/vnd.api+json
+body:
+  type: json
+  content: |-
+    {
+        "data": {
+            "type": "records",
+            "attributes": {
+                "uuids": [
+                    "3f607385-96d5-4144-8387-9590afbb7d62"
+                ]
+            }
+        }
+    }
+settings:
+  disabledSystemHeaders:
+    - content-type
+order: 3452748594436017

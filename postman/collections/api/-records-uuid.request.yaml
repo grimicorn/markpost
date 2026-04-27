@@ -1,0 +1,7 @@
+$kind: http-request
+name: /records/:uuid
+url: "{{baseUrl}}/api/records/:uuid"
+method: GET
+pathVariables:
+  uuid: 3f607385-96d5-4144-8387-9590afbb7d62
+order: 2737984240037280

@@ -1,0 +1,23 @@
+$kind: http-request
+name: /records
+url: "{{baseUrl}}/api/records"
+method: POST
+headers:
+  - key: Content-Type
+    value: application/vnd.api+json
+body:
+  type: json
+  content: |-
+    {
+        "data": {
+            "type": "records",
+            "attributes": {
+                "title": "Title 3",
+                "content": "Content 3"
+            }
+        }
+    }
+settings:
+  disabledSystemHeaders:
+    - content-type
+order: 1775917722143

@@ -1,0 +1,48 @@
+{
+  "name": "sync.danholloran.me",
+  "version": "1.0.0",
+  "description": "Allows for syncing content from all over the internet to one shared place.",
+  "scripts": {
+    "test": "vitest",
+    "test:ci": "vitest run",
+    "test:ui": "npm run test -- --ui",
+    "lint": "npx eslint ./src && npx prettier --check ./src",
+    "lint:fix": "npx prettier ./src --write && npx eslint --fix ./src",
+    "dev": "netlify dev",
+    "prepare": "husky",
+    "build": "mkdir -p ./dist/public && cp -r ./src/public ./dist"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://grimicorn@github.com/grimicorn/sync.danholloran.me.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/grimicorn/sync.danholloran.me/issues"
+  },
+  "homepage": "https://github.com/grimicorn/sync.danholloran.me#readme",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^25.6.0",
+    "@vitest/ui": "^4.1.4",
+    "eslint": "^10.2.0",
+    "eslint-plugin-vue": "^10.8.0",
+    "globals": "^17.4.0",
+    "husky": "^9.1.7",
+    "jiti": "^2.6.1",
+    "netlify-cli": "^24.11.1",
+    "prettier": "3.8.2",
+    "typescript": "^6.0.2",
+    "typescript-eslint": "^8.58.1",
+    "vitest": "^4.1.4"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^10.7.4",
+    "@netlify/functions": "^5.2.0",
+    "titleize": "^4.0.0",
+    "uuid": "^13.0.0"
+  }
+}
