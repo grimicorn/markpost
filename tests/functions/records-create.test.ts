@@ -18,7 +18,7 @@ const makeRequest = (options: {
 }) => {
   const {
     method = "POST",
-    contentType = "application/vnd.api+json",
+    contentType = "application/json",
     auth = `Bearer ${VALID_TOKEN}`,
     body = { data: { attributes: { title: "Hello", content: "World" } } },
   } = options;
@@ -61,11 +61,9 @@ describe("POST /api/records", () => {
       expect(response.status).toBe(201);
     });
 
-    it("response Content-Type is application/vnd.api+json", async () => {
+    it("response Content-Type is application/json", async () => {
       const response = await handler(makeRequest({}));
-      expect(response.headers.get("Content-Type")).toBe(
-        "application/vnd.api+json",
-      );
+      expect(response.headers.get("Content-Type")).toBe("application/json");
     });
 
     it("response body includes the record data", async () => {
@@ -107,10 +105,8 @@ describe("POST /api/records", () => {
       expect(body.data?.errors?.[0]?.status).toBe("415");
     });
 
-    it("returns 415 when Content-Type is application/json", async () => {
-      const response = await handler(
-        makeRequest({ contentType: "application/json" }),
-      );
+    it("returns 415 when Content-Type is text/html", async () => {
+      const response = await handler(makeRequest({ contentType: "text/html" }));
       expect(response.status).toBe(415);
     });
   });

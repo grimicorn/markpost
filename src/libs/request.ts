@@ -19,16 +19,13 @@ export const apiValidateRequest = (
   }
 
   const contentType = request.headers.get("Content-Type");
-  if (
-    requireContentType &&
-    !contentType?.includes("application/vnd.api+json")
-  ) {
+  if (requireContentType && !contentType?.includes("application/json")) {
     throw new ApiError(
       [
         {
           status: "415",
           title: "Unsupported Media Type",
-          detail: "Content-Type must be application/vnd.api+json",
+          detail: "Content-Type must be application/json",
         },
       ],
       415,

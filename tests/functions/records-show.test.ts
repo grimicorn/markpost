@@ -31,7 +31,7 @@ const makeRequest = (options: {
 }) => {
   const {
     method = "GET",
-    contentType = "application/vnd.api+json",
+    contentType = "application/json",
     auth = `Bearer ${VALID_TOKEN}`,
   } = options;
 
@@ -76,11 +76,9 @@ describe("GET /api/records/:uuid", () => {
       expect(response.status).toBe(200);
     });
 
-    it("response Content-Type is application/vnd.api+json", async () => {
+    it("response Content-Type is application/json", async () => {
       const response = await handler(makeRequest({}), makeContext(MOCK_UUID));
-      expect(response.headers.get("Content-Type")).toBe(
-        "application/vnd.api+json",
-      );
+      expect(response.headers.get("Content-Type")).toBe("application/json");
     });
 
     it("response body includes the record data", async () => {

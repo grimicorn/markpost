@@ -83,11 +83,9 @@ describe("GET /api/records", () => {
       expect(response.status).toBe(200);
     });
 
-    it("response Content-Type is application/vnd.api+json", async () => {
+    it("response Content-Type is application/json", async () => {
       const response = await handler(makeRequest({}));
-      expect(response.headers.get("Content-Type")).toBe(
-        "application/vnd.api+json",
-      );
+      expect(response.headers.get("Content-Type")).toBe("application/json");
     });
 
     it("response body includes an array of records", async () => {

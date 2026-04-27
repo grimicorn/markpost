@@ -4,7 +4,7 @@ url: "{{baseUrl}}/api/records"
 method: POST
 headers:
   - key: Content-Type
-    value: application/vnd.api+json
+    value: application/json
 body:
   type: json
   content: |-

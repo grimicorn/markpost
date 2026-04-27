@@ -32,9 +32,9 @@ describe("ApiError", () => {
     expect(makeApiError(422).response.status).toBe(422);
   });
 
-  it("response Content-Type is application/vnd.api+json", () => {
+  it("response Content-Type is application/json", () => {
     expect(makeApiError().response.headers.get("Content-Type")).toBe(
-      "application/vnd.api+json",
+      "application/json",
     );
   });
 

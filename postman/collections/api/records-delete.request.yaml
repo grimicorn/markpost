@@ -3,7 +3,7 @@ name: /records
 url: "{{baseUrl}}/api/records"
 method: DELETE
 headers:
-  Content-Type: application/vnd.api+json
+  Content-Type: application/json
 body:
   type: json
   content: |-

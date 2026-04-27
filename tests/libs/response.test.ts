@@ -9,11 +9,9 @@ describe("apiResponse", () => {
     expect(response.status).toBe(200);
   });
 
-  it("always sets Content-Type to application/vnd.api+json", () => {
+  it("always sets Content-Type to application/json", () => {
     const response = apiResponse({}, 200);
-    expect(response.headers.get("Content-Type")).toBe(
-      "application/vnd.api+json",
-    );
+    expect(response.headers.get("Content-Type")).toBe("application/json");
   });
 
   it("JSON-stringifies the body", async () => {
@@ -30,9 +28,7 @@ describe("apiResponse", () => {
 
   it("Content-Type cannot be overridden by additional headers", () => {
     const response = apiResponse({}, 200, { "Content-Type": "text/plain" });
-    expect(response.headers.get("Content-Type")).toBe(
-      "application/vnd.api+json",
-    );
+    expect(response.headers.get("Content-Type")).toBe("application/json");
   });
 
   it("works with non-200 statuses", () => {

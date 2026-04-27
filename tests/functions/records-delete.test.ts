@@ -21,7 +21,7 @@ const makeRequest = (options: {
 }) => {
   const {
     method = "DELETE",
-    contentType = "application/vnd.api+json",
+    contentType = "application/json",
     auth = `Bearer ${VALID_TOKEN}`,
     body = { data: { attributes: { uuids: MOCK_UUIDS } } },
   } = options;
@@ -57,11 +57,9 @@ describe("DELETE /api/records", () => {
       expect(response.status).toBe(200);
     });
 
-    it("response Content-Type is application/vnd.api+json", async () => {
+    it("response Content-Type is application/json", async () => {
       const response = await handler(makeRequest({}));
-      expect(response.headers.get("Content-Type")).toBe(
-        "application/vnd.api+json",
-      );
+      expect(response.headers.get("Content-Type")).toBe("application/json");
     });
 
     it("response body includes meta.deleted count", async () => {
@@ -96,10 +94,8 @@ describe("DELETE /api/records", () => {
       expect(body.data?.errors?.[0]?.status).toBe("415");
     });
 
-    it("returns 415 when Content-Type is application/json", async () => {
-      const response = await handler(
-        makeRequest({ contentType: "application/json" }),
-      );
+    it("returns 415 when Content-Type is text/html", async () => {
+      const response = await handler(makeRequest({ contentType: "text/html" }));
       expect(response.status).toBe(415);
     });
   });

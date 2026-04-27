@@ -19,17 +19,17 @@ const makeRequest = (method: string, contentType?: string) =>
 describe("apiValidateRequest", () => {
   describe("method validation", () => {
     it("does not throw when method matches", () => {
-      const request = makeRequest("POST", "application/vnd.api+json");
+      const request = makeRequest("POST", "application/json");
       expect(() => apiValidateRequest(request, "POST")).not.toThrow();
     });
 
     it("is case-insensitive for method comparison", () => {
-      const request = makeRequest("POST", "application/vnd.api+json");
+      const request = makeRequest("POST", "application/json");
       expect(() => apiValidateRequest(request, "post")).not.toThrow();
     });
 
     it("throws ApiError with 405 when method does not match", async () => {
-      const request = makeRequest("GET", "application/vnd.api+json");
+      const request = makeRequest("GET", "application/json");
       expect(() => apiValidateRequest(request, "POST")).toThrow(ApiError);
 
       try {
@@ -47,16 +47,13 @@ describe("apiValidateRequest", () => {
   });
 
   describe("Content-Type validation", () => {
-    it("does not throw for exact application/vnd.api+json", () => {
-      const request = makeRequest("POST", "application/vnd.api+json");
+    it("does not throw for exact application/json", () => {
+      const request = makeRequest("POST", "application/json");
       expect(() => apiValidateRequest(request, "POST")).not.toThrow();
     });
 
     it("does not throw when Content-Type includes charset suffix", () => {
-      const request = makeRequest(
-        "POST",
-        "application/vnd.api+json; charset=utf-8",
-      );
+      const request = makeRequest("POST", "application/json; charset=utf-8");
       expect(() => apiValidateRequest(request, "POST")).not.toThrow();
     });
 
@@ -87,7 +84,7 @@ describe("apiValidateRequest", () => {
         const body = (await response.json()) as ApiErrorBody;
         expect(body.data.errors[0]?.status).toBe("415");
         expect(body.data.errors[0]?.detail).toBe(
-          "Content-Type must be application/vnd.api+json",
+          "Content-Type must be application/json",
         );
       }
     });

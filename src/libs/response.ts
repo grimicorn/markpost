@@ -5,6 +5,6 @@ export const apiResponse = (
 ) => {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...headers, "Content-Type": "application/vnd.api+json" },
+    headers: { ...headers, "Content-Type": "application/json" },
   });
 };

@@ -51,7 +51,7 @@ The collection uses a Bearer Token auth (via `{{apiToken}}`) applied at the coll
 
 ## API
 
-All endpoints follow the [JSON API spec](https://jsonapi.org). Requests that include a body must set `Content-Type: application/vnd.api+json`. All endpoints require a `Authorization: Bearer <token>` header.
+All endpoints follow the [JSON API spec](https://jsonapi.org). Requests that include a body must set `Content-Type: application/json`. All endpoints require a `Authorization: Bearer <token>` header.
 
 ### Records
 
@@ -132,7 +132,7 @@ GET /api/records/:uuid
 
 ```
 POST /api/records
-Content-Type: application/vnd.api+json
+Content-Type: application/json
 ```
 
 **Body:**
@@ -157,7 +157,7 @@ Content-Type: application/vnd.api+json
 
 ```
 DELETE /api/records
-Content-Type: application/vnd.api+json
+Content-Type: application/json
 ```
 
 **Body:**
