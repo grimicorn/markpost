@@ -1,9 +1,0 @@
-{
-  "recommendations": [
-    "dbaeumer.vscode-eslint",
-    "esbenp.prettier-vscode",
-    "vitest.explorer",
-    "github.vscode-github-actions",
-    "postman.postman-for-vscode"
-  ]
-}

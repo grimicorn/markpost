@@ -1,6 +1,0 @@
-[functions]
-directory = "src/functions"
-
-[build]
-publish = "dist/public"
-command = "npm run build"
