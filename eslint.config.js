@@ -24,6 +24,7 @@ export default [
   },
   {
     ignores: [
+      ".netlify/**",
       ".nuxt/**",
       ".output/**",
       "dist/**",
