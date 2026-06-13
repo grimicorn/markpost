@@ -5,7 +5,7 @@ dotenv.config({ path: ".env.e2e" });
 
 export default defineConfig({
   testDir: "./e2e",
-  outputDir: "./e2e/report",
+  outputDir: "./e2e/artifacts",
   reporter: [["html", { outputFolder: "e2e/report" }]],
   use: {
     baseURL: "http://localhost:3000",

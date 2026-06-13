@@ -6,5 +6,6 @@ dist/
 .env
 .env.e2e
 coverage/
+e2e/artifacts/
 e2e/report/
 /.netlify
