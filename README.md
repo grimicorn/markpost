@@ -95,12 +95,12 @@ API requests are in `postman/` and can be imported into [Postman](https://postma
 
 The collection uses bearer token auth via the `{{apiToken}}` variable. Two environments are included — `Local` and `Production` — each with the following variables:
 
-| Variable   | Description                                         |
-| ---------- | --------------------------------------------------- |
-| `baseUrl`  | Base URL for the API (e.g. `http://localhost:3000`) |
-| `apiToken` | Bearer token matching `NUXT_CLERK_SECRET_KEY`       |
+| Variable   | Description                                                                                                                                                                                                                             |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `baseUrl`  | Base URL for the API (e.g. `http://localhost:3000`)                                                                                                                                                                                     |
+| `apiToken` | Clerk session JWT sent in `Authorization: Bearer <token>` — obtain from [Clerk Dashboard](https://dashboard.clerk.com) → your user → **Sessions** → copy the session access token, or retrieve it in-app via `await session.getToken()` |
 
-Fill in the values for each environment directly in your Postman client (they are intentionally left blank in the repo).
+Fill in the values for each environment directly in your Postman client (they are intentionally left blank in the repo). The `apiToken` value is validated server-side by `clerkClient.verifyToken()` in `server/middleware/auth.ts` — it must be a valid Clerk-issued JWT, not the server secret key.
 
 ## Linting
 

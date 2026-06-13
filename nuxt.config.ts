@@ -16,6 +16,9 @@ export default defineNuxtConfig({
   },
   runtimeConfig: {
     databaseUrl: "",
+    public: {
+      sentryDsn: "",
+    },
   },
   css: ["~/assets/css/main.css"],
   devtools: { enabled: true },
