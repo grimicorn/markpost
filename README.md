@@ -1,184 +1,138 @@
-# sync.danholloran.me
+# Markpost
 
-Allows for syncing content from all over the internet to one shared place.
+A content aggregation service for syncing and storing records from across the internet.
 
-## Development
+## Requirements
 
-**Prerequisites:** [Netlify CLI](https://docs.netlify.com/cli/get-started/) and Node.js.
+- Node.js >= 24 (see [.nvmrc](.nvmrc))
+- npm
+
+## Setup
+
+Install dependencies:
 
 ```bash
 npm install
-npm run dev        # starts local dev server via netlify dev
 ```
 
-The local server runs at `http://localhost:8888`. Functions are available at `/api/*`.
+## Environment variables
 
-**Environment variables** (set in Netlify dashboard or a local `.env` file):
+Copy `.env.example` to `.env` and fill in the values:
 
-| Variable    | Description                           |
-| ----------- | ------------------------------------- |
-| `API_TOKEN` | Bearer token required on all requests |
+```bash
+cp .env.example .env
+```
+
+See `.env.example` for descriptions of each variable and where to obtain them.
+
+## Database
+
+The app uses [Drizzle ORM](https://orm.drizzle.team) with a [Neon](https://neon.tech) serverless Postgres database.
+
+Push the schema to Neon (useful for initial setup):
+
+```bash
+npm run db:push
+```
+
+Generate a migration from schema changes:
+
+```bash
+npm run db:generate
+```
+
+Apply pending migrations:
+
+```bash
+npm run db:migrate
+```
+
+Open Drizzle Studio (visual database browser):
+
+```bash
+npm run db:studio
+```
+
+| Table     | Description                                               |
+| --------- | --------------------------------------------------------- |
+| `records` | Content records with uuid, title, content, and created_at |
+
+## Authentication
+
+Authentication is handled by [Clerk](https://clerk.com) via the `@clerk/nuxt` module. Server middleware at `server/middleware/auth.ts` verifies the session on every request and makes the user available at `event.context.userId` in API route handlers.
+
+## Development
+
+Start the dev server at `http://localhost:3000`:
+
+```bash
+npm run dev
+```
 
 ## Testing
 
+Run unit tests in watch mode:
+
 ```bash
-npm run test       # watch mode
-npm run test:ci    # single run (used in CI)
-npm run test:ui    # browser UI for test results
+npm test
 ```
 
-Tests live in `tests/` and mirror the `src/` structure. Each function and lib has a corresponding test file.
-
-**Linting:**
+Run once (CI mode):
 
 ```bash
-npm run lint       # check
-npm run lint:fix   # auto-fix
+npm run test:ci
+```
+
+Run end-to-end tests (requires `.env.e2e`):
+
+```bash
+npm run e2e
 ```
 
 ## Postman
 
-The Postman collection lives in `postman/` and is structured for use with the [Postman VS Code extension](https://marketplace.visualstudio.com/items?itemName=Postman.postman-for-vscode) or the Postman desktop app.
+API requests are in `postman/` and can be imported into [Postman](https://postman.com) or any compatible client.
 
-**Setup:**
+The collection uses bearer token auth via the `{{apiToken}}` variable. Two environments are included — `Local` and `Production` — each with the following variables:
 
-1. Import the `postman/` directory into Postman
-2. Select the **Local** environment
-3. Set the `baseUrl` variable to `http://localhost:8888`
-4. Set the `apiToken` variable to match your `API_TOKEN` env var
+| Variable   | Description                                                                                                                                                                                                                             |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `baseUrl`  | Base URL for the API (e.g. `http://localhost:3000`)                                                                                                                                                                                     |
+| `apiToken` | Clerk session JWT sent in `Authorization: Bearer <token>` — obtain from [Clerk Dashboard](https://dashboard.clerk.com) → your user → **Sessions** → copy the session access token, or retrieve it in-app via `await session.getToken()` |
 
-The collection uses a Bearer Token auth (via `{{apiToken}}`) applied at the collection level, so all requests inherit it automatically.
+Fill in the values for each environment directly in your Postman client (they are intentionally left blank in the repo). The `apiToken` value is validated server-side by `clerkClient.verifyToken()` in `server/middleware/auth.ts` — it must be a valid Clerk-issued JWT, not the server secret key.
 
-## API
+## Linting
 
-All endpoints follow the [JSON API spec](https://jsonapi.org). Requests that include a body must set `Content-Type: application/json`. All endpoints require a `Authorization: Bearer <token>` header.
+Check for issues:
 
-### Records
-
-#### List records
-
-```
-GET /api/records
+```bash
+npm run lint
 ```
 
-**Query parameters:**
+Auto-fix:
 
-| Parameter      | Default | Description             |
-| -------------- | ------- | ----------------------- |
-| `page[number]` | `1`     | Page number (1-indexed) |
-| `page[size]`   | `100`   | Records per page        |
-
-**Response `200`:**
-
-```json
-{
-  "data": [
-    {
-      "type": "records",
-      "id": "uuid",
-      "attributes": {
-        "uuid": "uuid",
-        "createdAt": "2026-04-11T00:00:00.000Z",
-        "title": "My title",
-        "content": "My content"
-      },
-      "links": { "self": "/api/records/uuid" }
-    }
-  ],
-  "meta": {
-    "total": 42,
-    "pageCount": 1,
-    "page": 1,
-    "size": 100
-  },
-  "links": {
-    "first": "/api/records?page[number]=1&page[size]=100",
-    "last": "/api/records?page[number]=1&page[size]=100",
-    "prev": null,
-    "next": null
-  }
-}
+```bash
+npm run lint:fix
 ```
 
----
+## Build & Preview
 
-#### Get a record
-
-```
-GET /api/records/:uuid
-```
-
-**Response `200`:**
-
-```json
-{
-  "data": {
-    "type": "records",
-    "id": "uuid",
-    "attributes": {
-      "uuid": "uuid",
-      "createdAt": "2026-04-11T00:00:00.000Z",
-      "title": "My title",
-      "content": "My content"
-    },
-    "links": { "self": "/api/records/uuid" }
-  }
-}
+```bash
+npm run build
+npm run preview
 ```
 
----
+## Deployment
 
-#### Create a record
+The app deploys to Netlify automatically on push to `main`. CI runs lint and unit tests before the build. E2e tests run as a separate job after CI passes.
 
-```
-POST /api/records
-Content-Type: application/json
-```
+Required repository secrets (Settings → Secrets → Actions):
 
-**Body:**
-
-```json
-{
-  "data": {
-    "type": "records",
-    "attributes": {
-      "title": "My title",
-      "content": "My content"
-    }
-  }
-}
-```
-
-**Response `201`:** same shape as Get a record.
-
----
-
-#### Delete records
-
-```
-DELETE /api/records
-Content-Type: application/json
-```
-
-**Body:**
-
-```json
-{
-  "data": {
-    "type": "records",
-    "attributes": {
-      "uuids": ["uuid-1", "uuid-2"]
-    }
-  }
-}
-```
-
-**Response `200`:**
-
-```json
-{
-  "meta": {
-    "deleted": 2
-  }
-}
-```
+- `E2E_DATABASE_URL`
+- `NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+- `NUXT_CLERK_SECRET_KEY`
+- `SENTRY_AUTH_TOKEN`
+- `SENTRY_DSN`
+- `SENTRY_ORG`
+- `SENTRY_PROJECT`

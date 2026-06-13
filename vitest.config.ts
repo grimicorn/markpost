@@ -1,16 +1,10 @@
 import { defineConfig } from "vitest/config";
-import { resolve } from "path";
+import vue from "@vitejs/plugin-vue";
 
 export default defineConfig({
-  resolve: {
-    alias: {
-      "@": resolve(__dirname, "./src"),
-      "@libs": resolve(__dirname, "./src/libs"),
-      "@t": resolve(__dirname, "./src/types"),
-      "@fns": resolve(__dirname, "./src/functions"),
-    },
-  },
+  plugins: [vue()],
   test: {
-    include: ["tests/**/*.ts"],
+    environment: "happy-dom",
+    exclude: ["node_modules", "e2e"],
   },
 });

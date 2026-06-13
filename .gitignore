@@ -1,7 +1,11 @@
-# Local Netlify folder
-.netlify
-.envrc
-node_modules
-deno.lock
 .DS_Store
-/dist
+node_modules/
+.nuxt/
+.output/
+dist/
+.env
+.env.e2e
+coverage/
+e2e/artifacts/
+e2e/report/
+/.netlify

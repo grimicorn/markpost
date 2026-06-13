@@ -1,8 +1,8 @@
 name: Local
 values:
   - key: baseUrl
-    value: ''
+    value: ""
     enabled: true
   - key: apiToken
-    value: ''
+    value: ""
     enabled: true
