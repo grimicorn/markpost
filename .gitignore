@@ -7,3 +7,4 @@ dist/
 .env.e2e
 coverage/
 e2e/report/
+/.netlify
