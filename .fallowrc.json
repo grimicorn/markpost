@@ -3,7 +3,14 @@
   "entry": [
     "server/db/index.ts",
     "sentry.client.config.ts",
-    "sentry.server.config.ts"
+    "sentry.server.config.ts",
+    "app/stores/**"
   ],
-  "ignoreDependencies": ["@clerk/testing", "@sentry/nuxt", "@vue/test-utils"]
+  "ignoreDependencies": [
+    "@clerk/testing",
+    "@pinia/nuxt",
+    "@sentry/nuxt",
+    "@vue/test-utils",
+    "pinia"
+  ]
 }
