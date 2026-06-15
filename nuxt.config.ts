@@ -25,6 +25,7 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   nitro: {
     preset: "netlify",
+    errorHandler: "~/server/errorHandler",
   },
   vite: {
     plugins: [tailwindcss()],

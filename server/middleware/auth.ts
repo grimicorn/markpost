@@ -1,4 +1,5 @@
 import { createClerkClient } from "@clerk/backend";
+import { unauthorized } from "../utils/errors";
 
 let cachedClerkClient: ReturnType<typeof createClerkClient> | null = null;
 
@@ -19,13 +20,13 @@ export default defineEventHandler(async (event) => {
 
   const token = getHeader(event, "authorization")?.replace("Bearer ", "");
   if (!token) {
-    throw createError({ statusCode: 401, statusMessage: "Unauthorized" });
+    throw unauthorized();
   }
 
   try {
     const { sub } = await clerkClient.verifyToken(token);
     event.context.userId = sub;
   } catch {
-    throw createError({ statusCode: 401, statusMessage: "Unauthorized" });
+    throw unauthorized();
   }
 });
