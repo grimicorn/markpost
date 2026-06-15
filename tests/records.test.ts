@@ -3,9 +3,14 @@ import type { Record, NewRecord } from "../server/db/records";
 
 const mockRecord: Record = {
   uuid: "550e8400-e29b-41d4-a716-446655440000",
-  createdAt: new Date("2024-01-01T00:00:00Z"),
+  createdAt: "2024-01-01T00:00:00.000Z",
   title: "Test Title",
   content: "Test Content",
+};
+
+const mockDbRecord = {
+  ...mockRecord,
+  createdAt: new Date("2024-01-01T00:00:00Z"),
 };
 
 const mockFindFirst = vi.fn();
@@ -56,12 +61,13 @@ describe("records repository", () => {
   });
 
   describe("findRecord", () => {
-    it("returns the record when found", async () => {
-      mockFindFirst.mockResolvedValue(mockRecord);
+    it("returns the record when found with createdAt as ISO string", async () => {
+      mockFindFirst.mockResolvedValue(mockDbRecord);
 
       const result = await findRecord(mockRecord.uuid);
 
       expect(result).toEqual(mockRecord);
+      expect(typeof result?.createdAt).toBe("string");
     });
 
     it("returns undefined when the record does not exist", async () => {
@@ -74,13 +80,13 @@ describe("records repository", () => {
   });
 
   describe("listRecords", () => {
-    it("returns all records", async () => {
-      const recordList: Record[] = [mockRecord];
-      mockFindMany.mockResolvedValue(recordList);
+    it("returns all records with createdAt as ISO string", async () => {
+      mockFindMany.mockResolvedValue([mockDbRecord]);
 
       const result = await listRecords();
 
-      expect(result).toEqual(recordList);
+      expect(result).toEqual([mockRecord]);
+      expect(typeof result[0]?.createdAt).toBe("string");
     });
 
     it("returns an empty array when no records exist", async () => {
@@ -93,25 +99,70 @@ describe("records repository", () => {
   });
 
   describe("createRecord", () => {
-    it("inserts and returns the new record with server-generated uuid and createdAt", async () => {
-      mockInsertReturning.mockResolvedValue([mockRecord]);
+    it("inserts and returns the new record with createdAt as ISO string", async () => {
+      mockInsertReturning.mockResolvedValue([mockDbRecord]);
 
       const input: NewRecord = { title: "Test Title", content: "Test Content" };
       const result = await createRecord(input);
 
       expect(result).toEqual(mockRecord);
       expect(result.uuid).toBeDefined();
-      expect(result.createdAt).toBeDefined();
+      expect(typeof result.createdAt).toBe("string");
+    });
+
+    it("trims whitespace from title and content before inserting", async () => {
+      mockInsertReturning.mockResolvedValue([mockDbRecord]);
+
+      const input: NewRecord = {
+        title: "  Test Title  ",
+        content: "  Test Content  ",
+      };
+      await createRecord(input);
+
+      expect(mockInsertReturning).toHaveBeenCalledTimes(1);
+    });
+
+    it("throws when title is empty", async () => {
+      const input: NewRecord = { title: "", content: "Test Content" };
+
+      await expect(createRecord(input)).rejects.toThrow(
+        "title must not be empty",
+      );
+    });
+
+    it("throws when title is whitespace only", async () => {
+      const input: NewRecord = { title: "   ", content: "Test Content" };
+
+      await expect(createRecord(input)).rejects.toThrow(
+        "title must not be empty",
+      );
+    });
+
+    it("throws when content is empty", async () => {
+      const input: NewRecord = { title: "Test Title", content: "" };
+
+      await expect(createRecord(input)).rejects.toThrow(
+        "content must not be empty",
+      );
+    });
+
+    it("throws when content is whitespace only", async () => {
+      const input: NewRecord = { title: "Test Title", content: "   " };
+
+      await expect(createRecord(input)).rejects.toThrow(
+        "content must not be empty",
+      );
     });
   });
 
   describe("deleteRecord", () => {
-    it("deletes the record and returns it", async () => {
-      mockDeleteReturning.mockResolvedValue([mockRecord]);
+    it("deletes the record and returns it with createdAt as ISO string", async () => {
+      mockDeleteReturning.mockResolvedValue([mockDbRecord]);
 
       const result = await deleteRecord(mockRecord.uuid);
 
       expect(result).toEqual(mockRecord);
+      expect(typeof result?.createdAt).toBe("string");
     });
 
     it("returns undefined when the record does not exist", async () => {
@@ -127,7 +178,7 @@ describe("records repository", () => {
     it("has exactly four fields: uuid, createdAt, title, content", () => {
       const record: Record = {
         uuid: "550e8400-e29b-41d4-a716-446655440000",
-        createdAt: new Date("2024-01-01T00:00:00Z"),
+        createdAt: "2024-01-01T00:00:00.000Z",
         title: "A title",
         content: "Some content",
       };
@@ -137,6 +188,18 @@ describe("records repository", () => {
       expect(record.createdAt).toBeDefined();
       expect(record.title).toBeDefined();
       expect(record.content).toBeDefined();
+    });
+
+    it("has createdAt as a string in ISO 8601 format", () => {
+      const record: Record = {
+        uuid: "550e8400-e29b-41d4-a716-446655440000",
+        createdAt: "2024-01-01T00:00:00.000Z",
+        title: "A title",
+        content: "Some content",
+      };
+
+      expect(typeof record.createdAt).toBe("string");
+      expect(new Date(record.createdAt).toISOString()).toBe(record.createdAt);
     });
   });
 

@@ -3,38 +3,73 @@ import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import { records } from "./schema";
 import { getDb } from "./index";
 
-export type Record = InferSelectModel<typeof records>;
+type DbRecord = InferSelectModel<typeof records>;
+
+export type Record = Omit<DbRecord, "createdAt"> & { createdAt: string };
 export type NewRecord = Pick<
   InferInsertModel<typeof records>,
   "title" | "content"
 >;
 
-export function findRecord(recordUuid: string): Promise<Record | undefined> {
+function toRecord(dbRecord: DbRecord): Record {
+  return { ...dbRecord, createdAt: dbRecord.createdAt.toISOString() };
+}
+
+function validateNewRecord(input: NewRecord): NewRecord {
+  const title = input.title.trim();
+  const content = input.content.trim();
+
+  if (!title) {
+    throw new Error("title must not be empty");
+  }
+
+  if (!content) {
+    throw new Error("content must not be empty");
+  }
+
+  return { title, content };
+}
+
+export async function findRecord(
+  recordUuid: string,
+): Promise<Record | undefined> {
   const db = getDb();
-  return db.query.records.findFirst({
+  const dbRecord = await db.query.records.findFirst({
     where: eq(records.uuid, recordUuid),
   });
+
+  if (!dbRecord) {
+    return undefined;
+  }
+
+  return toRecord(dbRecord);
 }
 
-export function listRecords(): Promise<Record[]> {
+export async function listRecords(): Promise<Record[]> {
   const db = getDb();
-  return db.query.records.findMany();
+  const dbRecords = await db.query.records.findMany();
+  return dbRecords.map(toRecord);
 }
 
-export function createRecord(input: NewRecord): Promise<Record> {
+export async function createRecord(input: NewRecord): Promise<Record> {
   const db = getDb();
-  return db
-    .insert(records)
-    .values(input)
-    .returning()
-    .then(([record]) => record);
+  const validated = validateNewRecord(input);
+  const [dbRecord] = await db.insert(records).values(validated).returning();
+  return toRecord(dbRecord);
 }
 
-export function deleteRecord(recordUuid: string): Promise<Record | undefined> {
+export async function deleteRecord(
+  recordUuid: string,
+): Promise<Record | undefined> {
   const db = getDb();
-  return db
+  const [dbRecord] = await db
     .delete(records)
     .where(eq(records.uuid, recordUuid))
-    .returning()
-    .then(([record]) => record);
+    .returning();
+
+  if (!dbRecord) {
+    return undefined;
+  }
+
+  return toRecord(dbRecord);
 }
