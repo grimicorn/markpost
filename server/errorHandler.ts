@@ -2,9 +2,8 @@ import {
   defineNitroErrorHandler,
   send,
   setResponseHeader,
-  setResponseStatus,
 } from "nitropack/runtime";
-import { isError as isH3Error } from "h3";
+import { isError as isH3Error, setResponseStatus } from "h3";
 import {
   ApiError,
   buildErrorEnvelope,
