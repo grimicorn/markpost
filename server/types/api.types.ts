@@ -18,9 +18,11 @@ export type ApiResourceObject = {
   links?: { self: string };
 };
 
-export type ApiResponse<T = ApiResourceObject | ApiResourceObject[] | null> = {
-  data?: T;
+type ApiResponseBase = {
   meta?: Record<string, unknown>;
   links?: Record<string, string | null>;
-  errors?: ApiError[];
 };
+
+export type ApiResponse<T = ApiResourceObject | ApiResourceObject[] | null> =
+  | (ApiResponseBase & { data: T; errors?: never })
+  | (ApiResponseBase & { errors: ApiError[]; data?: never });
