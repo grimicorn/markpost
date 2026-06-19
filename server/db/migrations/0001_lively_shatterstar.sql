@@ -1,1 +1,0 @@
-CREATE INDEX "records_user_id_idx" ON "records" USING btree ("user_id");

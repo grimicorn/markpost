@@ -5,3 +5,4 @@ CREATE TABLE "records" (
 	"title" text NOT NULL,
 	"content" text NOT NULL
 );
+CREATE INDEX IF NOT EXISTS "records_user_id_idx" ON "records" USING btree ("user_id");
