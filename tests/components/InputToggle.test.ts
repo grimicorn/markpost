@@ -14,14 +14,18 @@ describe("InputToggle", () => {
     const wrapper = mount(InputToggle, {
       props: { modelValue: true },
     });
-    expect((wrapper.find("input").element as HTMLInputElement).checked).toBe(true);
+    expect((wrapper.find("input").element as HTMLInputElement).checked).toBe(
+      true,
+    );
   });
 
   it("reflects modelValue=false as unchecked", () => {
     const wrapper = mount(InputToggle, {
       props: { modelValue: false },
     });
-    expect((wrapper.find("input").element as HTMLInputElement).checked).toBe(false);
+    expect((wrapper.find("input").element as HTMLInputElement).checked).toBe(
+      false,
+    );
   });
 
   it("emits update:modelValue with true when toggled on", async () => {

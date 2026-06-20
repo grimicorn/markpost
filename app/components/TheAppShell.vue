@@ -17,7 +17,10 @@
         padding: 18px 14px;
       "
     >
-      <NuxtLink to="/" style="padding: 4px 8px; margin-bottom: 18px; display: block">
+      <NuxtLink
+        to="/"
+        style="padding: 4px 8px; margin-bottom: 18px; display: block"
+      >
         <AppLogo :size="22" />
       </NuxtLink>
 
@@ -32,7 +35,8 @@
             width: '100%',
             border: 0,
             cursor: 'pointer',
-            background: active === navItem.id ? 'var(--accent-tint)' : 'transparent',
+            background:
+              active === navItem.id ? 'var(--accent-tint)' : 'transparent',
             color: active === navItem.id ? 'var(--accent-700)' : 'var(--ink-2)',
             padding: '9px 10px',
             borderRadius: '7px',
@@ -79,7 +83,11 @@
         >
           <AppIcon name="book" :size="17" />
           Docs
-          <AppIcon name="external" :size="13" :style="{ marginLeft: 'auto', color: 'var(--ink-3)' }" />
+          <AppIcon
+            name="external"
+            :size="13"
+            :style="{ marginLeft: 'auto', color: 'var(--ink-3)' }"
+          />
         </a>
       </nav>
 
@@ -151,7 +159,10 @@
         >
           {{ userInitial }}
         </span>
-        <span class="col" style="align-items: flex-start; line-height: 1.2; overflow: hidden">
+        <span
+          class="col"
+          style="align-items: flex-start; line-height: 1.2; overflow: hidden"
+        >
           <span style="font-size: 13px; font-weight: 500">{{ userName }}</span>
           <span
             class="mono faint"
@@ -166,7 +177,11 @@
             {{ userEmail }}
           </span>
         </span>
-        <AppIcon name="chevR" :size="14" :style="{ marginLeft: 'auto', color: 'var(--ink-3)' }" />
+        <AppIcon
+          name="chevR"
+          :size="14"
+          :style="{ marginLeft: 'auto', color: 'var(--ink-3)' }"
+        />
       </NuxtLink>
     </aside>
 
@@ -191,7 +206,14 @@
           >
             {{ crumb }}
           </span>
-          <h1 style="font-size: 17px; font-weight: 600; letter-spacing: -0.02em; white-space: nowrap">
+          <h1
+            style="
+              font-size: 17px;
+              font-weight: 600;
+              letter-spacing: -0.02em;
+              white-space: nowrap;
+            "
+          >
             {{ title }}
           </h1>
         </div>

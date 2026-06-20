@@ -1,11 +1,15 @@
 <template>
-  <TheAppShell active="activity" crumb="WORKSPACE / DAN'S VAULT" title="Activity">
+  <TheAppShell
+    active="activity"
+    crumb="WORKSPACE / DAN'S VAULT"
+    title="Activity"
+  >
     <template #actions>
       <AppBtn size="sm" icon="download">export log</AppBtn>
     </template>
 
     <div style="padding: 22px 26px 40px; max-width: 920px">
-      <div class="row gap-3 wrap" style="margin-bottom: 16px">
+      <div class="row wrap gap-3" style="margin-bottom: 16px">
         <AppBadge tone="ok" dot>watcher running</AppBadge>
         <span class="mono faint" style="font-size: 12px">
           pid 4821 · uptime 3d 4h · ~/.markpost/markpost.log
@@ -20,13 +24,33 @@
           <span class="t-title" style="margin-left: auto">live</span>
         </div>
         <div class="term-body" style="max-height: 420px; overflow-y: auto">
-          <div v-for="([time, kind, message], index) in log" :key="index" style="display: flex; gap: 12px">
+          <div
+            v-for="([time, kind, message], index) in log"
+            :key="index"
+            style="display: flex; gap: 12px"
+          >
             <span class="c-dim" style="flex: none">{{ time }}</span>
             <span
-              :class="kind === 'ok' ? 'c-ok' : kind === 'dim' ? 'c-dim' : kind === 'warn' ? 'c-warn' : ''"
+              :class="
+                kind === 'ok'
+                  ? 'c-ok'
+                  : kind === 'dim'
+                    ? 'c-dim'
+                    : kind === 'warn'
+                      ? 'c-warn'
+                      : ''
+              "
               :style="kind === 'err' ? { color: 'var(--err)' } : {}"
             >
-              {{ kind === "err" ? "✗ " : kind === "warn" ? "! " : kind === "ok" ? "✓ " : "  " }}{{ message }}
+              {{
+                kind === "err"
+                  ? "✗ "
+                  : kind === "warn"
+                    ? "! "
+                    : kind === "ok"
+                      ? "✓ "
+                      : "  "
+              }}{{ message }}
             </span>
           </div>
           <div style="display: flex; gap: 12px; margin-top: 6px">

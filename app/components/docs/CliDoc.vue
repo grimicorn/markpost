@@ -6,20 +6,32 @@
         v-for="([cmd, desc], index) in commands"
         :key="cmd"
         class="row"
-        :style="{ padding: '12px 16px', borderTop: index ? '1px solid var(--line)' : 0, gap: '16px' }"
+        :style="{
+          padding: '12px 16px',
+          borderTop: index ? '1px solid var(--line)' : 0,
+          gap: '16px',
+        }"
       >
-        <span class="mono" style="width: 170px; font-size: 12.5px; color: var(--accent-700)">
+        <span
+          class="mono"
+          style="width: 170px; font-size: 12.5px; color: var(--accent-700)"
+        >
           markpost {{ cmd }}
         </span>
         <span style="font-size: 13.5px; color: var(--ink-2)">{{ desc }}</span>
       </div>
     </div>
-    <h2 class="h2" style="margin-top: 40px; margin-bottom: 12px">Common flags</h2>
+    <h2 class="h2" style="margin-top: 40px; margin-bottom: 12px">
+      Common flags
+    </h2>
     <AppCodeBlock lang="bash">
-      <span class="k">--dir</span> <span class="c">path to vault (default: cwd)</span>{{ "\n"
-      }}<span class="k">--watch</span> <span class="c">stay running</span>{{ "\n"
-      }}<span class="k">--no-delete</span> <span class="c">keep server copies after sync</span>{{ "\n"
-      }}<span class="k">--dry-run</span> <span class="c">preview without writing files</span>
+      <span class="k">--dir</span>
+      <span class="c">path to vault (default: cwd)</span>{{ "\n"
+      }}<span class="k">--watch</span> <span class="c">stay running</span
+      >{{ "\n" }}<span class="k">--no-delete</span>
+      <span class="c">keep server copies after sync</span>{{ "\n"
+      }}<span class="k">--dry-run</span>
+      <span class="c">preview without writing files</span>
     </AppCodeBlock>
   </div>
 </template>

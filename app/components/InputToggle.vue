@@ -4,7 +4,9 @@
       <input
         type="checkbox"
         :checked="modelValue"
-        @change="emit('update:modelValue', ($event.target as HTMLInputElement).checked)"
+        @change="
+          emit('update:modelValue', ($event.target as HTMLInputElement).checked)
+        "
       />
       <span class="track" />
       <span class="thumb" />

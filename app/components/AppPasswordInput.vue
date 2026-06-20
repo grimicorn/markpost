@@ -6,10 +6,17 @@
       :value="modelValue"
       :placeholder="placeholder"
       style="padding-right: 44px"
-      @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
+      @input="
+        emit('update:modelValue', ($event.target as HTMLInputElement).value)
+      "
     />
     <span class="addon">
-      <button class="icon-btn" type="button" :tabindex="-1" @click="showPassword = !showPassword">
+      <button
+        class="icon-btn"
+        type="button"
+        :tabindex="-1"
+        @click="showPassword = !showPassword"
+      >
         <AppIcon :name="showPassword ? 'eyeOff' : 'eye'" :size="17" />
       </button>
     </span>

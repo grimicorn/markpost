@@ -11,10 +11,13 @@
       z-index: 20;
     "
   >
-    <NuxtLink to="/" style="border: 0; background: none; cursor: pointer; padding: 0">
+    <NuxtLink
+      to="/"
+      style="border: 0; background: none; cursor: pointer; padding: 0"
+    >
       <AppLogo />
     </NuxtLink>
-    <nav class="row gap-6 mono" style="font-size: 13px; color: var(--ink-2)">
+    <nav class="row mono gap-6" style="font-size: 13px; color: var(--ink-2)">
       <NuxtLink
         to="/pricing"
         :style="{
@@ -60,7 +63,9 @@
     </nav>
     <div class="row gap-2">
       <AppBtn variant="ghost" size="sm" href="/login">sign in</AppBtn>
-      <AppBtn variant="accent" size="sm" icon-r="arrowR" href="/pricing">start free</AppBtn>
+      <AppBtn variant="accent" size="sm" icon-r="arrowR" href="/pricing"
+        >start free</AppBtn
+      >
     </div>
   </header>
 </template>

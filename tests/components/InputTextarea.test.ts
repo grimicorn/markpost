@@ -33,7 +33,9 @@ describe("InputTextarea", () => {
       ...globalConfig,
       props: { modelValue: "existing text" },
     });
-    expect((wrapper.find("textarea").element as HTMLTextAreaElement).value).toBe("existing text");
+    expect(
+      (wrapper.find("textarea").element as HTMLTextAreaElement).value,
+    ).toBe("existing text");
   });
 
   it("applies err state class", () => {

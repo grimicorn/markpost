@@ -1,11 +1,20 @@
 <template>
-  <AppField :num="num" :label="label" :req="req" :opt="opt" :msg="msg" :state="state">
+  <AppField
+    :num="num"
+    :label="label"
+    :req="req"
+    :opt="opt"
+    :msg="msg"
+    :state="state"
+  >
     <textarea
       class="textarea"
       :value="modelValue"
       :placeholder="placeholder"
       :rows="rows"
-      @input="emit('update:modelValue', ($event.target as HTMLTextAreaElement).value)"
+      @input="
+        emit('update:modelValue', ($event.target as HTMLTextAreaElement).value)
+      "
     />
   </AppField>
 </template>

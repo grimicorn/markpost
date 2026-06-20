@@ -1,5 +1,12 @@
 <template>
-  <AppField :num="num" :label="label" :req="req" :opt="opt" :msg="msg" :state="state">
+  <AppField
+    :num="num"
+    :label="label"
+    :req="req"
+    :opt="opt"
+    :msg="msg"
+    :state="state"
+  >
     <div class="input-wrap">
       <span v-if="leadIcon" class="lead-addon">
         <AppIcon :name="leadIcon" :size="16" />
@@ -10,7 +17,9 @@
         :value="modelValue"
         :placeholder="placeholder"
         :disabled="disabled"
-        @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
+        @input="
+          emit('update:modelValue', ($event.target as HTMLInputElement).value)
+        "
         @blur="emit('blur')"
       />
     </div>

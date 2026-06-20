@@ -14,7 +14,11 @@
   >
     <span
       class="mono faint"
-      style="font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase"
+      style="
+        font-size: 10.5px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      "
     >
       {{ dir }}
     </span>
@@ -28,7 +32,12 @@
         fontWeight: 500,
       }"
     >
-      <AppIcon v-if="dir === 'prev'" name="chevR" :size="15" :style="{ transform: 'rotate(180deg)' }" />
+      <AppIcon
+        v-if="dir === 'prev'"
+        name="chevR"
+        :size="15"
+        :style="{ transform: 'rotate(180deg)' }"
+      />
       {{ target[1] }}
       <AppIcon v-if="dir === 'next'" name="chevR" :size="15" />
     </div>

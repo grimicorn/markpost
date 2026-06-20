@@ -10,7 +10,7 @@
       <span class="field-label" style="margin-bottom: 12px">
         <span class="num">01</span> Theme
       </span>
-      <div class="row gap-3 wrap">
+      <div class="row wrap gap-3">
         <button
           v-for="themeOption in themeOptions"
           :key="themeOption.id"
@@ -20,13 +20,22 @@
             minWidth: '150px',
             cursor: 'pointer',
             border: '1px solid',
-            borderColor: currentTheme === themeOption.id ? 'var(--accent)' : 'var(--line-2)',
+            borderColor:
+              currentTheme === themeOption.id
+                ? 'var(--accent)'
+                : 'var(--line-2)',
             borderRadius: '10px',
             padding: '14px',
-            background: currentTheme === themeOption.id ? 'var(--accent-tint)' : 'var(--surface-2)',
+            background:
+              currentTheme === themeOption.id
+                ? 'var(--accent-tint)'
+                : 'var(--surface-2)',
             gap: '10px',
             alignItems: 'stretch',
-            boxShadow: currentTheme === themeOption.id ? '0 0 0 3px var(--accent-tint)' : 'none',
+            boxShadow:
+              currentTheme === themeOption.id
+                ? '0 0 0 3px var(--accent-tint)'
+                : 'none',
           }"
           @click="applyTheme(themeOption.id)"
         >
@@ -43,11 +52,20 @@
             <div
               :style="{
                 width: '34%',
-                borderRight: '1px solid ' + (themeOption.id === 'dark' ? '#2a2823' : '#e5e2da'),
+                borderRight:
+                  '1px solid ' +
+                  (themeOption.id === 'dark' ? '#2a2823' : '#e5e2da'),
                 padding: '6px',
               }"
             >
-              <div style="height: 5px; border-radius: 2px; background: var(--accent); width: 70%" />
+              <div
+                style="
+                  height: 5px;
+                  border-radius: 2px;
+                  background: var(--accent);
+                  width: 70%;
+                "
+              />
               <div
                 :style="{
                   height: '4px',
@@ -79,16 +97,24 @@
             </div>
           </div>
           <span
-            class="row gap-2 mono"
+            class="row mono gap-2"
             :style="{
               fontSize: '12.5px',
-              color: currentTheme === themeOption.id ? 'var(--accent-700)' : 'var(--ink-2)',
+              color:
+                currentTheme === themeOption.id
+                  ? 'var(--accent-700)'
+                  : 'var(--ink-2)',
               fontWeight: currentTheme === themeOption.id ? 600 : 500,
             }"
           >
             <AppIcon :name="themeOption.ic" :size="15" />
             {{ themeOption.label }}
-            <AppIcon v-if="currentTheme === themeOption.id" name="check" :size="14" style="margin-left: auto" />
+            <AppIcon
+              v-if="currentTheme === themeOption.id"
+              name="check"
+              :size="14"
+              style="margin-left: auto"
+            />
           </span>
         </button>
       </div>
@@ -101,7 +127,9 @@
       <p class="muted" style="font-size: 13px; margin-bottom: 16px">
         Tints buttons, links, focus rings and highlights across the app.
       </p>
-      <div style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 12px">
+      <div
+        style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 12px"
+      >
         <button
           v-for="accentOption in ACCENTS"
           :key="accentOption.id"
@@ -124,9 +152,10 @@
               background: accentOption.hex,
               display: 'grid',
               placeItems: 'center',
-              boxShadow: currentAccent === accentOption.hex
-                ? `0 0 0 2px var(--surface), 0 0 0 4px ${accentOption.hex}`
-                : 'none',
+              boxShadow:
+                currentAccent === accentOption.hex
+                  ? `0 0 0 2px var(--surface), 0 0 0 4px ${accentOption.hex}`
+                  : 'none',
               transition: 'all .12s',
             }"
           >
@@ -141,7 +170,10 @@
             class="mono"
             :style="{
               fontSize: '10px',
-              color: currentAccent === accentOption.hex ? 'var(--ink)' : 'var(--ink-3)',
+              color:
+                currentAccent === accentOption.hex
+                  ? 'var(--ink)'
+                  : 'var(--ink-3)',
               letterSpacing: '.02em',
             }"
           >
@@ -155,12 +187,14 @@
       <span class="field-label" style="margin-bottom: 12px">Preview</span>
       <div class="panel" style="padding: 18px">
         <div class="row between wrap gap-3">
-          <div class="row gap-2 wrap">
+          <div class="row wrap gap-2">
             <AppBtn variant="accent" size="sm" icon-r="arrowR">primary</AppBtn>
             <AppBtn size="sm">secondary</AppBtn>
             <AppBadge tone="accent" dot>accent badge</AppBadge>
           </div>
-          <span class="mono" style="font-size: 12px; color: var(--accent-700)">a tinted link →</span>
+          <span class="mono" style="font-size: 12px; color: var(--accent-700)"
+            >a tinted link →</span
+          >
         </div>
         <div class="row gap-3" style="margin-top: 14px">
           <div class="grow">
@@ -210,7 +244,9 @@ onMounted(() => {
 const applyTheme = (themeId: string) => {
   currentTheme.value = themeId;
   if (themeId === "system") {
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const prefersDark = window.matchMedia(
+      "(prefers-color-scheme: dark)",
+    ).matches;
     setTheme(prefersDark ? "dark" : "light");
   } else {
     setTheme(themeId as "dark" | "light");

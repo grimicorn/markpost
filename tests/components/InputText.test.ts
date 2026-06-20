@@ -77,6 +77,8 @@ describe("InputText", () => {
       ...globalConfig,
       props: { modelValue: "test value" },
     });
-    expect((wrapper.find("input").element as HTMLInputElement).value).toBe("test value");
+    expect((wrapper.find("input").element as HTMLInputElement).value).toBe(
+      "test value",
+    );
   });
 });

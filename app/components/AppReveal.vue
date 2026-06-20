@@ -3,10 +3,7 @@
     :is="as"
     ref="elementRef"
     :class="['reveal', $attrs.class]"
-    :style="[
-      $attrs.style,
-      delay ? { transitionDelay: `${delay}ms` } : {},
-    ]"
+    :style="[$attrs.style, delay ? { transitionDelay: `${delay}ms` } : {}]"
     v-bind="filteredAttrs"
   >
     <slot />
@@ -42,7 +39,8 @@ onMounted(() => {
   }
 
   const prefersReducedMotion =
-    window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.matchMedia &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (prefersReducedMotion) {
     element.classList.add("in");
     return;

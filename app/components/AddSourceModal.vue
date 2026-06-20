@@ -23,21 +23,39 @@
       @click.stop
     >
       <!-- head -->
-      <div class="row between" style="padding: 18px 24px; border-bottom: 1px solid var(--line)">
+      <div
+        class="row between"
+        style="padding: 18px 24px; border-bottom: 1px solid var(--line)"
+      >
         <div class="row gap-3" style="align-items: center">
           <button
             v-if="modalState.step === 'config'"
             class="icon-btn"
             @click="emit('close')"
           >
-            <AppIcon name="chevR" :size="18" :style="{ transform: 'rotate(180deg)' }" />
+            <AppIcon
+              name="chevR"
+              :size="18"
+              :style="{ transform: 'rotate(180deg)' }"
+            />
           </button>
           <div class="col" style="gap: 2px">
-            <span class="mono faint" style="font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase">
+            <span
+              class="mono faint"
+              style="
+                font-size: 10.5px;
+                letter-spacing: 0.12em;
+                text-transform: uppercase;
+              "
+            >
               {{ modalState.step === "pick" ? "step 1 / 2" : "step 2 / 2" }}
             </span>
             <h3 style="font-size: 17px; font-weight: 600">
-              {{ modalState.step === "pick" ? "Add a source" : `Configure ${modalState.choice?.name}` }}
+              {{
+                modalState.step === "pick"
+                  ? "Add a source"
+                  : `Configure ${modalState.choice?.name}`
+              }}
             </h3>
           </div>
         </div>
@@ -54,10 +72,22 @@
             v-for="prim in SOURCE_PRIMS"
             :key="prim.id"
             class="card"
-            style="padding: 16px; text-align: left; cursor: pointer; background: var(--surface-2); display: block"
+            style="
+              padding: 16px;
+              text-align: left;
+              cursor: pointer;
+              background: var(--surface-2);
+              display: block;
+            "
             @click="emit('pick', prim)"
-            @mouseenter="($event.currentTarget as HTMLElement).style.borderColor = 'var(--accent)'"
-            @mouseleave="($event.currentTarget as HTMLElement).style.borderColor = 'var(--line)'"
+            @mouseenter="
+              ($event.currentTarget as HTMLElement).style.borderColor =
+                'var(--accent)'
+            "
+            @mouseleave="
+              ($event.currentTarget as HTMLElement).style.borderColor =
+                'var(--line)'
+            "
           >
             <div class="row between">
               <span
@@ -73,16 +103,29 @@
               >
                 <AppIcon :name="prim.ic" :size="18" />
               </span>
-              <AppIcon name="arrowR" :size="16" :style="{ color: 'var(--ink-3)' }" />
+              <AppIcon
+                name="arrowR"
+                :size="16"
+                :style="{ color: 'var(--ink-3)' }"
+              />
             </div>
-            <div style="font-weight: 600; font-size: 14.5px; margin-top: 12px">{{ prim.name }}</div>
-            <div class="muted" style="font-size: 12.5px; margin-top: 4px; line-height: 1.45">{{ prim.desc }}</div>
+            <div style="font-weight: 600; font-size: 14.5px; margin-top: 12px">
+              {{ prim.name }}
+            </div>
+            <div
+              class="muted"
+              style="font-size: 12.5px; margin-top: 4px; line-height: 1.45"
+            >
+              {{ prim.desc }}
+            </div>
           </button>
         </div>
 
         <div class="row gap-3" style="align-items: center; margin: 22px 0 14px">
           <span class="field-label" style="margin: 0">presets</span>
-          <span class="mono faint" style="font-size: 11px">— a webhook with mapping built in</span>
+          <span class="mono faint" style="font-size: 11px"
+            >— a webhook with mapping built in</span
+          >
           <hr class="hairline grow" />
         </div>
         <div class="col gap-2">
@@ -101,8 +144,14 @@
               align-items: center;
             "
             @click="emit('pick', preset)"
-            @mouseenter="($event.currentTarget as HTMLElement).style.borderColor = 'var(--accent)'"
-            @mouseleave="($event.currentTarget as HTMLElement).style.borderColor = 'var(--line)'"
+            @mouseenter="
+              ($event.currentTarget as HTMLElement).style.borderColor =
+                'var(--accent)'
+            "
+            @mouseleave="
+              ($event.currentTarget as HTMLElement).style.borderColor =
+                'var(--line)'
+            "
           >
             <span
               :style="{
@@ -121,8 +170,12 @@
               {{ preset.name[0] }}
             </span>
             <div class="col" style="gap: 1px; flex: 1; min-width: 0">
-              <span style="font-weight: 500; font-size: 14px">{{ preset.name }}</span>
-              <span class="muted" style="font-size: 12px">{{ preset.desc }}</span>
+              <span style="font-weight: 500; font-size: 14px">{{
+                preset.name
+              }}</span>
+              <span class="muted" style="font-size: 12px">{{
+                preset.desc
+              }}</span>
             </div>
             <AppChip style="font-size: 10px">via {{ preset.via }}</AppChip>
           </button>
@@ -130,12 +183,17 @@
       </div>
 
       <!-- step: config -->
-      <div v-if="modalState.step === 'config' && modalState.choice" style="padding: 24px">
+      <div
+        v-if="modalState.step === 'config' && modalState.choice"
+        style="padding: 24px"
+      >
         <div v-if="modalState.choice.via" style="margin-bottom: 16px">
           <AppAlert tone="info" title="This is a webhook preset">
-            A <strong>{{ modalState.choice.name }}</strong> source is a webhook endpoint with
-            {{ modalState.choice.name }} field-mapping{{
-              modalState.choice.via === "webhook" ? " and signature verification" : ""
+            A <strong>{{ modalState.choice.name }}</strong> source is a webhook
+            endpoint with {{ modalState.choice.name }} field-mapping{{
+              modalState.choice.via === "webhook"
+                ? " and signature verification"
+                : ""
             }}
             applied automatically. You can edit the mapping any time.
           </AppAlert>
@@ -150,32 +208,54 @@
         </span>
         <div class="code">
           <div class="code-head">
-            <span class="lang">{{ modalState.choice.id === "email" ? "address" : "endpoint" }}</span>
+            <span class="lang">{{
+              modalState.choice.id === "email" ? "address" : "endpoint"
+            }}</span>
             <AppCopyBtn :text="configEndpoint" />
           </div>
-          <div class="code-body mono" style="font-size: 12.5px; word-break: break-all">
+          <div
+            class="code-body mono"
+            style="font-size: 12.5px; word-break: break-all"
+          >
             <template v-if="modalState.choice.id === 'email'">
-              <span style="color: var(--accent-700)">clip-{{ modalState.gen.slice(0, 4) }}</span>@in.markpost.io
+              <span style="color: var(--accent-700)"
+                >clip-{{ modalState.gen.slice(0, 4) }}</span
+              >@in.markpost.io
             </template>
             <template v-else>
-              https://ingest.markpost.io/v1/hooks/<span style="color: var(--accent-700)">{{ configEndpointId }}_{{ modalState.gen }}</span>
+              https://ingest.markpost.io/v1/hooks/<span
+                style="color: var(--accent-700)"
+                >{{ configEndpointId }}_{{ modalState.gen }}</span
+              >
             </template>
           </div>
         </div>
 
         <div v-if="modalState.choice.map" style="margin-top: 16px">
-          <span class="field-label" style="margin-bottom: 8px">field mapping</span>
-          <div class="row gap-2 wrap">
-            <AppChip v-for="field in modalState.choice.map.split(' · ')" :key="field" accent>
+          <span class="field-label" style="margin-bottom: 8px"
+            >field mapping</span
+          >
+          <div class="row wrap gap-2">
+            <AppChip
+              v-for="field in modalState.choice.map.split(' · ')"
+              :key="field"
+              accent
+            >
               {{ field }}
             </AppChip>
           </div>
         </div>
 
         <div style="margin-top: 18px">
-          <AppField num="01" label="Route records to" msg="folder inside your vault">
+          <AppField
+            num="01"
+            label="Route records to"
+            msg="folder inside your vault"
+          >
             <div class="input-wrap">
-              <span class="lead-addon"><AppIcon name="folder" :size="16" /></span>
+              <span class="lead-addon"
+                ><AppIcon name="folder" :size="16"
+              /></span>
               <input
                 v-model="folderInput"
                 class="input has-lead mono"
@@ -185,9 +265,17 @@
           </AppField>
         </div>
 
-        <div class="row gap-3" style="justify-content: flex-end; margin-top: 22px">
+        <div
+          class="row gap-3"
+          style="justify-content: flex-end; margin-top: 22px"
+        >
           <AppBtn variant="ghost" @click="emit('close')">back</AppBtn>
-          <AppBtn variant="accent" icon="check" @click="emit('add', folderInput)">add source</AppBtn>
+          <AppBtn
+            variant="accent"
+            icon="check"
+            @click="emit('add', folderInput)"
+            >add source</AppBtn
+          >
         </div>
       </div>
     </div>
@@ -242,11 +330,41 @@ const SOURCE_PRIMS: SourceChoice[] = [
 ];
 
 const SOURCE_PRESETS: SourceChoice[] = [
-  { id: "stripe", name: "Stripe", desc: "Payments, invoices & subscription events.", map: "amount · customer · status", via: "webhook" },
-  { id: "github", name: "GitHub", desc: "Pushes, issues, PRs & releases.", map: "repo · ref · title · body", via: "webhook" },
-  { id: "zapier", name: "Zapier", desc: "Relay anything from 6,000+ apps.", map: "passthrough", via: "webhook" },
-  { id: "rss", name: "RSS / Atom", desc: "Poll a feed and capture new items.", map: "title · link · content", via: "poll" },
-  { id: "shortcuts", name: "Apple Shortcuts", desc: "Send text from iOS & macOS.", map: "title · text", via: "webhook" },
+  {
+    id: "stripe",
+    name: "Stripe",
+    desc: "Payments, invoices & subscription events.",
+    map: "amount · customer · status",
+    via: "webhook",
+  },
+  {
+    id: "github",
+    name: "GitHub",
+    desc: "Pushes, issues, PRs & releases.",
+    map: "repo · ref · title · body",
+    via: "webhook",
+  },
+  {
+    id: "zapier",
+    name: "Zapier",
+    desc: "Relay anything from 6,000+ apps.",
+    map: "passthrough",
+    via: "webhook",
+  },
+  {
+    id: "rss",
+    name: "RSS / Atom",
+    desc: "Poll a feed and capture new items.",
+    map: "title · link · content",
+    via: "poll",
+  },
+  {
+    id: "shortcuts",
+    name: "Apple Shortcuts",
+    desc: "Send text from iOS & macOS.",
+    map: "title · text",
+    via: "webhook",
+  },
 ];
 
 const configEndpointId = computed(() => {

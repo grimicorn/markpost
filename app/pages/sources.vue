@@ -1,20 +1,26 @@
 <template>
   <TheAppShell active="sources" crumb="WORKSPACE / DAN'S VAULT" title="Sources">
     <template #actions>
-      <AppBtn variant="accent" size="sm" icon="plus" @click="openModal">add source</AppBtn>
+      <AppBtn variant="accent" size="sm" icon="plus" @click="openModal"
+        >add source</AppBtn
+      >
     </template>
 
     <div style="padding: 22px 26px 40px; max-width: 920px">
       <div style="margin-bottom: 18px">
         <AppAlert tone="info" title="How sources work">
-          There are only two ways in — a <strong>webhook endpoint</strong> and an
-          <strong>email-in address</strong>. Presets like Stripe or GitHub are just a webhook
-          with provider field-mapping baked in.
+          There are only two ways in — a <strong>webhook endpoint</strong> and
+          an <strong>email-in address</strong>. Presets like Stripe or GitHub
+          are just a webhook with provider field-mapping baked in.
         </AppAlert>
       </div>
 
       <div class="col gap-4">
-        <SourceCard v-for="source in sources" :key="source.id" :source="source" />
+        <SourceCard
+          v-for="source in sources"
+          :key="source.id"
+          :source="source"
+        />
 
         <button
           class="card"
@@ -38,7 +44,13 @@
       </div>
     </div>
 
-    <AddSourceModal v-if="modalState" :modal-state="modalState" @close="modalState = null" @pick="pickSource" @add="addSource" />
+    <AddSourceModal
+      v-if="modalState"
+      :modal-state="modalState"
+      @close="modalState = null"
+      @pick="pickSource"
+      @add="addSource"
+    />
   </TheAppShell>
 </template>
 
@@ -103,12 +115,22 @@ const sources = ref<SourceItem[]>([
 const modalState = ref<ModalState | null>(null);
 
 const openModal = () => {
-  modalState.value = { step: "pick", choice: null, gen: "", folder: "99-incoming/" };
+  modalState.value = {
+    step: "pick",
+    choice: null,
+    gen: "",
+    folder: "99-incoming/",
+  };
 };
 
 const pickSource = (choice: SourceChoice) => {
   const generatedId = Math.random().toString(36).slice(2, 10);
-  modalState.value = { step: "config", choice, gen: generatedId, folder: "99-incoming/" };
+  modalState.value = {
+    step: "config",
+    choice,
+    gen: generatedId,
+    folder: "99-incoming/",
+  };
 };
 
 const addSource = (folder: string) => {

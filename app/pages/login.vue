@@ -23,7 +23,9 @@
       <div style="flex: 1; display: grid; place-items: center">
         <div style="width: 100%; max-width: 380px">
           <AppEyebrow>welcome back</AppEyebrow>
-          <h1 class="h1" style="margin-top: 14px; font-size: 34px">Sign in to markpost</h1>
+          <h1 class="h1" style="margin-top: 14px; font-size: 34px">
+            Sign in to markpost
+          </h1>
           <p class="muted" style="margin-top: 8px; font-size: 14.5px">
             Pick up where your vault left off.
           </p>
@@ -66,16 +68,22 @@
           </div>
           <div class="term-body">
             <div><span class="pr">$</span> markpost login</div>
-            <div class="c-dim" style="margin-top: 6px">→ opening browser to authenticate…</div>
-            <div class="c-ok" style="margin-top: 6px">✓ token saved to ~/.markpost/config</div>
-            <div style="margin-top: 6px"><span class="pr">$</span> markpost sync</div>
+            <div class="c-dim" style="margin-top: 6px">
+              → opening browser to authenticate…
+            </div>
+            <div class="c-ok" style="margin-top: 6px">
+              ✓ token saved to ~/.markpost/config
+            </div>
+            <div style="margin-top: 6px">
+              <span class="pr">$</span> markpost sync
+            </div>
             <div class="c-dim">→ 12 records synced to ~/vault</div>
           </div>
         </div>
         <blockquote style="margin-top: 32px; max-width: 420px">
           <p style="font-size: 18px; line-height: 1.5; letter-spacing: -0.01em">
-            "It turned my chaotic inbox of clipped articles into a tidy folder of notes. I forget
-            it's even running."
+            "It turned my chaotic inbox of clipped articles into a tidy folder
+            of notes. I forget it's even running."
           </p>
           <footer class="mono faint" style="font-size: 12px; margin-top: 14px">
             — a very organized person, allegedly

@@ -9,9 +9,14 @@
       <div class="row between wrap gap-4">
         <div>
           <AppBadge tone="accent" dot>pro trial</AppBadge>
-          <div class="row" style="align-items: baseline; gap: 6px; margin-top: 12px">
+          <div
+            class="row"
+            style="align-items: baseline; gap: 6px; margin-top: 12px"
+          >
             <span style="font-size: 30px; font-weight: 600">$8</span>
-            <span class="mono faint" style="font-size: 13px">/mo · billed yearly after trial</span>
+            <span class="mono faint" style="font-size: 13px"
+              >/mo · billed yearly after trial</span
+            >
           </div>
           <p class="mono faint" style="font-size: 12px; margin-top: 8px">
             trial ends Jun 23, 2026 · 9 days left
@@ -19,7 +24,9 @@
         </div>
         <div class="col gap-2">
           <AppBtn variant="accent" icon="card">add payment method</AppBtn>
-          <AppBtn variant="ghost" size="sm" href="/pricing">compare plans →</AppBtn>
+          <AppBtn variant="ghost" size="sm" href="/pricing"
+            >compare plans →</AppBtn
+          >
         </div>
       </div>
     </div>

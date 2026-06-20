@@ -1,5 +1,8 @@
 <template>
-  <div class="scroll" style="height: 100vh; overflow-y: auto; background: var(--bg)">
+  <div
+    class="scroll"
+    style="height: 100vh; overflow-y: auto; background: var(--bg)"
+  >
     <TheMarketingNav active="pricing" />
 
     <AppReveal
@@ -15,13 +18,23 @@
       <AppTopo :seed="7" />
       <div style="position: relative">
         <AppEyebrow>pricing</AppEyebrow>
-        <h1 class="h1" style="margin-top: 16px; font-size: clamp(32px, 4vw, 46px)">
+        <h1
+          class="h1"
+          style="margin-top: 16px; font-size: clamp(32px, 4vw, 46px)"
+        >
           Simple, file-sized pricing.
         </h1>
-        <p class="lead" style="margin-top: 14px; max-width: 460px; margin-inline: auto">
-          Start free forever. Upgrade when you outgrow it — cancel any time, keep every file.
+        <p
+          class="lead"
+          style="margin-top: 14px; max-width: 460px; margin-inline: auto"
+        >
+          Start free forever. Upgrade when you outgrow it — cancel any time,
+          keep every file.
         </p>
-        <div class="row" style="justify-content: center; margin-top: 26px; gap: 12px">
+        <div
+          class="row"
+          style="justify-content: center; margin-top: 26px; gap: 12px"
+        >
           <InputSegmented
             v-model="cycle"
             :options="[
@@ -31,7 +44,11 @@
           />
           <AppBadge
             tone="accent"
-            :style="{ alignSelf: 'center', opacity: cycle === 'yearly' ? 1 : 0, transition: 'opacity .2s' }"
+            :style="{
+              alignSelf: 'center',
+              opacity: cycle === 'yearly' ? 1 : 0,
+              transition: 'opacity .2s',
+            }"
           >
             save 20%
           </AppBadge>
@@ -40,7 +57,14 @@
     </AppReveal>
 
     <section style="padding: 16px 40px 24px; max-width: 920px; margin: 0 auto">
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: stretch">
+      <div
+        style="
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 20px;
+          align-items: stretch;
+        "
+      >
         <!-- Hobby -->
         <AppReveal
           class="card"
@@ -52,24 +76,51 @@
               <h3 class="h2" style="margin-top: 12px">Hobby</h3>
             </div>
           </div>
-          <div class="row" style="align-items: baseline; gap: 4px; margin-top: 18px">
-            <span style="font-size: 44px; font-weight: 600; letter-spacing: -0.03em">$0</span>
+          <div
+            class="row"
+            style="align-items: baseline; gap: 4px; margin-top: 18px"
+          >
+            <span
+              style="font-size: 44px; font-weight: 600; letter-spacing: -0.03em"
+              >$0</span
+            >
             <span class="mono faint" style="font-size: 13px">/forever</span>
           </div>
           <p class="muted" style="margin-top: 8px; font-size: 14px">
             For a single vault and the occasional sync.
           </p>
-          <AppBtn :block="true" size="lg" href="/login" style="margin-top: 22px">
+          <AppBtn
+            :block="true"
+            size="lg"
+            href="/login"
+            style="margin-top: 22px"
+          >
             get started
           </AppBtn>
-          <ul style="list-style: none; padding: 0; margin: 26px 0 0; display: grid; gap: 12px">
+          <ul
+            style="
+              list-style: none;
+              padding: 0;
+              margin: 26px 0 0;
+              display: grid;
+              gap: 12px;
+            "
+          >
             <li
               v-for="feature in hobbyFeatures"
               :key="feature"
               class="row gap-3"
               style="font-size: 14.5px"
             >
-              <AppIcon name="check" :size="16" :style="{ color: 'var(--accent)', flex: 'none', marginTop: '2px' }" />
+              <AppIcon
+                name="check"
+                :size="16"
+                :style="{
+                  color: 'var(--accent)',
+                  flex: 'none',
+                  marginTop: '2px',
+                }"
+              />
               <span>{{ feature }}</span>
             </li>
           </ul>
@@ -88,16 +139,26 @@
             boxShadow: 'var(--sh-2)',
           }"
         >
-          <AppBadge tone="accent" style="position: absolute; top: 20px; right: 20px">
+          <AppBadge
+            tone="accent"
+            style="position: absolute; top: 20px; right: 20px"
+          >
             most popular
           </AppBadge>
           <AppEyebrow>pro</AppEyebrow>
           <h3 class="h2" style="margin-top: 12px">Pro</h3>
-          <div class="row" style="align-items: baseline; gap: 4px; margin-top: 18px">
-            <span style="font-size: 44px; font-weight: 600; letter-spacing: -0.03em">
+          <div
+            class="row"
+            style="align-items: baseline; gap: 4px; margin-top: 18px"
+          >
+            <span
+              style="font-size: 44px; font-weight: 600; letter-spacing: -0.03em"
+            >
               ${{ proPricing.price }}
             </span>
-            <span class="mono faint" style="font-size: 13px">{{ proPricing.per }}</span>
+            <span class="mono faint" style="font-size: 13px">{{
+              proPricing.per
+            }}</span>
             <AppBadge v-if="proPricing.save" tone="ok" style="margin-left: 8px">
               {{ proPricing.save }}
             </AppBadge>
@@ -115,10 +176,23 @@
           >
             start 14-day trial
           </AppBtn>
-          <ul style="list-style: none; padding: 0; margin: 26px 0 0; display: grid; gap: 12px">
+          <ul
+            style="
+              list-style: none;
+              padding: 0;
+              margin: 26px 0 0;
+              display: grid;
+              gap: 12px;
+            "
+          >
             <li
               class="mono"
-              style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3)"
+              style="
+                font-size: 11px;
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+                color: var(--ink-3);
+              "
             >
               Everything in Hobby, plus
             </li>
@@ -128,17 +202,33 @@
               class="row gap-3"
               style="font-size: 14.5px"
             >
-              <AppIcon name="check" :size="16" :style="{ color: 'var(--accent)', flex: 'none', marginTop: '2px' }" />
+              <AppIcon
+                name="check"
+                :size="16"
+                :style="{
+                  color: 'var(--accent)',
+                  flex: 'none',
+                  marginTop: '2px',
+                }"
+              />
               <span>{{ feature }}</span>
             </li>
           </ul>
         </AppReveal>
       </div>
-      <p class="mono faint" style="font-size: 12px; text-align: center; margin-top: 22px">
+      <p
+        class="mono faint"
+        style="font-size: 12px; text-align: center; margin-top: 22px"
+      >
         self-hosting? markpost is source-available —
         <NuxtLink
           to="/docs"
-          style="color: var(--accent-700); text-decoration: underline; font-size: 12px; font-family: var(--mono)"
+          style="
+            color: var(--accent-700);
+            text-decoration: underline;
+            font-size: 12px;
+            font-family: var(--mono);
+          "
         >
           run it yourself →
         </NuxtLink>
@@ -150,10 +240,15 @@
       as="section"
       :style="{ padding: '28px 40px 8px', maxWidth: '860px', margin: '0 auto' }"
     >
-      <div class="row between wrap" style="align-items: flex-end; margin-bottom: 18px">
+      <div
+        class="row between wrap"
+        style="align-items: flex-end; margin-bottom: 18px"
+      >
         <div>
           <AppEyebrow>compare</AppEyebrow>
-          <h2 class="h2" style="margin-top: 12px">Every detail, side by side.</h2>
+          <h2 class="h2" style="margin-top: 12px">
+            Every detail, side by side.
+          </h2>
         </div>
         <span class="kicker">billed {{ cycle }}</span>
       </div>
@@ -166,10 +261,21 @@
             background: var(--bg-2);
           "
         >
-          <span class="grow kicker">feature</span>
-          <span style="width: 120px; text-align: center" class="mono faint">Hobby · $0</span>
-          <span style="width: 140px; text-align: center; display: flex; justify-content: center">
-            <AppBadge tone="accent">Pro · ${{ proPricing.price }}{{ proPricing.per }}</AppBadge>
+          <span class="kicker grow">feature</span>
+          <span style="width: 120px; text-align: center" class="mono faint"
+            >Hobby · $0</span
+          >
+          <span
+            style="
+              width: 140px;
+              text-align: center;
+              display: flex;
+              justify-content: center;
+            "
+          >
+            <AppBadge tone="accent"
+              >Pro · ${{ proPricing.price }}{{ proPricing.per }}</AppBadge
+            >
           </span>
         </div>
         <div class="divide-y">
@@ -182,32 +288,67 @@
               align-items: center;
               transition: background 0.1s;
             "
-            @mouseenter="($event.currentTarget as HTMLElement).style.background = 'var(--bg-2)'"
-            @mouseleave="($event.currentTarget as HTMLElement).style.background = 'transparent'"
+            @mouseenter="
+              ($event.currentTarget as HTMLElement).style.background =
+                'var(--bg-2)'
+            "
+            @mouseleave="
+              ($event.currentTarget as HTMLElement).style.background =
+                'transparent'
+            "
           >
             <span class="grow" style="font-size: 14px">{{ feat }}</span>
             <span style="width: 120px; text-align: center" class="mono">
-              <AppIcon v-if="hobbyVal === '✓'" name="check" :size="16" :style="{ color: 'var(--ink-2)' }" />
+              <AppIcon
+                v-if="hobbyVal === '✓'"
+                name="check"
+                :size="16"
+                :style="{ color: 'var(--ink-2)' }"
+              />
               <span v-else-if="hobbyVal === '—'" class="faint">—</span>
-              <span v-else class="muted" style="font-size: 13px">{{ hobbyVal }}</span>
+              <span v-else class="muted" style="font-size: 13px">{{
+                hobbyVal
+              }}</span>
             </span>
             <span style="width: 140px; text-align: center" class="mono">
-              <AppIcon v-if="proVal === '✓'" name="check" :size="16" :style="{ color: 'var(--accent)' }" />
-              <span v-else style="font-size: 13px; color: var(--accent-700); font-weight: 500">{{ proVal }}</span>
+              <AppIcon
+                v-if="proVal === '✓'"
+                name="check"
+                :size="16"
+                :style="{ color: 'var(--accent)' }"
+              />
+              <span
+                v-else
+                style="
+                  font-size: 13px;
+                  color: var(--accent-700);
+                  font-weight: 500;
+                "
+                >{{ proVal }}</span
+              >
             </span>
           </div>
         </div>
       </div>
-      <div class="row gap-3" style="justify-content: flex-end; margin-top: 18px">
+      <div
+        class="row gap-3"
+        style="justify-content: flex-end; margin-top: 18px"
+      >
         <AppBtn href="/login">get started free</AppBtn>
-        <AppBtn variant="accent" icon-r="arrowR" href="/login">start Pro trial</AppBtn>
+        <AppBtn variant="accent" icon-r="arrowR" href="/login"
+          >start Pro trial</AppBtn
+        >
       </div>
     </AppReveal>
 
     <!-- faq -->
     <AppReveal
       as="section"
-      :style="{ padding: '40px 40px 72px', maxWidth: '760px', margin: '0 auto' }"
+      :style="{
+        padding: '40px 40px 72px',
+        maxWidth: '760px',
+        margin: '0 auto',
+      }"
     >
       <hr class="rule" />
       <h2 class="h2" style="margin-top: 28px">Questions</h2>
@@ -215,7 +356,14 @@
         <div v-for="faq in faqs" :key="faq.q" style="padding: 16px 0">
           <button
             class="row between"
-            style="width: 100%; background: none; border: 0; cursor: pointer; text-align: left; padding: 0"
+            style="
+              width: 100%;
+              background: none;
+              border: 0;
+              cursor: pointer;
+              text-align: left;
+              padding: 0;
+            "
             @click="faq.open = !faq.open"
           >
             <span style="font-size: 16px; font-weight: 500">{{ faq.q }}</span>
@@ -229,7 +377,16 @@
               }"
             />
           </button>
-          <p v-if="faq.open" class="muted" style="margin-top: 10px; font-size: 14.5px; line-height: 1.6; max-width: 600px">
+          <p
+            v-if="faq.open"
+            class="muted"
+            style="
+              margin-top: 10px;
+              font-size: 14.5px;
+              line-height: 1.6;
+              max-width: 600px;
+            "
+          >
             {{ faq.a }}
           </p>
         </div>
@@ -245,7 +402,12 @@ const cycle = ref<"monthly" | "yearly">("yearly");
 
 const proPricing = computed(() => {
   if (cycle.value === "yearly") {
-    return { price: "8", per: "/mo", sub: "$80 billed yearly", save: "2 months free" };
+    return {
+      price: "8",
+      per: "/mo",
+      sub: "$80 billed yearly",
+      save: "2 months free",
+    };
   }
   return { price: "10", per: "/mo", sub: "billed monthly", save: null };
 });

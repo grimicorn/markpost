@@ -26,12 +26,22 @@
         </span>
         <div class="col gap-2">
           <AppBtn size="sm">upload avatar</AppBtn>
-          <span class="mono faint" style="font-size: 11px">PNG or JPG · max 1MB</span>
+          <span class="mono faint" style="font-size: 11px"
+            >PNG or JPG · max 1MB</span
+          >
         </div>
       </div>
       <div class="col gap-4">
         <InputText v-model="name" num="01" label="Full name" />
-        <InputText v-model="email" num="02" label="Email" state="ok" msg="verified" lead-icon="at" type="email" />
+        <InputText
+          v-model="email"
+          num="02"
+          label="Email"
+          state="ok"
+          msg="verified"
+          lead-icon="at"
+          type="email"
+        />
       </div>
     </div>
 
@@ -50,7 +60,10 @@
       </div>
     </div>
 
-    <h3 class="h3" style="margin-top: 30px; margin-bottom: 4px; color: var(--err)">
+    <h3
+      class="h3"
+      style="margin-top: 30px; margin-bottom: 4px; color: var(--err)"
+    >
       Danger zone
     </h3>
     <div
@@ -68,7 +81,10 @@
         <AppBtn
           size="sm"
           icon="trash"
-          :style="{ color: 'var(--err)', borderColor: 'color-mix(in oklab, var(--err) 40%, var(--line))' }"
+          :style="{
+            color: 'var(--err)',
+            borderColor: 'color-mix(in oklab, var(--err) 40%, var(--line))',
+          }"
         >
           delete
         </AppBtn>

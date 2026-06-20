@@ -21,7 +21,11 @@
     </span>
     <span
       v-if="showWord"
-      :style="{ fontWeight: 600, fontSize: `${size * 0.82}px`, letterSpacing: '-0.03em' }"
+      :style="{
+        fontWeight: 600,
+        fontSize: `${size * 0.82}px`,
+        letterSpacing: '-0.03em',
+      }"
     >
       {{ word }}
     </span>

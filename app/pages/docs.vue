@@ -1,5 +1,12 @@
 <template>
-  <div style="height: 100vh; display: flex; flex-direction: column; background: var(--bg)">
+  <div
+    style="
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+    "
+  >
     <!-- top nav -->
     <header
       class="row between"
@@ -26,24 +33,49 @@
           />
           <span class="addon"><AppKbd>/</AppKbd></span>
         </div>
-        <a class="icon-btn" href="https://github.com" style="color: var(--ink-2)">
+        <a
+          class="icon-btn"
+          href="https://github.com"
+          style="color: var(--ink-2)"
+        >
           <AppIcon name="github" :size="18" />
         </a>
-        <button class="icon-btn" style="color: var(--ink-2)" @click="toggleTheme">
+        <button
+          class="icon-btn"
+          style="color: var(--ink-2)"
+          @click="toggleTheme"
+        >
           <AppIcon :name="isDark ? 'sun' : 'moon'" :size="17" />
         </button>
         <AppBtn size="sm" variant="accent" href="/inbox">dashboard</AppBtn>
       </div>
     </header>
 
-    <div style="display: grid; grid-template-columns: 248px 1fr 200px; flex: 1; min-height: 0">
+    <div
+      style="
+        display: grid;
+        grid-template-columns: 248px 1fr 200px;
+        flex: 1;
+        min-height: 0;
+      "
+    >
       <!-- left sidebar -->
       <nav
         class="scroll"
-        style="border-right: 1px solid var(--line); padding: 26px 18px; overflow-y: auto"
+        style="
+          border-right: 1px solid var(--line);
+          padding: 26px 18px;
+          overflow-y: auto;
+        "
       >
-        <div v-for="group in DOC_NAV" :key="group.group" style="margin-bottom: 22px">
-          <span class="kicker" style="display: block; padding: 0 10px 8px">{{ group.group }}</span>
+        <div
+          v-for="group in DOC_NAV"
+          :key="group.group"
+          style="margin-bottom: 22px"
+        >
+          <span class="kicker" style="display: block; padding: 0 10px 8px">{{
+            group.group
+          }}</span>
           <div class="col gap-1">
             <button
               v-for="[id, label] in group.items"
@@ -52,7 +84,8 @@
                 textAlign: 'left',
                 border: 0,
                 cursor: 'pointer',
-                background: activePage === id ? 'var(--accent-tint)' : 'transparent',
+                background:
+                  activePage === id ? 'var(--accent-tint)' : 'transparent',
                 color: activePage === id ? 'var(--accent-700)' : 'var(--ink-2)',
                 padding: '6px 10px',
                 borderRadius: '6px',
@@ -73,11 +106,17 @@
         <div style="max-width: 720px; margin: 0 auto">
           <span
             class="mono faint"
-            style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase"
+            style="
+              font-size: 11px;
+              letter-spacing: 0.1em;
+              text-transform: uppercase;
+            "
           >
             {{ activeGroup }}
           </span>
-          <h1 class="h1" style="margin-top: 10px; font-size: 38px">{{ currentPage.title }}</h1>
+          <h1 class="h1" style="margin-top: 10px; font-size: 38px">
+            {{ currentPage.title }}
+          </h1>
           <p class="lead" style="margin-top: 12px">{{ currentPage.lead }}</p>
           <hr class="rule" style="margin-top: 26px" />
 
@@ -86,8 +125,16 @@
 
           <!-- prev / next -->
           <div class="row between" style="margin-top: 48px; gap: 14px">
-            <DocNavButton dir="prev" :page="activePage" @navigate="activePage = $event" />
-            <DocNavButton dir="next" :page="activePage" @navigate="activePage = $event" />
+            <DocNavButton
+              dir="prev"
+              :page="activePage"
+              @navigate="activePage = $event"
+            />
+            <DocNavButton
+              dir="next"
+              :page="activePage"
+              @navigate="activePage = $event"
+            />
           </div>
         </div>
       </main>
@@ -95,9 +142,15 @@
       <!-- on this page -->
       <aside
         class="scroll"
-        style="border-left: 1px solid var(--line); padding: 44px 20px; overflow-y: auto"
+        style="
+          border-left: 1px solid var(--line);
+          padding: 44px 20px;
+          overflow-y: auto;
+        "
       >
-        <span class="kicker" style="display: block; margin-bottom: 12px">on this page</span>
+        <span class="kicker" style="display: block; margin-bottom: 12px"
+          >on this page</span
+        >
         <div class="col gap-2">
           <span
             v-for="(section, index) in currentPage.onpage"
@@ -117,14 +170,24 @@
         <div class="card" style="padding: 14px; margin-top: 28px">
           <span
             class="mono faint"
-            style="font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase"
+            style="
+              font-size: 10.5px;
+              letter-spacing: 0.1em;
+              text-transform: uppercase;
+            "
           >
             need a hand?
           </span>
           <p style="font-size: 13px; margin: 8px 0 12px; line-height: 1.5">
             Drop into the community or open an issue.
           </p>
-          <AppBtn size="sm" :block="true" icon="github" href="https://github.com">github</AppBtn>
+          <AppBtn
+            size="sm"
+            :block="true"
+            icon="github"
+            href="https://github.com"
+            >github</AppBtn
+          >
         </div>
       </aside>
     </div>
@@ -146,7 +209,13 @@ const { isDark, initTheme, toggleTheme } = useTheme();
 onMounted(initTheme);
 
 const DOC_NAV = [
-  { group: "Introduction", items: [["quickstart", "Quickstart"], ["concepts", "Core concepts"]] },
+  {
+    group: "Introduction",
+    items: [
+      ["quickstart", "Quickstart"],
+      ["concepts", "Core concepts"],
+    ],
+  },
   {
     group: "API Reference",
     items: [
@@ -156,14 +225,36 @@ const DOC_NAV = [
       ["records", "List records"],
     ],
   },
-  { group: "CLI", items: [["cli", "Command reference"], ["markdown", "Markdown & frontmatter"]] },
+  {
+    group: "CLI",
+    items: [
+      ["cli", "Command reference"],
+      ["markdown", "Markdown & frontmatter"],
+    ],
+  },
 ] as const;
 
-type PageId = "quickstart" | "concepts" | "auth" | "webhooks" | "email" | "records" | "cli" | "markdown";
+type PageId =
+  | "quickstart"
+  | "concepts"
+  | "auth"
+  | "webhooks"
+  | "email"
+  | "records"
+  | "cli"
+  | "markdown";
 
 const activePage = ref<PageId>("quickstart");
 
-const DOC_PAGES: Record<PageId, { title: string; lead: string; onpage: string[]; component: ReturnType<typeof defineComponent> }> = {
+const DOC_PAGES: Record<
+  PageId,
+  {
+    title: string;
+    lead: string;
+    onpage: string[];
+    component: ReturnType<typeof defineComponent>;
+  }
+> = {
   quickstart: {
     title: "Quickstart",
     lead: "Go from zero to your first synced Markdown file in about five minutes.",

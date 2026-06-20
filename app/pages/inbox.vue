@@ -6,15 +6,32 @@
 
     <div style="padding: 22px 26px 40px; max-width: 1080px">
       <div v-if="showToast" style="margin-bottom: 18px">
-        <AppAlert tone="ok" title="Sync complete" :closeable="true" @close="showToast = false">
+        <AppAlert
+          tone="ok"
+          title="Sync complete"
+          :closeable="true"
+          @close="showToast = false"
+        >
           Wrote <strong>3 new records</strong> to
           <code>~/vault/99-incoming</code> · 0 conflicts.
         </AppAlert>
       </div>
 
       <!-- stat row -->
-      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px">
-        <div v-for="stat in stats" :key="stat.k" class="card" style="padding: 16px">
+      <div
+        style="
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 14px;
+          margin-bottom: 22px;
+        "
+      >
+        <div
+          v-for="stat in stats"
+          :key="stat.k"
+          class="card"
+          style="padding: 16px"
+        >
           <div class="row between">
             <span class="kicker">{{ stat.k }}</span>
             <AppIcon
@@ -23,11 +40,19 @@
               :style="{ color: stat.t ? `var(--${stat.t})` : 'var(--ink-3)' }"
             />
           </div>
-          <div class="row" style="align-items: baseline; gap: 4px; margin-top: 10px">
-            <span style="font-size: 28px; font-weight: 600; letter-spacing: -0.02em" class="tnum">
+          <div
+            class="row"
+            style="align-items: baseline; gap: 4px; margin-top: 10px"
+          >
+            <span
+              style="font-size: 28px; font-weight: 600; letter-spacing: -0.02em"
+              class="tnum"
+            >
               {{ stat.v }}
             </span>
-            <span v-if="stat.sub" class="mono faint" style="font-size: 12px">{{ stat.sub }}</span>
+            <span v-if="stat.sub" class="mono faint" style="font-size: 12px">{{
+              stat.sub
+            }}</span>
           </div>
         </div>
       </div>
@@ -35,7 +60,9 @@
       <!-- filters -->
       <div class="row between wrap gap-3" style="margin-bottom: 14px">
         <InputSegmented v-model="filter" :options="filterOptions" />
-        <span class="mono faint" style="font-size: 12px">{{ filteredRecords.length }} records</span>
+        <span class="mono faint" style="font-size: 12px"
+          >{{ filteredRecords.length }} records</span
+        >
       </div>
 
       <!-- table -->
@@ -64,9 +91,19 @@
             v-for="(record, index) in filteredRecords"
             :key="index"
             class="row"
-            style="padding: 13px 18px; cursor: pointer; transition: background 0.1s"
-            @mouseenter="($event.currentTarget as HTMLElement).style.background = 'var(--bg-2)'"
-            @mouseleave="($event.currentTarget as HTMLElement).style.background = 'transparent'"
+            style="
+              padding: 13px 18px;
+              cursor: pointer;
+              transition: background 0.1s;
+            "
+            @mouseenter="
+              ($event.currentTarget as HTMLElement).style.background =
+                'var(--bg-2)'
+            "
+            @mouseleave="
+              ($event.currentTarget as HTMLElement).style.background =
+                'transparent'
+            "
           >
             <span class="row gap-2" style="width: 120px">
               <AppIcon
@@ -114,9 +151,14 @@
               {{ record.file }}
             </span>
             <span style="width: 90px">
-              <AppBadge :tone="statusTone[record.status]" dot>{{ record.status }}</AppBadge>
+              <AppBadge :tone="statusTone[record.status]" dot>{{
+                record.status
+              }}</AppBadge>
             </span>
-            <span class="mono faint" style="width: 80px; text-align: right; font-size: 11.5px">
+            <span
+              class="mono faint"
+              style="width: 80px; text-align: right; font-size: 11.5px"
+            >
               {{ record.time }}
             </span>
           </div>
@@ -140,16 +182,68 @@ const filterOptions = [
 ];
 
 const RECORDS = [
-  { src: "webhook", name: "github · push", title: "Production deploy succeeded", file: "99-incoming/2026-06-14-deploy.md", time: "2m ago", status: "synced" },
-  { src: "email", name: "clip@markpost", title: "A Deep Dive into Vue 3 Suspense", file: "99-incoming/vue-suspense.md", time: "14m ago", status: "synced" },
-  { src: "webhook", name: "stripe · invoice", title: "Invoice #1042 paid — $80.00", file: "99-incoming/invoice-1042.md", time: "1h ago", status: "synced" },
-  { src: "email", name: "clip@markpost", title: "Obsidian Canvas: a visual vault", file: "—", time: "1h ago", status: "pending" },
-  { src: "webhook", name: "zapier · rss", title: "SvelteKit remote functions land", file: "99-incoming/sveltekit-remote.md", time: "3h ago", status: "synced" },
-  { src: "webhook", name: "github · issue", title: "Bug: frontmatter date offset", file: "—", time: "5h ago", status: "error" },
-  { src: "email", name: "clip@markpost", title: "Tailwind v4: ditch the config file", file: "99-incoming/tw4-config.md", time: "yesterday", status: "synced" },
+  {
+    src: "webhook",
+    name: "github · push",
+    title: "Production deploy succeeded",
+    file: "99-incoming/2026-06-14-deploy.md",
+    time: "2m ago",
+    status: "synced",
+  },
+  {
+    src: "email",
+    name: "clip@markpost",
+    title: "A Deep Dive into Vue 3 Suspense",
+    file: "99-incoming/vue-suspense.md",
+    time: "14m ago",
+    status: "synced",
+  },
+  {
+    src: "webhook",
+    name: "stripe · invoice",
+    title: "Invoice #1042 paid — $80.00",
+    file: "99-incoming/invoice-1042.md",
+    time: "1h ago",
+    status: "synced",
+  },
+  {
+    src: "email",
+    name: "clip@markpost",
+    title: "Obsidian Canvas: a visual vault",
+    file: "—",
+    time: "1h ago",
+    status: "pending",
+  },
+  {
+    src: "webhook",
+    name: "zapier · rss",
+    title: "SvelteKit remote functions land",
+    file: "99-incoming/sveltekit-remote.md",
+    time: "3h ago",
+    status: "synced",
+  },
+  {
+    src: "webhook",
+    name: "github · issue",
+    title: "Bug: frontmatter date offset",
+    file: "—",
+    time: "5h ago",
+    status: "error",
+  },
+  {
+    src: "email",
+    name: "clip@markpost",
+    title: "Tailwind v4: ditch the config file",
+    file: "99-incoming/tw4-config.md",
+    time: "yesterday",
+    status: "synced",
+  },
 ];
 
-const statusTone: Record<string, "" | "ok" | "warn" | "err" | "info" | "accent"> = {
+const statusTone: Record<
+  string,
+  "" | "ok" | "warn" | "err" | "info" | "accent"
+> = {
   synced: "ok",
   pending: "warn",
   error: "err",
