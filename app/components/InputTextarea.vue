@@ -9,6 +9,7 @@
   >
     <textarea
       class="textarea"
+      v-bind="$attrs"
       :value="modelValue"
       :placeholder="placeholder"
       :rows="rows"
@@ -20,6 +21,8 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({ inheritAttrs: false });
+
 withDefaults(
   defineProps<{
     modelValue?: string;

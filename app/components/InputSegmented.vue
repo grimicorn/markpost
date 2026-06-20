@@ -1,10 +1,12 @@
 <template>
-  <div class="seg">
+  <div class="seg" role="radiogroup">
     <button
       v-for="option in normalizedOptions"
       :key="option.value"
       :class="modelValue === option.value ? 'on' : ''"
       type="button"
+      role="radio"
+      :aria-checked="modelValue === option.value"
       @click="emit('update:modelValue', option.value)"
     >
       {{ option.label }}

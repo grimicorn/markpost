@@ -134,10 +134,11 @@ const tokens = ref<Token[]>([
 const revealedToken = ref("");
 
 const generateToken = () => {
-  const token =
-    "mp_live_" +
-    Math.random().toString(36).slice(2, 10) +
-    Math.random().toString(36).slice(2, 14);
+  const bytes = crypto.getRandomValues(new Uint8Array(20));
+  const hex = Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  const token = `mp_live_${hex}`;
   revealedToken.value = token;
   tokens.value = [
     {

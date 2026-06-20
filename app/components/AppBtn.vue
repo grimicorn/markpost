@@ -2,7 +2,6 @@
   <component
     :is="resolvedAs"
     :class="classes"
-    :href="href"
     :disabled="disabled || undefined"
     :title="title"
     :style="style"

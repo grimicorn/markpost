@@ -233,16 +233,20 @@ const currentAccent = ref("#a855f7");
 
 const { isDark, setTheme } = useTheme();
 
+const THEME_CHOICE_KEY = "mp_theme_choice";
+
 onMounted(() => {
-  currentTheme.value = isDark.value ? "dark" : "light";
+  const storedChoice = localStorage.getItem(THEME_CHOICE_KEY);
+  currentTheme.value = storedChoice ?? (isDark.value ? "dark" : "light");
   const storedAccent = localStorage.getItem("mp_accent");
   if (storedAccent) {
-    currentAccent.value = storedAccent;
+    applyAccent(storedAccent);
   }
 });
 
 const applyTheme = (themeId: string) => {
   currentTheme.value = themeId;
+  localStorage.setItem(THEME_CHOICE_KEY, themeId);
   if (themeId === "system") {
     const prefersDark = window.matchMedia(
       "(prefers-color-scheme: dark)",

@@ -1,6 +1,6 @@
 <template>
-  <div class="row gap-3" style="align-items: center">
-    <label class="switch">
+  <label class="row gap-3" style="align-items: center; cursor: pointer">
+    <span class="switch">
       <input
         type="checkbox"
         :checked="modelValue"
@@ -10,9 +10,9 @@
       />
       <span class="track" />
       <span class="thumb" />
-    </label>
+    </span>
     <span v-if="label" style="font-size: 14px">{{ label }}</span>
-  </div>
+  </label>
 </template>
 
 <script setup lang="ts">

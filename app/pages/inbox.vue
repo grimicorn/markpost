@@ -151,7 +151,7 @@
               {{ record.file }}
             </span>
             <span style="width: 90px">
-              <AppBadge :tone="statusTone[record.status]" dot>{{
+              <AppBadge :tone="statusTone[record.status] ?? ''" dot>{{
                 record.status
               }}</AppBadge>
             </span>

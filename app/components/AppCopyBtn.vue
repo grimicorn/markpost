@@ -28,15 +28,15 @@ const props = withDefaults(
 
 const copied = ref(false);
 
-const handleCopy = () => {
+const handleCopy = async () => {
   try {
-    navigator.clipboard.writeText(props.text);
+    await navigator.clipboard.writeText(props.text);
+    copied.value = true;
+    setTimeout(() => {
+      copied.value = false;
+    }, 1200);
   } catch {
     // clipboard not available in this context
   }
-  copied.value = true;
-  setTimeout(() => {
-    copied.value = false;
-  }, 1200);
 };
 </script>

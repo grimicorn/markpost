@@ -55,9 +55,6 @@
 </template>
 
 <script setup lang="ts">
-import SourceCard from "~/components/SourceCard.vue";
-import AddSourceModal from "~/components/AddSourceModal.vue";
-
 definePageMeta({ middleware: "auth" });
 
 interface SourceItem {
@@ -124,7 +121,7 @@ const openModal = () => {
 };
 
 const pickSource = (choice: SourceChoice) => {
-  const generatedId = Math.random().toString(36).slice(2, 10);
+  const generatedId = crypto.randomUUID().slice(0, 8);
   modalState.value = {
     step: "config",
     choice,
@@ -166,7 +163,7 @@ const buildIntegrationSource = (
   letter: choice.name[0],
   name: choice.name,
   via: choice.via,
-  sub: "maps " + choice.map,
+  sub: choice.map ? "maps " + choice.map : "",
   label: "ingest url",
   fresh: true,
   endpoint: `https://ingest.markpost.io/v1/hooks/${choice.id}_${gen}`,

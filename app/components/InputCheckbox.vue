@@ -13,6 +13,8 @@
         placeItems: 'center',
         flex: 'none',
         transition: 'all .15s',
+        outline: focused ? '2px solid var(--accent)' : 'none',
+        outlineOffset: '2px',
       }"
     >
       <AppIcon
@@ -30,6 +32,8 @@
       @change="
         emit('update:modelValue', ($event.target as HTMLInputElement).checked)
       "
+      @focus="focused = true"
+      @blur="focused = false"
     />
     <span
       :style="{
@@ -43,6 +47,8 @@
 </template>
 
 <script setup lang="ts">
+const focused = ref(false);
+
 withDefaults(
   defineProps<{
     modelValue?: boolean;

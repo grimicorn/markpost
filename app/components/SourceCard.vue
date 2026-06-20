@@ -103,23 +103,26 @@ const props = defineProps<{
   };
 }>();
 
-const endpointBefore = computed(() => {
+const highlightIndex = computed(() => {
   if (!props.source.endpointHighlight) {
+    return -1;
+  }
+  return props.source.endpoint.indexOf(props.source.endpointHighlight);
+});
+
+const endpointBefore = computed(() => {
+  if (highlightIndex.value < 0) {
     return props.source.endpoint;
   }
-  const index = props.source.endpoint.indexOf(props.source.endpointHighlight);
-  return index >= 0
-    ? props.source.endpoint.slice(0, index)
-    : props.source.endpoint;
+  return props.source.endpoint.slice(0, highlightIndex.value);
 });
 
 const endpointAfter = computed(() => {
-  if (!props.source.endpointHighlight) {
+  if (!props.source.endpointHighlight || highlightIndex.value < 0) {
     return "";
   }
-  const index = props.source.endpoint.indexOf(props.source.endpointHighlight);
-  return index >= 0
-    ? props.source.endpoint.slice(index + props.source.endpointHighlight.length)
-    : "";
+  return props.source.endpoint.slice(
+    highlightIndex.value + props.source.endpointHighlight.length,
+  );
 });
 </script>

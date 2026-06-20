@@ -282,7 +282,7 @@ function formatUserName(
   last: string | null | undefined,
 ): string {
   if (!first) {
-    return "Dan H.";
+    return "User";
   }
   const initial = last?.[0];
   return initial ? `${first} ${initial}.` : first;
@@ -293,10 +293,10 @@ const userName = computed(() =>
 );
 
 const userEmail = computed(
-  () => user.value?.primaryEmailAddress?.emailAddress ?? "dan@markpost.io",
+  () => user.value?.primaryEmailAddress?.emailAddress ?? "user@markpost.io",
 );
 
-const userInitial = computed(() => userName.value[0]?.toUpperCase() ?? "D");
+const userInitial = computed(() => userName.value[0]?.toUpperCase() ?? "U");
 
 const navItems = [
   { id: "inbox", ic: "inbox", label: "Inbox", path: "/inbox" },
