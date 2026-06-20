@@ -277,15 +277,20 @@ onMounted(initTheme);
 
 const { user } = useUser();
 
-const userName = computed(() => {
-  if (user.value?.firstName && user.value?.lastName) {
-    return `${user.value.firstName} ${user.value.lastName[0]}.`;
+function formatUserName(
+  first: string | null | undefined,
+  last: string | null | undefined,
+): string {
+  if (!first) {
+    return "Dan H.";
   }
-  if (user.value?.firstName) {
-    return user.value.firstName;
-  }
-  return "Dan H.";
-});
+  const initial = last?.[0];
+  return initial ? `${first} ${initial}.` : first;
+}
+
+const userName = computed(() =>
+  formatUserName(user.value?.firstName, user.value?.lastName),
+);
 
 const userEmail = computed(
   () => user.value?.primaryEmailAddress?.emailAddress ?? "dan@markpost.io",

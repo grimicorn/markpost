@@ -3,33 +3,26 @@ const STORAGE_KEY = "mp_theme";
 export function useTheme() {
   const isDark = ref(false);
 
+  const applyDark = (dark: boolean) => {
+    isDark.value = dark;
+    document.documentElement.classList.toggle("dark", dark);
+  };
+
   const initTheme = () => {
     if (typeof window === "undefined") {
       return;
     }
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === "dark") {
-      isDark.value = true;
-      document.documentElement.classList.add("dark");
-    } else if (stored === "light") {
-      isDark.value = false;
-      document.documentElement.classList.remove("dark");
-    } else {
-      isDark.value = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      if (isDark.value) {
-        document.documentElement.classList.add("dark");
-      }
+    if (stored === "dark" || stored === "light") {
+      applyDark(stored === "dark");
+      return;
     }
+    applyDark(window.matchMedia("(prefers-color-scheme: dark)").matches);
   };
 
   const setTheme = (theme: "dark" | "light") => {
-    isDark.value = theme === "dark";
     localStorage.setItem(STORAGE_KEY, theme);
-    if (theme === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
+    applyDark(theme === "dark");
   };
 
   const toggleTheme = () => {

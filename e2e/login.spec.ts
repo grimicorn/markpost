@@ -1,7 +1,19 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 
 const TEST_EMAIL = process.env.E2E_CLERK_TEST_EMAIL ?? "";
 const TEST_PASSWORD = process.env.E2E_CLERK_TEST_PASSWORD ?? "";
+
+async function fillSignInForm(
+  page: Page,
+  email: string,
+  password: string,
+): Promise<void> {
+  await page.fill('input[name="identifier"]', email);
+  await page.getByRole("button", { name: /continue/i }).click();
+  await page.waitForSelector('input[name="password"]', { timeout: 8000 });
+  await page.fill('input[name="password"]', password);
+  await page.getByRole("button", { name: /continue/i }).click();
+}
 
 test.describe("login page", () => {
   test.beforeEach(async ({ page }) => {
@@ -19,16 +31,14 @@ test.describe("login page", () => {
     await expect(page.getByText(/turned my chaotic inbox/)).toBeVisible();
   });
 
-  test("shows a validation error for an empty submission", async ({ page }) => {
+  test("shows a validation error for empty and invalid email input", async ({
+    page,
+  }) => {
     await page.getByRole("button", { name: /continue/i }).click();
     await expect(
       page.getByText(/enter your email/i).or(page.getByText(/required/i)),
     ).toBeVisible();
-  });
 
-  test("shows a validation error for an invalid email format", async ({
-    page,
-  }) => {
     await page.fill('input[name="identifier"]', "notanemail");
     await page.getByRole("button", { name: /continue/i }).click();
     await expect(
@@ -41,11 +51,7 @@ test.describe("login page", () => {
   test("shows an error for wrong credentials", async ({ page }) => {
     test.skip(!TEST_EMAIL, "E2E_CLERK_TEST_EMAIL not set");
 
-    await page.fill('input[name="identifier"]', TEST_EMAIL);
-    await page.getByRole("button", { name: /continue/i }).click();
-    await page.waitForSelector('input[name="password"]', { timeout: 8000 });
-    await page.fill('input[name="password"]', "definitely-wrong-password");
-    await page.getByRole("button", { name: /continue/i }).click();
+    await fillSignInForm(page, TEST_EMAIL, "definitely-wrong-password");
 
     await expect(
       page
@@ -60,11 +66,7 @@ test.describe("login page", () => {
   }) => {
     test.skip(!TEST_EMAIL || !TEST_PASSWORD, "Clerk test credentials not set");
 
-    await page.fill('input[name="identifier"]', TEST_EMAIL);
-    await page.getByRole("button", { name: /continue/i }).click();
-    await page.waitForSelector('input[name="password"]', { timeout: 8000 });
-    await page.fill('input[name="password"]', TEST_PASSWORD);
-    await page.getByRole("button", { name: /continue/i }).click();
+    await fillSignInForm(page, TEST_EMAIL, TEST_PASSWORD);
 
     // After successful auth Clerk redirects; we should leave /login
     await expect(page).not.toHaveURL("/login", { timeout: 12000 });

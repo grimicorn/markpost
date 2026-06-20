@@ -26,17 +26,27 @@ describe("InputSegmented", () => {
     expect(buttons[1].text()).toBe("b");
   });
 
-  it("marks active option with 'on' class", () => {
-    const wrapper = mount(InputSegmented, {
+  it("marks the active option with the 'on' class for both string and object options", () => {
+    const stringWrapper = mount(InputSegmented, {
+      props: { modelValue: "b", options: ["a", "b", "c"] },
+    });
+    const stringButtons = stringWrapper.findAll("button");
+    expect(stringButtons[0].classes()).not.toContain("on");
+    expect(stringButtons[1].classes()).toContain("on");
+    expect(stringButtons[2].classes()).not.toContain("on");
+
+    const objWrapper = mount(InputSegmented, {
       props: {
-        modelValue: "b",
-        options: ["a", "b", "c"],
+        modelValue: "yearly",
+        options: [
+          { value: "monthly", label: "Monthly" },
+          { value: "yearly", label: "Yearly" },
+        ],
       },
     });
-    const buttons = wrapper.findAll("button");
-    expect(buttons[0].classes()).not.toContain("on");
-    expect(buttons[1].classes()).toContain("on");
-    expect(buttons[2].classes()).not.toContain("on");
+    const objButtons = objWrapper.findAll("button");
+    expect(objButtons[0].classes()).not.toContain("on");
+    expect(objButtons[1].classes()).toContain("on");
   });
 
   it("emits update:modelValue with the selected value on click", async () => {
@@ -63,20 +73,5 @@ describe("InputSegmented", () => {
     const buttons = wrapper.findAll("button");
     expect(buttons[0].text()).toBe("Monthly");
     expect(buttons[1].text()).toBe("Yearly");
-  });
-
-  it("active class works with object options", () => {
-    const wrapper = mount(InputSegmented, {
-      props: {
-        modelValue: "yearly",
-        options: [
-          { value: "monthly", label: "Monthly" },
-          { value: "yearly", label: "Yearly" },
-        ],
-      },
-    });
-    const buttons = wrapper.findAll("button");
-    expect(buttons[0].classes()).not.toContain("on");
-    expect(buttons[1].classes()).toContain("on");
   });
 });

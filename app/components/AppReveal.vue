@@ -11,7 +11,7 @@
 </template>
 
 <script setup lang="ts">
-const props = withDefaults(
+withDefaults(
   defineProps<{
     as?: string;
     delay?: number;
@@ -32,51 +32,55 @@ const filteredAttrs = computed(() => {
 
 const elementRef = ref<HTMLElement | null>(null);
 
+function findScrollParent(element: HTMLElement): Element | null {
+  let parent: Element | null = element.parentElement;
+  while (parent && !parent.classList.contains("scroll")) {
+    parent = parent.parentElement;
+  }
+  return parent ?? null;
+}
+
+function isInView(element: HTMLElement, scrollTarget: Element | null): boolean {
+  const rect = element.getBoundingClientRect();
+  const view = scrollTarget
+    ? scrollTarget.getBoundingClientRect()
+    : { top: 0, bottom: window.innerHeight, height: window.innerHeight };
+  const line = view.bottom - view.height * 0.12;
+  return rect.top < line && rect.bottom > view.top;
+}
+
 onMounted(() => {
   const element = elementRef.value;
   if (!element) {
     return;
   }
 
-  const prefersReducedMotion =
-    window.matchMedia &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (prefersReducedMotion) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
     element.classList.add("in");
     return;
   }
 
-  let scrollParent: Element | null = element.parentElement;
-  while (scrollParent && !scrollParent.classList.contains("scroll")) {
-    scrollParent = scrollParent.parentElement;
-  }
-  const scrollTarget = scrollParent ?? null;
-
+  const scrollTarget = findScrollParent(element);
+  const scrollEventTarget = scrollTarget ?? window;
   let done = false;
+
+  const cleanup = () => {
+    scrollEventTarget.removeEventListener("scroll", onScroll);
+    window.removeEventListener("resize", onScroll);
+  };
 
   const check = () => {
     if (done || !elementRef.value) {
       return;
     }
-    const rect = element.getBoundingClientRect();
-    const view = scrollTarget
-      ? scrollTarget.getBoundingClientRect()
-      : { top: 0, bottom: window.innerHeight, height: window.innerHeight };
-    const line = view.bottom - view.height * 0.12;
-    if (rect.top < line && rect.bottom > view.top) {
+    if (isInView(element, scrollTarget)) {
       element.classList.add("in");
       done = true;
       cleanup();
     }
   };
 
-  const scrollEventTarget = scrollTarget ?? window;
   const onScroll = () => check();
-
-  const cleanup = () => {
-    scrollEventTarget.removeEventListener("scroll", onScroll);
-    window.removeEventListener("resize", onScroll);
-  };
 
   scrollEventTarget.addEventListener("scroll", onScroll, { passive: true });
   window.addEventListener("resize", onScroll, { passive: true });

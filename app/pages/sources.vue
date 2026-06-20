@@ -133,52 +133,61 @@ const pickSource = (choice: SourceChoice) => {
   };
 };
 
+const buildEmailSource = (gen: string, folder: string): SourceItem => ({
+  id: gen,
+  ic: "mail",
+  name: "Email-in address",
+  sub: "forward or send anything",
+  label: "address",
+  fresh: true,
+  endpoint: `clip-${gen.slice(0, 4)}@in.markpost.io`,
+  endpointHighlight: `clip-${gen.slice(0, 4)}`,
+  meta: ["0 records", "just added", `routes to ${folder}`],
+});
+
+const buildWebhookSource = (gen: string, folder: string): SourceItem => ({
+  id: gen,
+  ic: "zap",
+  name: "Webhook endpoint",
+  sub: "POST · any JSON payload",
+  label: "ingest url",
+  fresh: true,
+  endpoint: `https://ingest.markpost.io/v1/hooks/wh_${gen}`,
+  endpointHighlight: `wh_${gen}`,
+  meta: ["0 records", "just added", `routes to ${folder}`],
+});
+
+const buildIntegrationSource = (
+  choice: SourceChoice,
+  gen: string,
+  folder: string,
+): SourceItem => ({
+  id: gen,
+  letter: choice.name[0],
+  name: choice.name,
+  via: choice.via,
+  sub: "maps " + choice.map,
+  label: "ingest url",
+  fresh: true,
+  endpoint: `https://ingest.markpost.io/v1/hooks/${choice.id}_${gen}`,
+  endpointHighlight: `${choice.id}_${gen}`,
+  meta: ["0 records", "just added", `routes to ${folder}`],
+});
+
+const SOURCE_BUILDERS = {
+  email: buildEmailSource,
+  webhook: buildWebhookSource,
+};
+
 const addSource = (folder: string) => {
   if (!modalState.value?.choice) {
     return;
   }
   const { choice, gen } = modalState.value;
-
-  let newSource: SourceItem;
-
-  if (choice.id === "email") {
-    newSource = {
-      id: gen,
-      ic: "mail",
-      name: "Email-in address",
-      sub: "forward or send anything",
-      label: "address",
-      fresh: true,
-      endpoint: `clip-${gen.slice(0, 4)}@in.markpost.io`,
-      endpointHighlight: `clip-${gen.slice(0, 4)}`,
-      meta: ["0 records", "just added", `routes to ${folder}`],
-    };
-  } else if (choice.id === "webhook") {
-    newSource = {
-      id: gen,
-      ic: "zap",
-      name: "Webhook endpoint",
-      sub: "POST · any JSON payload",
-      label: "ingest url",
-      fresh: true,
-      endpoint: `https://ingest.markpost.io/v1/hooks/wh_${gen}`,
-      endpointHighlight: `wh_${gen}`,
-      meta: ["0 records", "just added", `routes to ${folder}`],
-    };
-  } else {
-    newSource = {
-      id: gen,
-      letter: choice.name[0],
-      name: choice.name,
-      via: choice.via,
-      sub: "maps " + choice.map,
-      label: "ingest url",
-      fresh: true,
-      endpoint: `https://ingest.markpost.io/v1/hooks/${choice.id}_${gen}`,
-      endpointHighlight: `${choice.id}_${gen}`,
-      meta: ["0 records", "just added", `routes to ${folder}`],
-    };
-  }
+  const builder = SOURCE_BUILDERS[choice.id];
+  const newSource = builder
+    ? builder(gen, folder)
+    : buildIntegrationSource(choice, gen, folder);
 
   sources.value = [...sources.value, newSource];
   modalState.value = null;
