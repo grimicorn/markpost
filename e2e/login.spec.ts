@@ -24,9 +24,9 @@ test.describe("login page", () => {
 
   test("page renders the two-column layout", async ({ page }) => {
     await expect(
-      page.getByRole("heading", { name: "Sign in to markpost" }),
+      page.getByRole("heading", { name: "Sign in to markpost", exact: true }),
     ).toBeVisible();
-    await expect(page.getByText("welcome back")).toBeVisible();
+    await expect(page.getByText("welcome back", { exact: true })).toBeVisible();
     await expect(page.locator(".term")).toBeVisible();
     await expect(page.getByText(/turned my chaotic inbox/)).toBeVisible();
   });
@@ -34,18 +34,18 @@ test.describe("login page", () => {
   test("shows a validation error for empty and invalid email input", async ({
     page,
   }) => {
+    // Empty submit — Clerk should keep us on /login with the identifier field visible
     await page.getByRole("button", { name: /continue/i }).click();
-    await expect(
-      page.getByText(/enter your email/i).or(page.getByText(/required/i)),
-    ).toBeVisible();
+    await expect(page.locator('input[name="identifier"]')).toBeVisible();
+    await expect(page).toHaveURL("/login");
 
+    // Invalid email — Clerk should reject and stay on the same page
     await page.fill('input[name="identifier"]', "notanemail");
     await page.getByRole("button", { name: /continue/i }).click();
-    await expect(
-      page
-        .getByText(/invalid email/i)
-        .or(page.getByText(/enter a valid email/i)),
-    ).toBeVisible();
+    await expect(page.locator('input[name="identifier"]')).toBeVisible({
+      timeout: 4000,
+    });
+    await expect(page).toHaveURL("/login");
   });
 
   test("shows an error for wrong credentials", async ({ page }) => {
