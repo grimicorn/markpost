@@ -72,22 +72,18 @@
             v-for="prim in SOURCE_PRIMS"
             :key="prim.id"
             class="card"
-            style="
-              padding: 16px;
-              text-align: left;
-              cursor: pointer;
-              background: var(--surface-2);
-              display: block;
-            "
+            :style="{
+              padding: '16px',
+              textAlign: 'left',
+              cursor: 'pointer',
+              background: 'var(--surface-2)',
+              display: 'block',
+              borderColor:
+                hoveredPrim === prim.id ? 'var(--accent)' : undefined,
+            }"
             @click="emit('pick', prim)"
-            @mouseenter="
-              ($event.currentTarget as HTMLElement).style.borderColor =
-                'var(--accent)'
-            "
-            @mouseleave="
-              ($event.currentTarget as HTMLElement).style.borderColor =
-                'var(--line)'
-            "
+            @mouseenter="hoveredPrim = prim.id"
+            @mouseleave="hoveredPrim = null"
           >
             <div class="row between">
               <span
@@ -133,25 +129,21 @@
             v-for="preset in SOURCE_PRESETS"
             :key="preset.id"
             class="row gap-3"
-            style="
-              width: 100%;
-              text-align: left;
-              cursor: pointer;
-              border: 1px solid var(--line);
-              border-radius: 9px;
-              padding: 11px 14px;
-              background: var(--surface-2);
-              align-items: center;
-            "
+            :style="{
+              width: '100%',
+              textAlign: 'left',
+              cursor: 'pointer',
+              border: '1px solid var(--line)',
+              borderRadius: '9px',
+              padding: '11px 14px',
+              background: 'var(--surface-2)',
+              alignItems: 'center',
+              borderColor:
+                hoveredPreset === preset.id ? 'var(--accent)' : undefined,
+            }"
             @click="emit('pick', preset)"
-            @mouseenter="
-              ($event.currentTarget as HTMLElement).style.borderColor =
-                'var(--accent)'
-            "
-            @mouseleave="
-              ($event.currentTarget as HTMLElement).style.borderColor =
-                'var(--line)'
-            "
+            @mouseenter="hoveredPreset = preset.id"
+            @mouseleave="hoveredPreset = null"
           >
             <span
               :style="{
@@ -311,6 +303,8 @@ const emit = defineEmits<{
 }>();
 
 const folderInput = ref(props.modalState.folder);
+const hoveredPrim = ref<string | null>(null);
+const hoveredPreset = ref<string | null>(null);
 
 const SOURCE_PRIMS: SourceChoice[] = [
   {
