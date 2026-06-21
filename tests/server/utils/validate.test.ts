@@ -16,6 +16,14 @@ describe("apiValidate", () => {
     ).not.toThrow();
   });
 
+  it("treats a completely absent key as a missing attribute", () => {
+    const body = buildRequest({ title: "Hello" });
+
+    expect(() =>
+      apiValidate(body, [{ key: "title" }, { key: "content" }]),
+    ).toThrow(ApiError);
+  });
+
   it("throws an ApiError with status 422 when one attribute is missing", () => {
     const body = buildRequest({ title: "Hello", content: "" });
 
