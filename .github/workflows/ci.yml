@@ -57,14 +57,31 @@ jobs:
               - 'package.json'
               - '.nvmrc'
 
+  generate-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      test-files: ${{ steps.find-tests.outputs.test-files }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - id: find-tests
+        run: |
+          files=$(find e2e -name "*.spec.ts" -exec basename {} .spec.ts \; | sort | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "test-files=$files" >> $GITHUB_OUTPUT
+
   e2e:
-    needs: [ci, changes]
+    needs: [ci, changes, generate-matrix]
     if: |
       always() &&
       needs.ci.result == 'success' &&
       github.event_name == 'pull_request' &&
       needs.changes.outputs.src == 'true'
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        test-file: ${{ fromJson(needs.generate-matrix.outputs.test-files) }}
+      fail-fast: false
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -77,17 +94,31 @@ jobs:
         env:
           HUSKY: 0
       - run: npx playwright install chromium --with-deps
-      - run: npm run e2e
+      - name: Create Neon branch
+        id: neon
+        uses: neondatabase/create-neon-branch@v5
+        with:
+          project_id: ${{ secrets.NEON_PROJECT_ID }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          branch_name: ci-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.test-file }}
+      - run: npm run e2e -- e2e/${{ matrix.test-file }}.spec.ts
         env:
-          E2E_DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
+          E2E_DATABASE_URL: ${{ steps.neon.outputs.db_url_with_pooler }}
           NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
           NUXT_CLERK_SECRET_KEY: ${{ secrets.NUXT_CLERK_SECRET_KEY }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.test-file }}
           path: e2e/report/
           retention-days: 7
+      - name: Delete Neon branch
+        if: always()
+        uses: neondatabase/delete-neon-branch@v3
+        with:
+          project_id: ${{ secrets.NEON_PROJECT_ID }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          branch: ci-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.test-file }}
 
   e2e-gate:
     name: E2E Gate
