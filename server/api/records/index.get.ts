@@ -1,7 +1,7 @@
 import { and, count, desc, eq, lt, or } from "drizzle-orm";
 import { getDb } from "../../db";
 import { records } from "../../db/schema";
-import { apiErrorHandler } from "../../utils/errors";
+import { ApiError, apiErrorHandler } from "../../utils/errors";
 import { buildRecordListResponse, parsePageSize } from "../../utils/pagination";
 import type { RecordListApiResponse } from "../../utils/response";
 
@@ -35,7 +35,21 @@ async function resolveCursor(
     return null;
   }
 
-  return findCursorPosition(db, userId, afterUuid);
+  const cursor = await findCursorPosition(db, userId, afterUuid);
+  if (!cursor) {
+    throw new ApiError(
+      [
+        {
+          status: "400",
+          title: "Invalid cursor",
+          detail: `Record '${afterUuid}' not found or not accessible`,
+        },
+      ],
+      400,
+    );
+  }
+
+  return cursor;
 }
 
 function buildCursorFilter(userId: string, cursor: CursorPosition | null) {
