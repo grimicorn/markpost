@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, apiErrorHandler } from "../../../server/utils/errors";
 import type { ApiError as ApiErrorObject } from "../../../server/types/api.types";
 
@@ -11,6 +11,11 @@ const mockCreateError = vi.fn((options: object) => {
 beforeEach(() => {
   vi.stubGlobal("createError", mockCreateError);
   mockCreateError.mockClear();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 const sampleErrors: ApiErrorObject[] = [
@@ -34,6 +39,32 @@ describe("ApiError", () => {
     const apiError = new ApiError(sampleErrors, 422);
 
     expect(apiError).toBeInstanceOf(Error);
+  });
+
+  it("throws RangeError when statusCode is below 400", () => {
+    expect(() => new ApiError(sampleErrors, 200)).toThrow(RangeError);
+    expect(() => new ApiError(sampleErrors, 200)).toThrow(
+      "ApiError statusCode must be an integer between 400 and 599",
+    );
+  });
+
+  it("throws RangeError when statusCode is above 599", () => {
+    expect(() => new ApiError(sampleErrors, 600)).toThrow(RangeError);
+    expect(() => new ApiError(sampleErrors, 600)).toThrow(
+      "ApiError statusCode must be an integer between 400 and 599",
+    );
+  });
+
+  it("throws RangeError when statusCode is not an integer", () => {
+    expect(() => new ApiError(sampleErrors, 422.5)).toThrow(RangeError);
+    expect(() => new ApiError(sampleErrors, 422.5)).toThrow(
+      "ApiError statusCode must be an integer between 400 and 599",
+    );
+  });
+
+  it("accepts boundary statusCode values 400 and 599", () => {
+    expect(() => new ApiError(sampleErrors, 400)).not.toThrow();
+    expect(() => new ApiError(sampleErrors, 599)).not.toThrow();
   });
 });
 

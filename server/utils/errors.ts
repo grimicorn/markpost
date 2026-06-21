@@ -5,6 +5,11 @@ export class ApiError extends Error {
   readonly statusCode: number;
 
   constructor(errors: ApiErrorObject[], statusCode: number) {
+    if (!Number.isInteger(statusCode) || statusCode < 400 || statusCode > 599) {
+      throw new RangeError(
+        "ApiError statusCode must be an integer between 400 and 599",
+      );
+    }
     super(`ApiError: ${statusCode}`);
     this.errors = errors;
     this.statusCode = statusCode;
