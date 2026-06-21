@@ -1,5 +1,8 @@
 import type { ApiResourceObject, ApiResponse } from "../types/api.types";
 
+type ApiResponseMeta = NonNullable<ApiResponse["meta"]>;
+type ApiResponseLinks = NonNullable<ApiResponse["links"]>;
+
 type RecordAttributes = {
   uuid: string;
   createdAt: Date;
@@ -8,13 +11,7 @@ type RecordAttributes = {
   content: string;
 };
 
-type RecordInput = {
-  uuid: string;
-  createdAt: Date;
-  userId: string;
-  title: string;
-  content: string;
-};
+type RecordInput = RecordAttributes;
 
 type RecordResource = ApiResourceObject & {
   type: "records";
@@ -28,11 +25,7 @@ type PaginationMetaOptions = {
   hasMore: boolean;
 };
 
-type PaginationMeta = {
-  total: number;
-  size: number;
-  hasMore: boolean;
-};
+type PaginationMeta = ApiResponseMeta & PaginationMetaOptions;
 
 type PaginationLinksOptions = {
   afterCursor: string | null;
@@ -41,7 +34,7 @@ type PaginationLinksOptions = {
   hasMore: boolean;
 };
 
-type PaginationLinks = {
+type PaginationLinks = ApiResponseLinks & {
   next: string | null;
   prev: string | null;
 };
