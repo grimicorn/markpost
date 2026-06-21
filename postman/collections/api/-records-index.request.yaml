@@ -1,13 +1,13 @@
 $kind: http-request
 name: /records
-url: "{{baseUrl}}/api/records?page[number]=1&page[size]=100"
+url: "{{baseUrl}}/api/records?page[size]=100"
 method: GET
 params:
-  - name: "page[number]"
-    value: "1"
   - name: "page[size]"
     value: "100"
+  - name: "page[after]"
+    value: ""
+    disabled: true
 queryParams:
-  page[number]: "1"
   page[size]: "100"
 order: 1000000000000
