@@ -48,8 +48,8 @@ export async function findRecordForUser(
 }
 
 export default defineEventHandler(async (event): Promise<RecordApiResponse> => {
+  const userId = requireUser(event);
   try {
-    const userId = requireUser(event);
     const uuid = getRouterParam(event, "uuid");
 
     if (!isValidUuid(uuid)) {

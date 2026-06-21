@@ -123,6 +123,14 @@ describe("GET /api/records/:uuid", () => {
     });
   });
 
+  it("throws a 401 when the user is not authenticated", async () => {
+    await expect(handler(buildEvent(undefined))).rejects.toThrow();
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 401,
+      statusMessage: "Unauthorized",
+    });
+  });
+
   it.each([
     { label: "malformed", value: "not-a-uuid" },
     { label: "missing", value: undefined },
