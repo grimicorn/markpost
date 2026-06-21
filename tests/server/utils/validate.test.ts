@@ -73,6 +73,21 @@ describe("apiValidate", () => {
     }
   });
 
+  it.each([
+    { label: "body.data is missing", body: {} },
+    { label: "body.data.attributes is missing", body: { data: {} } },
+  ])("throws a 422 when $label", ({ body }) => {
+    const request = body as unknown as ApiRequest;
+
+    expect(() => apiValidate(request, [{ key: "title" }])).toThrow(ApiError);
+
+    try {
+      apiValidate(request, [{ key: "title" }]);
+    } catch (error) {
+      expect((error as ApiError).statusCode).toBe(422);
+    }
+  });
+
   it("uses a custom message when the rule provides one", () => {
     const body = buildRequest({ title: undefined });
 

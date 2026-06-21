@@ -34,7 +34,8 @@ function buildError(rule: AttributeRule): ApiErrorObject {
 }
 
 export function apiValidate(body: ApiRequest, rules: AttributeRule[]): void {
-  const attributes = body.data.attributes as Record<string, unknown>;
+  const safeBody = body as { data?: { attributes?: Record<string, unknown> } };
+  const attributes = safeBody.data?.attributes ?? {};
   const errors = rules
     .filter((rule) => !attributes[rule.key])
     .map((rule) => buildError(rule));
