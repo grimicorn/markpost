@@ -8,6 +8,7 @@ import {
 const baseRecord = {
   uuid: "550e8400-e29b-41d4-a716-446655440000",
   createdAt: new Date("2024-01-15T10:00:00Z"),
+  userId: "user_abc123",
   title: "Test Post",
   content: "Some content here",
 };
@@ -22,6 +23,7 @@ describe("recordSerializer", () => {
       attributes: {
         uuid: baseRecord.uuid,
         createdAt: baseRecord.createdAt,
+        userId: baseRecord.userId,
         title: baseRecord.title,
         content: baseRecord.content,
       },

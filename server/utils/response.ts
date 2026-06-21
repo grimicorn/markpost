@@ -1,22 +1,25 @@
-type RecordInput = {
+import type { ApiResourceObject, ApiResponse } from "../types/api.types";
+
+type RecordAttributes = {
   uuid: string;
   createdAt: Date;
+  userId: string;
   title: string;
   content: string;
 };
 
-type RecordResource = {
+type RecordInput = {
+  uuid: string;
+  createdAt: Date;
+  userId: string;
+  title: string;
+  content: string;
+};
+
+type RecordResource = ApiResourceObject & {
   type: "records";
-  id: string;
-  attributes: {
-    uuid: string;
-    createdAt: Date;
-    title: string;
-    content: string;
-  };
-  links: {
-    self: string;
-  };
+  attributes: RecordAttributes;
+  links: { self: string };
 };
 
 type PaginationMetaOptions = {
@@ -43,6 +46,9 @@ type PaginationLinks = {
   prev: string | null;
 };
 
+export type RecordApiResponse = ApiResponse<RecordResource | null>;
+export type RecordListApiResponse = ApiResponse<RecordResource[]>;
+
 export function recordSerializer(
   record: RecordInput | null | undefined,
 ): RecordResource | null {
@@ -56,6 +62,7 @@ export function recordSerializer(
     attributes: {
       uuid: record.uuid,
       createdAt: record.createdAt,
+      userId: record.userId,
       title: record.title,
       content: record.content,
     },
