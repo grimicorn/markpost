@@ -78,6 +78,27 @@ describe("buildRecordListResponse", () => {
     );
   });
 
+  it("filters out records that serialize to null", () => {
+    const fetched = [
+      makeRecord(3),
+      null as unknown as ReturnType<typeof makeRecord>,
+      makeRecord(1),
+    ];
+
+    const response = buildRecordListResponse({
+      records: fetched,
+      size: 3,
+      total: 3,
+      prevCursor: null,
+    });
+
+    expect(response.data).toHaveLength(2);
+    expect(response.data.map((resource) => resource.id)).toEqual([
+      "uuid-3",
+      "uuid-1",
+    ]);
+  });
+
   it("returns empty data with null links when there are no records", () => {
     const response = buildRecordListResponse({
       records: [],
