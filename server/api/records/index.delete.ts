@@ -4,7 +4,10 @@ import { records } from "../../db/schema";
 import { requireUser } from "../../utils/auth";
 import { ApiError, apiErrorHandler } from "../../utils/errors";
 import { apiValidate } from "../../utils/validate";
+import { isValidUuid } from "../../utils/uuid";
 import type { ApiRequest } from "../../types/api.types";
+
+const MAX_DELETE_BATCH_SIZE = 100;
 
 type DeleteRecordsBody = ApiRequest & {
   data: {
@@ -18,6 +21,20 @@ type DeleteRecordsResponse = {
   meta: { deleted: number };
 };
 
+function uuidsError(detail: string): ApiError {
+  return new ApiError(
+    [
+      {
+        status: "422",
+        title: "Invalid Attribute",
+        detail,
+        source: { pointer: "/data/attributes/uuids" },
+      },
+    ],
+    422,
+  );
+}
+
 function validateUuids(body: DeleteRecordsBody): string[] {
   apiValidate(body, [
     {
@@ -29,31 +46,21 @@ function validateUuids(body: DeleteRecordsBody): string[] {
   const uuids = body.data?.attributes?.uuids;
 
   if (!Array.isArray(uuids) || uuids.length === 0) {
-    throw new ApiError(
-      [
-        {
-          status: "422",
-          title: "Invalid Attribute",
-          detail: "Uuids is required and must be a non-empty array",
-          source: { pointer: "/data/attributes/uuids" },
-        },
-      ],
-      422,
+    throw uuidsError("Uuids is required and must be a non-empty array");
+  }
+
+  if (uuids.length > MAX_DELETE_BATCH_SIZE) {
+    throw uuidsError(
+      `Uuids must not contain more than ${MAX_DELETE_BATCH_SIZE} items`,
     );
   }
 
   if (!uuids.every((uuid) => typeof uuid === "string")) {
-    throw new ApiError(
-      [
-        {
-          status: "422",
-          title: "Invalid Attribute",
-          detail: "All uuids must be strings",
-          source: { pointer: "/data/attributes/uuids" },
-        },
-      ],
-      422,
-    );
+    throw uuidsError("All uuids must be strings");
+  }
+
+  if (!uuids.every((uuid) => isValidUuid(uuid))) {
+    throw uuidsError("All uuids must be valid UUIDs");
   }
 
   return uuids as string[];

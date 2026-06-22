@@ -43,6 +43,7 @@ beforeEach(() => {
   vi.stubGlobal("createError", mockCreateError);
   vi.stubGlobal("readBody", readBodyMock);
   mockCreateError.mockClear();
+  readBodyMock.mockReset();
   deleteMock.mockReset();
 });
 
@@ -112,6 +113,26 @@ describe("DELETE /api/records", () => {
 
     it("throws 422 when uuids is not an array", async () => {
       readBodyMock.mockResolvedValue(buildBody("not-an-array"));
+
+      await expect(handler(buildEvent(userId))).rejects.toThrow();
+      expect(mockCreateError).toHaveBeenCalledWith({
+        statusCode: 422,
+        data: { errors: expect.any(Array) },
+      });
+    });
+
+    it("throws 422 when uuids contains non-string elements", async () => {
+      readBodyMock.mockResolvedValue(buildBody([uuidOne, 123, {}]));
+
+      await expect(handler(buildEvent(userId))).rejects.toThrow();
+      expect(mockCreateError).toHaveBeenCalledWith({
+        statusCode: 422,
+        data: { errors: expect.any(Array) },
+      });
+    });
+
+    it("throws 422 when uuids contains malformed UUID strings", async () => {
+      readBodyMock.mockResolvedValue(buildBody([uuidOne, "not-a-uuid"]));
 
       await expect(handler(buildEvent(userId))).rejects.toThrow();
       expect(mockCreateError).toHaveBeenCalledWith({
