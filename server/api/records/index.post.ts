@@ -4,7 +4,7 @@ import type { ApiRequest } from "../../types/api.types";
 import { requireUser } from "../../utils/auth";
 import { apiErrorHandler } from "../../utils/errors";
 import { recordSerializer, type RecordApiResponse } from "../../utils/response";
-import { apiValidate } from "../../utils/validate";
+import { apiValidate, type AttributeRule } from "../../utils/validate";
 
 type CreateRecordAttributes = {
   title?: string;
@@ -18,7 +18,10 @@ type CreateRecordBody = {
   };
 };
 
-const VALIDATION_RULES = [{ key: "title" }, { key: "content" }];
+const VALIDATION_RULES: AttributeRule[] = [
+  { key: "title", type: "string" },
+  { key: "content", type: "string" },
+];
 
 async function insertRecord(
   db: ReturnType<typeof getDb>,

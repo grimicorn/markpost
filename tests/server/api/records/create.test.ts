@@ -125,6 +125,73 @@ describe("POST /api/records", () => {
     });
   });
 
+  it("throws a 422 with one error when title is not a string", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({ title: {}, content: "My Content" }),
+    );
+
+    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 422,
+      data: {
+        errors: [
+          {
+            status: "422",
+            title: "Invalid Attribute",
+            detail: "Title must be a string",
+            source: { pointer: "/data/attributes/title" },
+          },
+        ],
+      },
+    });
+  });
+
+  it("throws a 422 with one error when content is not a string", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({ title: "My Title", content: 123 }),
+    );
+
+    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 422,
+      data: {
+        errors: [
+          {
+            status: "422",
+            title: "Invalid Attribute",
+            detail: "Content must be a string",
+            source: { pointer: "/data/attributes/content" },
+          },
+        ],
+      },
+    });
+  });
+
+  it("throws a 422 with two errors when both title and content are not strings", async () => {
+    mockReadBody.mockResolvedValue(buildBody({ title: {}, content: 123 }));
+
+    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 422,
+      data: {
+        errors: [
+          {
+            status: "422",
+            title: "Invalid Attribute",
+            detail: "Title must be a string",
+            source: { pointer: "/data/attributes/title" },
+          },
+          {
+            status: "422",
+            title: "Invalid Attribute",
+            detail: "Content must be a string",
+            source: { pointer: "/data/attributes/content" },
+          },
+        ],
+      },
+    });
+  });
+
   it("throws a 422 with two errors when both title and content are missing", async () => {
     mockReadBody.mockResolvedValue(buildBody({}));
 
