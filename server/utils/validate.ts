@@ -44,7 +44,7 @@ function validateRule(
 ): ApiErrorObject | null {
   const value = attributes[rule.key];
 
-  if (!value) {
+  if (value === undefined || value === null || value === "") {
     return buildError(rule, rule.message ?? requiredMessage(rule.key));
   }
 
