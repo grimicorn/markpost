@@ -31,6 +31,7 @@
           </p>
           <div style="margin-top: 28px">
             <SignIn
+              path="/login"
               :appearance="{
                 elements: {
                   rootBox: 'w-full',
