@@ -93,14 +93,25 @@ npm run e2e
 
 API requests are in `postman/` and can be imported into [Postman](https://postman.com) or any compatible client.
 
-The collection uses bearer token auth via the `{{apiToken}}` variable. Two environments are included — `Local` and `Production` — each with the following variables:
+### Importing
 
-| Variable   | Description                                                                                                                                                                                                                             |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `baseUrl`  | Base URL for the API (e.g. `http://localhost:3000`)                                                                                                                                                                                     |
-| `apiToken` | Clerk session JWT sent in `Authorization: Bearer <token>` — obtain from [Clerk Dashboard](https://dashboard.clerk.com) → your user → **Sessions** → copy the session access token, or retrieve it in-app via `await session.getToken()` |
+1. In Postman, go to **File → Import** (or drag-and-drop)
+2. Import the collection: `postman/collections/api/`
+3. Import an environment: `postman/environments/Local.environment.yaml` or `postman/environments/Production.environment.yaml`
+4. Import the globals file: `postman/globals/workspace.globals.yaml`
 
-Fill in the values for each environment directly in your Postman client (they are intentionally left blank in the repo). The `apiToken` value is validated server-side by `clerkClient.verifyToken()` in `server/middleware/auth.ts` — it must be a valid Clerk-issued JWT, not the server secret key.
+### Variables
+
+The collection uses bearer token auth via the `{{apiToken}}` workspace global. Two environments are included — `Local` and `Production` — that control `baseUrl`:
+
+| Variable   | Location          | Description                                                                                                                                                                                                                             |
+| ---------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `baseUrl`  | Environment       | Base URL for the API (`http://localhost:3000` for Local; production URL for Production)                                                                                                                                                 |
+| `apiToken` | Workspace globals | Clerk session JWT sent in `Authorization: Bearer <token>` — obtain from [Clerk Dashboard](https://dashboard.clerk.com) → your user → **Sessions** → copy the session access token, or retrieve it in-app via `await session.getToken()` |
+
+Fill in `apiToken` in your workspace globals directly in your Postman client (it is intentionally left blank in the repo). The value is validated server-side by `clerkClient.verifyToken()` in `server/middleware/auth.ts` — it must be a valid Clerk-issued JWT, not the server secret key.
+
+> **Note:** The Production environment's `baseUrl` is currently a placeholder (`https://markpost.example.com`). Update it to the actual deployed URL once known.
 
 ## Linting
 
