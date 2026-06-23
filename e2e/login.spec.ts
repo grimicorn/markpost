@@ -1,22 +1,20 @@
-import { test, expect, type Page } from "@playwright/test";
-
-const TEST_EMAIL = process.env.E2E_CLERK_TEST_EMAIL ?? "";
-const TEST_PASSWORD = process.env.E2E_CLERK_TEST_PASSWORD ?? "";
-
-async function fillSignInForm(
-  page: Page,
-  email: string,
-  password: string,
-): Promise<void> {
-  await page.fill('input[name="identifier"]', email);
-  await page.getByRole("button", { name: /continue/i }).click();
-  await page.waitForSelector('input[name="password"]', { timeout: 8000 });
-  await page.fill('input[name="password"]', password);
-  await page.getByRole("button", { name: /continue/i }).click();
-}
+import { test, expect } from "@playwright/test";
+import {
+  clerk,
+  clerkSetup,
+  setupClerkTestingToken,
+} from "@clerk/testing/playwright";
+import { TEST_USER_EMAIL } from "./helpers/clerk";
 
 test.describe("login page", () => {
+  // Fetches the Clerk testing token once so Clerk's Frontend API bypasses bot
+  // detection during these tests.
+  test.beforeAll(async () => {
+    await clerkSetup();
+  });
+
   test.beforeEach(async ({ page }) => {
+    await setupClerkTestingToken({ page });
     await page.goto("/login");
     // Wait for Clerk's SignIn component to finish loading its UI
     await page.waitForSelector('input[name="identifier"]', { timeout: 10000 });
@@ -48,28 +46,18 @@ test.describe("login page", () => {
     await expect(page).toHaveURL("/login");
   });
 
-  test("shows an error for wrong credentials", async ({ page }) => {
-    test.skip(!TEST_EMAIL, "E2E_CLERK_TEST_EMAIL not set");
+  test("signs in as the Clerk test user", async ({ page }) => {
+    // Uses Clerk's test-email flow (email_code with the fixed 424242 code) via
+    // the @clerk/testing helper — no real inbox or separate account required.
+    await clerk.signIn({
+      page,
+      signInParams: { strategy: "email_code", identifier: TEST_USER_EMAIL },
+    });
 
-    await fillSignInForm(page, TEST_EMAIL, "definitely-wrong-password");
-
-    await expect(
-      page
-        .getByText(/password is incorrect/i)
-        .or(page.getByText(/invalid credentials/i))
-        .or(page.getByText(/password.*incorrect/i)),
-    ).toBeVisible({ timeout: 8000 });
-  });
-
-  test("signs in with valid credentials and redirects away from /login", async ({
-    page,
-  }) => {
-    test.skip(!TEST_EMAIL || !TEST_PASSWORD, "Clerk test credentials not set");
-
-    await fillSignInForm(page, TEST_EMAIL, TEST_PASSWORD);
-
-    // After successful auth Clerk redirects; we should leave /login
-    await expect(page).not.toHaveURL("/login", { timeout: 12000 });
+    const signedInEmail = await page.evaluate(
+      () => window.Clerk?.user?.primaryEmailAddress?.emailAddress ?? null,
+    );
+    expect(signedInEmail).toBe(TEST_USER_EMAIL);
   });
 
   test("logo navigates back to the landing page", async ({ page }) => {

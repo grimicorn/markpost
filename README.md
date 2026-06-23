@@ -89,6 +89,8 @@ Run end-to-end tests (requires `.env.e2e`):
 npm run e2e
 ```
 
+The suite signs in using Clerk's test-email flow. A dedicated test user is provisioned automatically via the Clerk Backend API (using `NUXT_CLERK_SECRET_KEY`), so no separate Clerk account or credentials are needed.
+
 ## Postman
 
 API requests are in `postman/` and can be imported into [Postman](https://postman.com) or any compatible client.
