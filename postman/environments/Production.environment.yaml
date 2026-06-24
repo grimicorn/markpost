@@ -1,8 +1,5 @@
 name: Production
 values:
   - key: baseUrl
-    value: ""
-    enabled: true
-  - key: apiToken
-    value: ""
+    value: "https://markpost.example.com"
     enabled: true
