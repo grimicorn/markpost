@@ -91,16 +91,30 @@ npm run e2e
 
 ## Postman
 
-API requests are in `postman/` and can be imported into [Postman](https://postman.com) or any compatible client.
+API requests live in `postman/` in Postman's multi-file (Git-integrated) format. Each request, environment, and the workspace globals is a separate YAML file under `postman/collections/`, `postman/environments/`, and `postman/globals/`. This is the format the [Postman VS Code extension](https://marketplace.visualstudio.com/items?itemName=Postman.postman-for-vscode) reads directly — it is **not** a single `.postman_collection.json` file that the desktop app's **File → Import** dialog can open.
 
-The collection uses bearer token auth via the `{{apiToken}}` variable. Two environments are included — `Local` and `Production` — each with the following variables:
+### Opening the collection
 
-| Variable   | Description                                                                                                                                                                                                                             |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `baseUrl`  | Base URL for the API (e.g. `http://localhost:3000`)                                                                                                                                                                                     |
-| `apiToken` | Clerk session JWT sent in `Authorization: Bearer <token>` — obtain from [Clerk Dashboard](https://dashboard.clerk.com) → your user → **Sessions** → copy the session access token, or retrieve it in-app via `await session.getToken()` |
+Use the [Postman VS Code extension](https://marketplace.visualstudio.com/items?itemName=Postman.postman-for-vscode):
 
-Fill in the values for each environment directly in your Postman client (they are intentionally left blank in the repo). The `apiToken` value is validated server-side by `clerkClient.verifyToken()` in `server/middleware/auth.ts` — it must be a valid Clerk-issued JWT, not the server secret key.
+1. Install the **Postman** extension in VS Code and sign in.
+2. Open this repository as a folder in VS Code.
+3. In the Postman panel, the `api` collection under `postman/collections/api/` is detected automatically. Pick the `Local` or `Production` environment (from `postman/environments/`) and send requests.
+
+The `apiToken` workspace global lives in `postman/globals/workspace.globals.yaml`.
+
+### Variables
+
+The collection uses bearer token auth via the `{{apiToken}}` workspace global. Two environments are included — `Local` and `Production` — that control `baseUrl`:
+
+| Variable   | Location          | Description                                                                                                                                                                                                                             |
+| ---------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `baseUrl`  | Environment       | Base URL for the API (`http://localhost:3000` for Local; production URL for Production)                                                                                                                                                 |
+| `apiToken` | Workspace globals | Clerk session JWT sent in `Authorization: Bearer <token>` — obtain from [Clerk Dashboard](https://dashboard.clerk.com) → your user → **Sessions** → copy the session access token, or retrieve it in-app via `await session.getToken()` |
+
+Fill in `apiToken` in your workspace globals directly in your Postman client (it is intentionally left blank in the repo). The value is validated server-side by `clerkClient.verifyToken()` in `server/middleware/auth.ts` — it must be a valid Clerk-issued JWT, not the server secret key.
+
+> **Note:** The Production environment's `baseUrl` is currently a placeholder (`https://markpost.example.com`). Update it to the actual deployed URL once known.
 
 ## Linting
 

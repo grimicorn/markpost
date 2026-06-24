@@ -1,8 +1,5 @@
 name: Local
 values:
   - key: baseUrl
-    value: ""
-    enabled: true
-  - key: apiToken
-    value: ""
+    value: "http://localhost:3000"
     enabled: true
