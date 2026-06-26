@@ -1,0 +1,62 @@
+import { describe, it, expect } from "vitest";
+import { mount } from "@vue/test-utils";
+import InputCheckbox from "../../app/components/InputCheckbox.vue";
+import AppIcon from "../../app/components/AppIcon.vue";
+
+const globalConfig = {
+  global: {
+    components: { AppIcon },
+  },
+};
+
+describe("InputCheckbox", () => {
+  it("matches snapshot", () => {
+    const wrapper = mount(InputCheckbox, {
+      ...globalConfig,
+      props: { modelValue: false, label: "Accept terms" },
+    });
+    expect(wrapper.html()).toMatchSnapshot();
+  });
+
+  it("renders label text", () => {
+    const wrapper = mount(InputCheckbox, {
+      ...globalConfig,
+      props: { modelValue: false, label: "Accept terms" },
+    });
+    expect(wrapper.text()).toContain("Accept terms");
+  });
+
+  it("shows check icon when checked", () => {
+    const wrapper = mount(InputCheckbox, {
+      ...globalConfig,
+      props: { modelValue: true, label: "Checked" },
+    });
+    expect(wrapper.findComponent(AppIcon).exists()).toBe(true);
+  });
+
+  it("hides check icon when unchecked", () => {
+    const wrapper = mount(InputCheckbox, {
+      ...globalConfig,
+      props: { modelValue: false, label: "Unchecked" },
+    });
+    expect(wrapper.findComponent(AppIcon).exists()).toBe(false);
+  });
+
+  it("emits update:modelValue true when clicked while unchecked", async () => {
+    const wrapper = mount(InputCheckbox, {
+      ...globalConfig,
+      props: { modelValue: false, label: "Click me" },
+    });
+    await wrapper.find("input").setValue(true);
+    expect(wrapper.emitted("update:modelValue")?.[0]).toEqual([true]);
+  });
+
+  it("emits update:modelValue false when clicked while checked", async () => {
+    const wrapper = mount(InputCheckbox, {
+      ...globalConfig,
+      props: { modelValue: true, label: "Click me" },
+    });
+    await wrapper.find("input").setValue(false);
+    expect(wrapper.emitted("update:modelValue")?.[0]).toEqual([false]);
+  });
+});

@@ -1,0 +1,9 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`InputTextarea > matches snapshot 1`] = `
+"<div class="field"><span class="field-label"><!--v-if--><span>Notes</span>
+  <!--v-if-->
+  <!--v-if--></span><textarea class="textarea" rows="4" value=""></textarea>
+  <!--v-if-->
+</div>"
+`;

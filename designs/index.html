@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Markpost — App Pages</title>
+    <style>
+      :root {
+        --ink: #1a1814;
+        --mut: #6a665f;
+        --line: #e6e2da;
+        --bg: #faf8f4;
+        --accent: #a855f7;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        padding: 56px 32px 80px;
+      }
+      .wrap {
+        max-width: 820px;
+        margin: 0 auto;
+      }
+      .head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 8px;
+      }
+      .mark {
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        background: var(--accent);
+        display: grid;
+        place-items: center;
+        color: #fff;
+        font-weight: 700;
+        font-size: 18px;
+      }
+      h1 {
+        font-size: 22px;
+        margin: 0;
+        letter-spacing: -0.01em;
+      }
+      .sub {
+        color: var(--mut);
+        font-size: 13px;
+        margin: 0 0 40px 42px;
+      }
+      .grp {
+        margin-bottom: 34px;
+      }
+      h2 {
+        font-size: 11px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--mut);
+        margin: 0 0 14px;
+        font-weight: 600;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 12px;
+      }
+      .card {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 16px;
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        text-decoration: none;
+        color: inherit;
+        transition:
+          border-color 0.12s,
+          transform 0.12s;
+      }
+      .card:hover {
+        border-color: var(--accent);
+        transform: translateY(-2px);
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+      .lbl {
+        font-size: 15px;
+        font-weight: 600;
+      }
+      .fn {
+        font-size: 11px;
+        color: var(--mut);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="head">
+        <span class="mark">#</span>
+        <h1>Markpost — App Pages</h1>
+      </div>
+      <p class="sub">
+        Each page is a standalone, offline HTML file. Open any one to view,
+        screenshot, and file issues against it.
+      </p>
+
+      <section class="grp">
+        <h2>Marketing</h2>
+        <div class="row">
+          <a class="card" href="landing.html"
+            ><span class="dot"></span><span class="lbl">Landing</span
+            ><span class="fn">landing.html</span></a
+          >
+          <a class="card" href="pricing.html"
+            ><span class="dot"></span><span class="lbl">Pricing</span
+            ><span class="fn">pricing.html</span></a
+          >
+          <a class="card" href="login.html"
+            ><span class="dot"></span><span class="lbl">Login</span
+            ><span class="fn">login.html</span></a
+          >
+          <a class="card" href="404.html"
+            ><span class="dot"></span><span class="lbl">404</span
+            ><span class="fn">404.html</span></a
+          >
+        </div>
+      </section>
+
+      <section class="grp">
+        <h2>App</h2>
+        <div class="row">
+          <a class="card" href="inbox.html"
+            ><span class="dot"></span><span class="lbl">Inbox</span
+            ><span class="fn">inbox.html</span></a
+          >
+          <a class="card" href="sources.html"
+            ><span class="dot"></span><span class="lbl">Sources</span
+            ><span class="fn">sources.html</span></a
+          >
+          <a class="card" href="activity.html"
+            ><span class="dot"></span><span class="lbl">Activity</span
+            ><span class="fn">activity.html</span></a
+          >
+          <a class="card" href="settings.html"
+            ><span class="dot"></span><span class="lbl">Settings</span
+            ><span class="fn">settings.html</span></a
+          >
+        </div>
+      </section>
+
+      <section class="grp">
+        <h2>Components</h2>
+        <div class="row">
+          <a class="card" href="alerts.html"
+            ><span class="dot"></span><span class="lbl">Alerts</span
+            ><span class="fn">alerts.html</span></a
+          >
+          <a class="card" href="forms.html"
+            ><span class="dot"></span><span class="lbl">Forms</span
+            ><span class="fn">forms.html</span></a
+          >
+        </div>
+      </section>
+
+      <section class="grp">
+        <h2>Docs</h2>
+        <div class="row">
+          <a class="card" href="docs.html"
+            ><span class="dot"></span><span class="lbl">API Docs</span
+            ><span class="fn">docs.html</span></a
+          >
+        </div>
+      </section>
+    </div>
+  </body>
+</html>

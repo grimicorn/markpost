@@ -1,0 +1,77 @@
+import { describe, it, expect } from "vitest";
+import { mount } from "@vue/test-utils";
+import InputSegmented from "../../app/components/InputSegmented.vue";
+
+describe("InputSegmented", () => {
+  it("matches snapshot", () => {
+    const wrapper = mount(InputSegmented, {
+      props: {
+        modelValue: "a",
+        options: ["a", "b", "c"],
+      },
+    });
+    expect(wrapper.html()).toMatchSnapshot();
+  });
+
+  it("renders string options as buttons", () => {
+    const wrapper = mount(InputSegmented, {
+      props: {
+        modelValue: "a",
+        options: ["a", "b", "c"],
+      },
+    });
+    const buttons = wrapper.findAll("button");
+    expect(buttons).toHaveLength(3);
+    expect(buttons[0].text()).toBe("a");
+    expect(buttons[1].text()).toBe("b");
+  });
+
+  it("marks the active option with the 'on' class for both string and object options", () => {
+    const stringWrapper = mount(InputSegmented, {
+      props: { modelValue: "b", options: ["a", "b", "c"] },
+    });
+    const stringButtons = stringWrapper.findAll("button");
+    expect(stringButtons[0].classes()).not.toContain("on");
+    expect(stringButtons[1].classes()).toContain("on");
+    expect(stringButtons[2].classes()).not.toContain("on");
+
+    const objWrapper = mount(InputSegmented, {
+      props: {
+        modelValue: "yearly",
+        options: [
+          { value: "monthly", label: "Monthly" },
+          { value: "yearly", label: "Yearly" },
+        ],
+      },
+    });
+    const objButtons = objWrapper.findAll("button");
+    expect(objButtons[0].classes()).not.toContain("on");
+    expect(objButtons[1].classes()).toContain("on");
+  });
+
+  it("emits update:modelValue with the selected value on click", async () => {
+    const wrapper = mount(InputSegmented, {
+      props: {
+        modelValue: "a",
+        options: ["a", "b", "c"],
+      },
+    });
+    await wrapper.findAll("button")[2].trigger("click");
+    expect(wrapper.emitted("update:modelValue")?.[0]).toEqual(["c"]);
+  });
+
+  it("normalizes object options", () => {
+    const wrapper = mount(InputSegmented, {
+      props: {
+        modelValue: "monthly",
+        options: [
+          { value: "monthly", label: "Monthly" },
+          { value: "yearly", label: "Yearly" },
+        ],
+      },
+    });
+    const buttons = wrapper.findAll("button");
+    expect(buttons[0].text()).toBe("Monthly");
+    expect(buttons[1].text()).toBe("Yearly");
+  });
+});
