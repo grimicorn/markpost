@@ -108,9 +108,8 @@ describe("PATCH /api/sources/:uuid", () => {
     mockGetRouterParam.mockReturnValue(validUuid);
     mockReadBody.mockResolvedValue(buildBody({ routeFolder: "05-stripe/" }));
     const updatedSource = { ...sampleSource, routeFolder: "05-stripe/" };
-    stubUpdateResult([updatedSource]);
-
     const { set } = stubUpdateResult([updatedSource]);
+
     await handler(buildEvent(userId));
 
     expect(set).toHaveBeenCalledWith({ routeFolder: "05-stripe/" });

@@ -17,6 +17,8 @@ const VALID_SOURCE_TYPES = [
   "shortcuts",
 ] as const;
 
+const MAX_SLUG_ATTEMPTS = 5;
+
 type SourceType = (typeof VALID_SOURCE_TYPES)[number];
 
 type CreateSourceAttributes = {
@@ -34,6 +36,11 @@ type CreateSourceBody = ApiRequest & {
   };
 };
 
+type InsertSourceInput = Required<
+  Pick<CreateSourceAttributes, "type" | "name" | "routeFolder">
+> &
+  Pick<CreateSourceAttributes, "provider" | "fieldMapping">;
+
 const VALIDATION_RULES: AttributeRule[] = [
   { key: "type", type: "string" },
   { key: "name", type: "string" },
@@ -44,30 +51,81 @@ function isValidSourceType(value: string): value is SourceType {
   return (VALID_SOURCE_TYPES as readonly string[]).includes(value);
 }
 
-async function insertSource(
-  userId: string,
-  attributes: Required<
-    Pick<CreateSourceAttributes, "type" | "name" | "routeFolder">
-  > &
-    Pick<CreateSourceAttributes, "provider" | "fieldMapping">,
-) {
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code: string }).code === "23505"
+  );
+}
+
+async function insertSource(userId: string, attributes: InsertSourceInput) {
   const db = getDb();
-  const endpointSlug = generateEndpointSlug(attributes.type);
 
-  const [created] = await db
-    .insert(sources)
-    .values({
-      userId,
-      type: attributes.type,
-      name: attributes.name,
-      provider: attributes.provider ?? null,
-      endpointSlug,
-      routeFolder: attributes.routeFolder,
-      fieldMapping: attributes.fieldMapping ?? null,
-    })
-    .returning();
+  for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
+    try {
+      const endpointSlug = generateEndpointSlug(attributes.type);
 
-  return created;
+      const [created] = await db
+        .insert(sources)
+        .values({
+          userId,
+          type: attributes.type,
+          name: attributes.name,
+          provider: attributes.provider ?? null,
+          endpointSlug,
+          routeFolder: attributes.routeFolder,
+          fieldMapping: attributes.fieldMapping ?? null,
+        })
+        .returning();
+
+      return created;
+    } catch (error) {
+      if (!isUniqueViolation(error)) {
+        throw error;
+      }
+    }
+  }
+
+  throw new ApiError(
+    [
+      {
+        status: "409",
+        title: "Conflict",
+        detail: "Could not allocate a unique endpoint slug. Please try again.",
+      },
+    ],
+    409,
+  );
+}
+
+function invalidTypeError(): ApiError {
+  return new ApiError(
+    [
+      {
+        status: "422",
+        title: "Invalid Attribute",
+        detail: `Type must be one of: ${VALID_SOURCE_TYPES.join(", ")}`,
+        source: { pointer: "/data/attributes/type" },
+      },
+    ],
+    422,
+  );
+}
+
+function invalidProviderError(): ApiError {
+  return new ApiError(
+    [
+      {
+        status: "422",
+        title: "Invalid Attribute",
+        detail: "Provider must be a string",
+        source: { pointer: "/data/attributes/provider" },
+      },
+    ],
+    422,
+  );
 }
 
 export default defineEventHandler(async (event): Promise<SourceApiResponse> => {
@@ -80,17 +138,14 @@ export default defineEventHandler(async (event): Promise<SourceApiResponse> => {
     const attributes = body.data.attributes as Required<CreateSourceAttributes>;
 
     if (!isValidSourceType(attributes.type)) {
-      throw new ApiError(
-        [
-          {
-            status: "422",
-            title: "Invalid Attribute",
-            detail: `Type must be one of: ${VALID_SOURCE_TYPES.join(", ")}`,
-            source: { pointer: "/data/attributes/type" },
-          },
-        ],
-        422,
-      );
+      throw invalidTypeError();
+    }
+
+    if (
+      attributes.provider !== undefined &&
+      typeof attributes.provider !== "string"
+    ) {
+      throw invalidProviderError();
     }
 
     const source = await insertSource(userId, {
