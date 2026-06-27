@@ -1,0 +1,61 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SetAppearance > matches snapshot 1`] = `
+"<div>
+  <div class="stub-set-head" eyebrow="appearance" title="Appearance" desc="Personalize markpost. Your theme and accent colour are saved to your account and follow you everywhere."></div>
+  <div class="card card-pad"><span class="field-label" style="margin-bottom: 12px;"><span class="num">01</span> Theme </span>
+    <div class="row wrap gap-3"><button class="col" style="min-width: 150px; cursor: pointer; border: 1px solid; border-color: var(--accent); border-radius: 10px; padding: 14px; background: var(--accent-tint); gap: 10px; align-items: stretch; box-shadow: 0 0 0 3px var(--accent-tint); flex-grow: 1; flex-shrink: 1; flex-basis: 0%;">
+        <div style="height: 56px; border-radius: 7px; border: 1px solid; overflow: hidden; background: #f4f3ef; display: flex; border-width: var(--line); border-style: var(--line); border-color: var(--line);">
+          <div style="width: 34%; padding: 6px; border-right-width: 1px; border-right-style: solid; border-right-color: #e5e2da;">
+            <div style="height: 5px; border-radius: 2px; background: var(--accent); width: 70%;"></div>
+            <div style="height: 4px; border-radius: 2px; background: #d6d2c8; width: 90%; margin-top: 5px;"></div>
+          </div>
+          <div style="padding: 6px; flex-grow: 1; flex-shrink: 1; flex-basis: 0%;">
+            <div style="height: 4px; border-radius: 2px; background: #d6d2c8; width: 80%;"></div>
+            <div style="height: 4px; border-radius: 2px; background: #d6d2c8; width: 55%; margin-top: 5px;"></div>
+          </div>
+        </div><span class="row mono gap-2" style="font-size: 12.5px; color: var(--accent-700); font-weight: 600;"><span class="stub-icon" name="sun" size="15"></span> Light <span class="stub-icon" name="check" size="14" style="margin-left: auto;"></span></span>
+      </button><button class="col" style="min-width: 150px; cursor: pointer; border: 1px solid; border-color: var(--line-2); border-radius: 10px; padding: 14px; background: var(--surface-2); gap: 10px; align-items: stretch; box-shadow: none; flex-grow: 1; flex-shrink: 1; flex-basis: 0%;">
+        <div style="height: 56px; border-radius: 7px; border: 1px solid; overflow: hidden; background: #1a1916; display: flex; border-width: var(--line); border-style: var(--line); border-color: var(--line);">
+          <div style="width: 34%; padding: 6px; border-right-width: 1px; border-right-style: solid; border-right-color: #2a2823;">
+            <div style="height: 5px; border-radius: 2px; background: var(--accent); width: 70%;"></div>
+            <div style="height: 4px; border-radius: 2px; background: #3a3730; width: 90%; margin-top: 5px;"></div>
+          </div>
+          <div style="padding: 6px; flex-grow: 1; flex-shrink: 1; flex-basis: 0%;">
+            <div style="height: 4px; border-radius: 2px; background: #3a3730; width: 80%;"></div>
+            <div style="height: 4px; border-radius: 2px; background: #3a3730; width: 55%; margin-top: 5px;"></div>
+          </div>
+        </div><span class="row mono gap-2" style="font-size: 12.5px; color: var(--ink-2); font-weight: 500;"><span class="stub-icon" name="moon" size="15"></span> Dark
+        <!--v-if--></span>
+      </button><button class="col" style="min-width: 150px; cursor: pointer; border: 1px solid; border-color: var(--line-2); border-radius: 10px; padding: 14px; background: var(--surface-2); gap: 10px; align-items: stretch; box-shadow: none; flex-grow: 1; flex-shrink: 1; flex-basis: 0%;">
+        <div style="height: 56px; border-radius: 7px; border: 1px solid; overflow: hidden; background: #f4f3ef; display: flex; border-width: var(--line); border-style: var(--line); border-color: var(--line);">
+          <div style="width: 34%; padding: 6px; border-right-width: 1px; border-right-style: solid; border-right-color: #e5e2da;">
+            <div style="height: 5px; border-radius: 2px; background: var(--accent); width: 70%;"></div>
+            <div style="height: 4px; border-radius: 2px; background: #d6d2c8; width: 90%; margin-top: 5px;"></div>
+          </div>
+          <div style="padding: 6px; flex-grow: 1; flex-shrink: 1; flex-basis: 0%;">
+            <div style="height: 4px; border-radius: 2px; background: #d6d2c8; width: 80%;"></div>
+            <div style="height: 4px; border-radius: 2px; background: #d6d2c8; width: 55%; margin-top: 5px;"></div>
+          </div>
+        </div><span class="row mono gap-2" style="font-size: 12.5px; color: var(--ink-2); font-weight: 500;"><span class="stub-icon" name="sliders" size="15"></span> System
+        <!--v-if--></span>
+      </button></div>
+    <hr class="hairline" style="margin: 24px 0px;"><span class="field-label" style="margin-bottom: 4px;"><span class="num">02</span> Accent colour </span>
+    <p class="muted" style="font-size: 13px; margin-bottom: 16px;"> Tints buttons, links, focus rings and highlights across the app. </p>
+    <div style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 12px;"><button class="col" style="align-items: center; gap: 7px; background: none none; border: 0px; cursor: pointer;" title="violet"><span style="width: 40px; height: 40px; border-radius: 10px; background: #a855f7; display: grid; place-items: center; box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px #a855f7; transition: all .12s;"><span class="stub-icon" name="check" size="18" style="color: #fff;"></span></span><span class="mono" style="font-size: 10px; color: var(--ink); letter-spacing: 0.02em;">violet</span></button><button class="col" style="align-items: center; gap: 7px; background: none none; border: 0px; cursor: pointer;" title="indigo"><span style="width: 40px; height: 40px; border-radius: 10px; background: #6366f1; display: grid; place-items: center; box-shadow: none; transition: all .12s;"><!--v-if--></span><span class="mono" style="font-size: 10px; color: var(--ink-3); letter-spacing: 0.02em;">indigo</span></button><button class="col" style="align-items: center; gap: 7px; background: none none; border: 0px; cursor: pointer;" title="blue"><span style="width: 40px; height: 40px; border-radius: 10px; background: #2f6fed; display: grid; place-items: center; box-shadow: none; transition: all .12s;"><!--v-if--></span><span class="mono" style="font-size: 10px; color: var(--ink-3); letter-spacing: 0.02em;">blue</span></button><button class="col" style="align-items: center; gap: 7px; background: none none; border: 0px; cursor: pointer;" title="emerald"><span style="width: 40px; height: 40px; border-radius: 10px; background: #0e9f6e; display: grid; place-items: center; box-shadow: none; transition: all .12s;"><!--v-if--></span><span class="mono" style="font-size: 10px; color: var(--ink-3); letter-spacing: 0.02em;">emerald</span></button><button class="col" style="align-items: center; gap: 7px; background: none none; border: 0px; cursor: pointer;" title="amber"><span style="width: 40px; height: 40px; border-radius: 10px; background: #d98613; display: grid; place-items: center; box-shadow: none; transition: all .12s;"><!--v-if--></span><span class="mono" style="font-size: 10px; color: var(--ink-3); letter-spacing: 0.02em;">amber</span></button><button class="col" style="align-items: center; gap: 7px; background: none none; border: 0px; cursor: pointer;" title="orange"><span style="width: 40px; height: 40px; border-radius: 10px; background: #ea580c; display: grid; place-items: center; box-shadow: none; transition: all .12s;"><!--v-if--></span><span class="mono" style="font-size: 10px; color: var(--ink-3); letter-spacing: 0.02em;">orange</span></button><button class="col" style="align-items: center; gap: 7px; background: none none; border: 0px; cursor: pointer;" title="rose"><span style="width: 40px; height: 40px; border-radius: 10px; background: #e11d6b; display: grid; place-items: center; box-shadow: none; transition: all .12s;"><!--v-if--></span><span class="mono" style="font-size: 10px; color: var(--ink-3); letter-spacing: 0.02em;">rose</span></button><button class="col" style="align-items: center; gap: 7px; background: none none; border: 0px; cursor: pointer;" title="graphite"><span style="width: 40px; height: 40px; border-radius: 10px; background: #3f3d39; display: grid; place-items: center; box-shadow: none; transition: all .12s;"><!--v-if--></span><span class="mono" style="font-size: 10px; color: var(--ink-3); letter-spacing: 0.02em;">graphite</span></button></div>
+    <hr class="hairline" style="margin: 24px 0px;"><span class="field-label" style="margin-bottom: 12px;">Preview</span>
+    <div class="panel" style="padding: 18px;">
+      <div class="row between wrap gap-3">
+        <div class="row wrap gap-2"><button class="stub-btn" variant="accent" size="sm" icon-r="arrowR">primary</button><button class="stub-btn" size="sm">secondary</button><span class="stub-badge" tone="accent" dot="">accent badge</span></div><span class="mono" style="font-size: 12px; color: var(--accent-700);">a tinted link →</span>
+      </div>
+      <div class="row gap-3" style="margin-top: 14px;">
+        <div class="grow">
+          <div class="stub-field" state="ok" msg="focus ring uses your accent"><input class="input" value="markpost"></div>
+        </div>
+      </div>
+    </div>
+    <!--v-if-->
+    <!--v-if-->
+  </div>
+</div>"
+`;
