@@ -1,0 +1,5 @@
+$kind: http-request
+name: /sources
+url: "{{baseUrl}}/api/sources"
+method: GET
+order: 2000000000000

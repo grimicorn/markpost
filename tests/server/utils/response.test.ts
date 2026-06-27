@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   recordSerializer,
+  sourceSerializer,
   userSettingsSerializer,
   paginationMeta,
   paginationLinks,
@@ -153,5 +154,73 @@ describe("paginationLinks", () => {
     });
 
     expect(result.prev).toBeNull();
+  });
+});
+
+const baseSource = {
+  uuid: "550e8400-e29b-41d4-a716-446655440001",
+  userId: "user_abc123",
+  createdAt: new Date("2024-01-15T10:00:00Z"),
+  type: "webhook",
+  name: "My Webhook",
+  provider: null,
+  endpointSlug: "wh_8f2a91c4",
+  routeFolder: "99-incoming/",
+  fieldMapping: null,
+  lastHitAt: null,
+  recordCount: 0,
+};
+
+describe("sourceSerializer", () => {
+  it("returns the correct JSON API shape for a valid source", () => {
+    const result = sourceSerializer(baseSource);
+
+    expect(result).toEqual({
+      type: "sources",
+      id: baseSource.uuid,
+      attributes: {
+        uuid: baseSource.uuid,
+        userId: baseSource.userId,
+        createdAt: baseSource.createdAt,
+        type: baseSource.type,
+        name: baseSource.name,
+        provider: null,
+        endpointSlug: baseSource.endpointSlug,
+        routeFolder: baseSource.routeFolder,
+        fieldMapping: null,
+        lastHitAt: null,
+        recordCount: 0,
+      },
+      links: {
+        self: `/api/sources/${baseSource.uuid}`,
+      },
+    });
+  });
+
+  it("includes optional fields when present", () => {
+    const sourceWithExtras = {
+      ...baseSource,
+      provider: "stripe",
+      fieldMapping: { event: "$.type" },
+      lastHitAt: new Date("2024-02-01T12:00:00Z"),
+      recordCount: 42,
+    };
+
+    const result = sourceSerializer(sourceWithExtras);
+
+    expect(result?.attributes.provider).toBe("stripe");
+    expect(result?.attributes.fieldMapping).toEqual({ event: "$.type" });
+    expect(result?.attributes.lastHitAt).toEqual(
+      new Date("2024-02-01T12:00:00Z"),
+    );
+    expect(result?.attributes.recordCount).toBe(42);
+  });
+
+  it("returns null for null input", () => {
+    expect(sourceSerializer(null)).toBeNull();
+  });
+
+  it("returns null for undefined input", () => {
+    expect(sourceSerializer(undefined)).toBeNull();
   });
 });

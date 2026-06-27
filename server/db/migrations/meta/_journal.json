@@ -15,6 +15,13 @@
       "when": 1782523823004,
       "tag": "0001_faithful_dust",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782576495870,
+      "tag": "0002_yellow_shockwave",
+      "breakpoints": true
     }
   ]
 }

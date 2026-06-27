@@ -1,0 +1,25 @@
+$kind: http-request
+name: /sources/:uuid
+url: "{{baseUrl}}/api/sources/:uuid"
+method: PATCH
+headers:
+  - key: Content-Type
+    value: application/json
+pathVariables:
+  uuid: 550e8400-e29b-41d4-a716-446655440001
+body:
+  type: json
+  content: |-
+    {
+        "data": {
+            "type": "sources",
+            "attributes": {
+                "routeFolder": "05-stripe/",
+                "fieldMapping": { "event": "$.type" }
+            }
+        }
+    }
+settings:
+  disabledSystemHeaders:
+    - content-type
+order: 2837984240037280
