@@ -29,6 +29,14 @@ const sampleRecord = {
   userId,
   title: "My Title",
   content: "My Content",
+  sourceId: null,
+  source: null,
+  status: "pending",
+  filePath: null,
+  tags: null,
+  frontmatter: null,
+  syncedAt: null,
+  errorMessage: null,
 };
 
 function buildEvent(contextUserId: string | undefined): H3Event {
@@ -81,6 +89,14 @@ describe("POST /api/records", () => {
           userId,
           title: sampleRecord.title,
           content: sampleRecord.content,
+          sourceId: null,
+          source: null,
+          status: "pending",
+          filePath: null,
+          tags: null,
+          frontmatter: null,
+          syncedAt: null,
+          errorMessage: null,
         },
         links: { self: `/api/records/${sampleRecord.uuid}` },
       },
@@ -227,5 +243,134 @@ describe("POST /api/records", () => {
       statusCode: 401,
       statusMessage: "Unauthorized",
     });
+  });
+
+  it("accepts optional fields and passes them to the insert", async () => {
+    const syncedAtString = "2026-06-14T12:00:00Z";
+    const sampleRecordWithExtras = {
+      ...sampleRecord,
+      sourceId: "550e8400-e29b-41d4-a716-446655440099",
+      source: "webhook/github",
+      status: "synced",
+      filePath: "99-incoming/2026-06-14-deploy.md",
+      tags: ["deploy"],
+      frontmatter: { date: "2026-06-14" },
+      syncedAt: new Date(syncedAtString),
+      errorMessage: null,
+    };
+
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        title: "My Title",
+        content: "My Content",
+        sourceId: sampleRecordWithExtras.sourceId,
+        source: "webhook/github",
+        status: "synced",
+        filePath: "99-incoming/2026-06-14-deploy.md",
+        tags: ["deploy"],
+        frontmatter: { date: "2026-06-14" },
+        syncedAt: syncedAtString,
+        errorMessage: null,
+      }),
+    );
+    stubInsertResult([sampleRecordWithExtras]);
+
+    const response = await handler(buildEvent(userId));
+
+    expect(mockSetResponseStatus).toHaveBeenCalledWith(expect.anything(), 201);
+    expect(response).toEqual({
+      data: {
+        type: "records",
+        id: sampleRecordWithExtras.uuid,
+        attributes: {
+          uuid: sampleRecordWithExtras.uuid,
+          createdAt: sampleRecordWithExtras.createdAt,
+          userId,
+          title: sampleRecordWithExtras.title,
+          content: sampleRecordWithExtras.content,
+          sourceId: sampleRecordWithExtras.sourceId,
+          source: "webhook/github",
+          status: "synced",
+          filePath: "99-incoming/2026-06-14-deploy.md",
+          tags: ["deploy"],
+          frontmatter: { date: "2026-06-14" },
+          syncedAt: new Date(syncedAtString),
+          errorMessage: null,
+        },
+        links: { self: `/api/records/${sampleRecordWithExtras.uuid}` },
+      },
+    });
+  });
+
+  it("throws a 422 when status is not a valid enum value", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        title: "My Title",
+        content: "My Content",
+        status: "invalid",
+      }),
+    );
+
+    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 422,
+      data: {
+        errors: [
+          {
+            status: "422",
+            title: "Invalid Attribute",
+            detail: "Status must be one of: synced, pending, error",
+            source: { pointer: "/data/attributes/status" },
+          },
+        ],
+      },
+    });
+  });
+
+  it("accepts status synced without error", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({ title: "My Title", content: "My Content", status: "synced" }),
+    );
+    stubInsertResult([{ ...sampleRecord, status: "synced" }]);
+
+    const response = await handler(buildEvent(userId));
+
+    expect(mockSetResponseStatus).toHaveBeenCalledWith(expect.anything(), 201);
+    expect(
+      (response as { data: { attributes: { status: string } } }).data.attributes
+        .status,
+    ).toBe("synced");
+  });
+
+  it("accepts status error without error", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        title: "My Title",
+        content: "My Content",
+        status: "error",
+        errorMessage: "Sync failed",
+      }),
+    );
+    stubInsertResult([
+      { ...sampleRecord, status: "error", errorMessage: "Sync failed" },
+    ]);
+
+    const response = await handler(buildEvent(userId));
+
+    expect(mockSetResponseStatus).toHaveBeenCalledWith(expect.anything(), 201);
+    expect(
+      (
+        response as {
+          data: { attributes: { status: string; errorMessage: string } };
+        }
+      ).data.attributes.status,
+    ).toBe("error");
+    expect(
+      (
+        response as {
+          data: { attributes: { status: string; errorMessage: string } };
+        }
+      ).data.attributes.errorMessage,
+    ).toBe("Sync failed");
   });
 });
