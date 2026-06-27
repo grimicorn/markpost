@@ -7,7 +7,9 @@ import { ApiError } from "./errors";
 export type AttributeRule = {
   key: string;
   message?: string;
-  type?: "string";
+  optional?: boolean;
+  type?: "string" | "boolean";
+  enum?: readonly string[];
 };
 
 const VALIDATION_STATUS = "422";
@@ -29,6 +31,10 @@ function typeMessage(key: string, type: string): string {
   return `${titleCase(key)} must be a ${type}`;
 }
 
+function enumMessage(key: string, allowed: readonly string[]): string {
+  return `${titleCase(key)} must be one of: ${allowed.join(", ")}`;
+}
+
 function buildError(rule: AttributeRule, detail: string): ApiErrorObject {
   return {
     status: VALIDATION_STATUS,
@@ -38,21 +44,64 @@ function buildError(rule: AttributeRule, detail: string): ApiErrorObject {
   };
 }
 
+function isAbsent(value: unknown): boolean {
+  return value === undefined || value === null || value === "";
+}
+
+function validatePresence(
+  value: unknown,
+  rule: AttributeRule,
+): ApiErrorObject | null {
+  if (!isAbsent(value)) {
+    return null;
+  }
+  if (rule.optional) {
+    return null;
+  }
+  return buildError(rule, rule.message ?? requiredMessage(rule.key));
+}
+
+function validateType(
+  value: unknown,
+  rule: AttributeRule,
+): ApiErrorObject | null {
+  if (rule.type === "string" && typeof value !== "string") {
+    return buildError(rule, typeMessage(rule.key, "string"));
+  }
+  if (rule.type === "boolean" && typeof value !== "boolean") {
+    return buildError(rule, typeMessage(rule.key, "boolean"));
+  }
+  return null;
+}
+
+function validateEnum(
+  value: unknown,
+  rule: AttributeRule,
+): ApiErrorObject | null {
+  if (!rule.enum) {
+    return null;
+  }
+  if (rule.enum.includes(value as string)) {
+    return null;
+  }
+  return buildError(rule, enumMessage(rule.key, rule.enum));
+}
+
 function validateRule(
   attributes: Record<string, unknown>,
   rule: AttributeRule,
 ): ApiErrorObject | null {
   const value = attributes[rule.key];
 
-  if (value === undefined || value === null || value === "") {
-    return buildError(rule, rule.message ?? requiredMessage(rule.key));
+  const presenceError = validatePresence(value, rule);
+  if (presenceError !== null) {
+    return presenceError;
+  }
+  if (isAbsent(value)) {
+    return null;
   }
 
-  if (rule.type === "string" && typeof value !== "string") {
-    return buildError(rule, typeMessage(rule.key, rule.type));
-  }
-
-  return null;
+  return validateType(value, rule) ?? validateEnum(value, rule);
 }
 
 export function apiValidate(body: ApiRequest, rules: AttributeRule[]): void {

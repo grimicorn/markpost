@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   recordSerializer,
   sourceSerializer,
+  userSettingsSerializer,
   paginationMeta,
   paginationLinks,
 } from "../../../server/utils/response";
@@ -40,6 +41,43 @@ describe("recordSerializer", () => {
 
   it("returns null for undefined input", () => {
     expect(recordSerializer(undefined)).toBeNull();
+  });
+});
+
+const baseSettings = {
+  userId: "user_abc123",
+  vaultDir: "~/Documents/Vault",
+  filenameTemplate: "{{date}}-{{slug}}.md",
+  autoSync: true,
+  autoDelete: true,
+  frontmatter: true,
+  conflictStrategy: "suffix",
+  theme: "system",
+  accentColor: "#a855f7",
+  updatedAt: new Date("2024-01-15T10:00:00Z"),
+};
+
+describe("userSettingsSerializer", () => {
+  it("returns the correct JSON API shape for valid settings", () => {
+    const result = userSettingsSerializer(baseSettings);
+
+    expect(result).toEqual({
+      type: "user_settings",
+      id: baseSettings.userId,
+      attributes: {
+        userId: baseSettings.userId,
+        vaultDir: baseSettings.vaultDir,
+        filenameTemplate: baseSettings.filenameTemplate,
+        autoSync: baseSettings.autoSync,
+        autoDelete: baseSettings.autoDelete,
+        frontmatter: baseSettings.frontmatter,
+        conflictStrategy: baseSettings.conflictStrategy,
+        theme: baseSettings.theme,
+        accentColor: baseSettings.accentColor,
+        updatedAt: baseSettings.updatedAt,
+      },
+      links: { self: "/api/settings" },
+    });
   });
 });
 

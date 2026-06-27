@@ -1,4 +1,5 @@
 import {
+  boolean,
   index,
   integer,
   jsonb,
@@ -45,3 +46,20 @@ export const sources = pgTable(
     unique("sources_endpoint_slug_unique").on(table.endpointSlug),
   ],
 );
+
+export const userSettings = pgTable("user_settings", {
+  userId: text("user_id").primaryKey(),
+  vaultDir: text("vault_dir").notNull().default("~/Documents/Vault"),
+  filenameTemplate: text("filename_template")
+    .notNull()
+    .default("{{date}}-{{slug}}.md"),
+  autoSync: boolean("auto_sync").notNull().default(true),
+  autoDelete: boolean("auto_delete").notNull().default(true),
+  frontmatter: boolean("frontmatter").notNull().default(true),
+  conflictStrategy: text("conflict_strategy").notNull().default("suffix"),
+  theme: text("theme").notNull().default("system"),
+  accentColor: text("accent_color").notNull().default("#a855f7"),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
