@@ -24,9 +24,14 @@ async function createDefaultSettings(database: Database, userId: string) {
   const [created] = await database
     .insert(userSettings)
     .values({ userId })
+    .onConflictDoNothing()
     .returning();
 
-  return created;
+  if (created) {
+    return created;
+  }
+
+  return findUserSettings(database, userId);
 }
 
 async function getOrCreateSettings(database: Database, userId: string) {

@@ -1,4 +1,3 @@
-import { eq } from "drizzle-orm";
 import { getDb } from "../../db";
 import { userSettings } from "../../db/schema";
 import type { ApiRequest } from "../../types/api.types";
@@ -46,6 +45,29 @@ const VALIDATION_RULES: AttributeRule[] = [
   { key: "accentColor", type: "string", optional: true },
 ];
 
+const ALLOWED_ATTRIBUTE_KEYS: (keyof UpdateSettingsAttributes)[] = [
+  "vaultDir",
+  "filenameTemplate",
+  "autoSync",
+  "autoDelete",
+  "frontmatter",
+  "conflictStrategy",
+  "theme",
+  "accentColor",
+];
+
+function pickAllowedAttributes(
+  attributes: UpdateSettingsAttributes,
+): UpdateSettingsAttributes {
+  const result: UpdateSettingsAttributes = {};
+  for (const key of ALLOWED_ATTRIBUTE_KEYS) {
+    if (attributes[key] !== undefined) {
+      result[key] = attributes[key] as never;
+    }
+  }
+  return result;
+}
+
 type Database = ReturnType<typeof getDb>;
 
 async function upsertUserSettings(
@@ -53,12 +75,14 @@ async function upsertUserSettings(
   userId: string,
   attributes: UpdateSettingsAttributes,
 ) {
+  const safeAttributes = pickAllowedAttributes(attributes);
+
   const [updated] = await database
     .insert(userSettings)
-    .values({ userId, ...attributes })
+    .values({ userId, ...safeAttributes })
     .onConflictDoUpdate({
       target: userSettings.userId,
-      set: { ...attributes, updatedAt: new Date() },
+      set: { ...safeAttributes, updatedAt: new Date() },
     })
     .returning();
 

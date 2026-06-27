@@ -82,6 +82,27 @@ describe("upsertUserSettings", () => {
     expect(returning).toHaveBeenCalled();
     expect(result).toEqual(sampleSettings);
   });
+
+  it("does not pass unknown attributes or userId from body to the database", async () => {
+    const { values } = stubUpsertResult([sampleSettings]);
+    const maliciousAttributes = {
+      vaultDir: "~/Notes",
+      userId: "attacker_id",
+      unknownField: "injected",
+    } as Record<string, unknown>;
+
+    const db = (await import("../../../../server/db")).getDb();
+    await upsertUserSettings(
+      db,
+      userId,
+      maliciousAttributes as Parameters<typeof upsertUserSettings>[2],
+    );
+
+    const insertedValues = (values as ReturnType<typeof vi.fn>).mock
+      .calls[0][0];
+    expect(insertedValues.userId).toBe(userId);
+    expect(insertedValues).not.toHaveProperty("unknownField");
+  });
 });
 
 describe("PUT /api/settings", () => {

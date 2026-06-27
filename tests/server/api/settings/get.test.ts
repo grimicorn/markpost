@@ -50,9 +50,10 @@ function stubSelectResult(rows: unknown[]) {
 
 function stubInsertResult(rows: unknown[]) {
   const returning = vi.fn(() => Promise.resolve(rows));
-  const values = vi.fn(() => ({ returning }));
+  const onConflictDoNothing = vi.fn(() => ({ returning }));
+  const values = vi.fn(() => ({ onConflictDoNothing }));
   insertMock.mockReturnValue({ values });
-  return { values, returning };
+  return { values, onConflictDoNothing, returning };
 }
 
 beforeEach(() => {
@@ -96,6 +97,17 @@ describe("createDefaultSettings", () => {
 
     expect(values).toHaveBeenCalledWith({ userId });
     expect(returning).toHaveBeenCalled();
+    expect(result).toEqual(sampleSettings);
+  });
+
+  it("falls back to a select when insert conflicts (concurrent request race)", async () => {
+    stubInsertResult([]);
+    stubSelectResult([sampleSettings]);
+
+    const db = (await import("../../../../server/db")).getDb();
+    const result = await createDefaultSettings(db, userId);
+
+    expect(selectMock).toHaveBeenCalled();
     expect(result).toEqual(sampleSettings);
   });
 });
