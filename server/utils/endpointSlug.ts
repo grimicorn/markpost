@@ -1,6 +1,8 @@
 const WEBHOOK_PREFIX = "wh_";
 const EMAIL_PREFIX = "clip-";
 const WEBHOOK_SLUG_LENGTH = 8;
+// 4 hex chars matches the spec format (clip-8f2a) but has low entropy for a global unique constraint.
+// Collision is handled by the DB unique constraint; callers should catch and retry on conflict.
 const EMAIL_SLUG_LENGTH = 4;
 
 function randomHex(length: number): string {

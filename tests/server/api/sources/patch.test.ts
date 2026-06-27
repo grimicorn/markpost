@@ -70,7 +70,7 @@ afterEach(() => {
 });
 
 describe("PATCH /api/sources/:uuid", () => {
-  it("returns the updated source on valid input", async () => {
+  it("returns the updated source when both routeFolder and fieldMapping are provided", async () => {
     mockGetRouterParam.mockReturnValue(validUuid);
     mockReadBody.mockResolvedValue(
       buildBody({
@@ -104,9 +104,45 @@ describe("PATCH /api/sources/:uuid", () => {
     });
   });
 
-  it("throws 422 when routeFolder is missing", async () => {
+  it("updates only routeFolder without touching fieldMapping", async () => {
     mockGetRouterParam.mockReturnValue(validUuid);
-    mockReadBody.mockResolvedValue(buildBody({ fieldMapping: null }));
+    mockReadBody.mockResolvedValue(buildBody({ routeFolder: "05-stripe/" }));
+    const updatedSource = { ...sampleSource, routeFolder: "05-stripe/" };
+    stubUpdateResult([updatedSource]);
+
+    const { set } = stubUpdateResult([updatedSource]);
+    await handler(buildEvent(userId));
+
+    expect(set).toHaveBeenCalledWith({ routeFolder: "05-stripe/" });
+  });
+
+  it("updates only fieldMapping without touching routeFolder", async () => {
+    mockGetRouterParam.mockReturnValue(validUuid);
+    mockReadBody.mockResolvedValue(
+      buildBody({ fieldMapping: { event: "$.type" } }),
+    );
+    const updatedSource = { ...sampleSource };
+    const { set } = stubUpdateResult([updatedSource]);
+
+    await handler(buildEvent(userId));
+
+    expect(set).toHaveBeenCalledWith({ fieldMapping: { event: "$.type" } });
+  });
+
+  it("throws 422 when no updatable fields are provided", async () => {
+    mockGetRouterParam.mockReturnValue(validUuid);
+    mockReadBody.mockResolvedValue(buildBody({}));
+
+    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 422,
+      data: { errors: expect.any(Array) },
+    });
+  });
+
+  it("throws 422 when routeFolder is not a string", async () => {
+    mockGetRouterParam.mockReturnValue(validUuid);
+    mockReadBody.mockResolvedValue(buildBody({ routeFolder: 123 }));
 
     await expect(handler(buildEvent(userId))).rejects.toThrow();
     expect(mockCreateError).toHaveBeenCalledWith({
@@ -116,7 +152,7 @@ describe("PATCH /api/sources/:uuid", () => {
           {
             status: "422",
             title: "Invalid Attribute",
-            detail: "RouteFolder is required",
+            detail: "RouteFolder must be a string",
             source: { pointer: "/data/attributes/routeFolder" },
           },
         ],

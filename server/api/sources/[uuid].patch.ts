@@ -5,7 +5,6 @@ import type { ApiRequest } from "../../types/api.types";
 import { requireUser } from "../../utils/auth";
 import { ApiError, apiErrorHandler } from "../../utils/errors";
 import { sourceSerializer, type SourceApiResponse } from "../../utils/response";
-import { apiValidate, type AttributeRule } from "../../utils/validate";
 import { isValidUuid } from "../../utils/uuid";
 
 type PatchSourceAttributes = {
@@ -19,9 +18,10 @@ type PatchSourceBody = ApiRequest & {
   };
 };
 
-const VALIDATION_RULES: AttributeRule[] = [
-  { key: "routeFolder", type: "string" },
-];
+type SourceUpdatePayload = {
+  routeFolder?: string;
+  fieldMapping?: unknown;
+};
 
 function invalidUuidError(): ApiError {
   return new ApiError(
@@ -50,17 +50,60 @@ function notFoundError(): ApiError {
   );
 }
 
+function emptyUpdateError(): ApiError {
+  return new ApiError(
+    [
+      {
+        status: "422",
+        title: "Invalid Attribute",
+        detail: "At least one of routeFolder or fieldMapping must be provided.",
+        source: { pointer: "/data/attributes" },
+      },
+    ],
+    422,
+  );
+}
+
+function routeFolderTypeError(): ApiError {
+  return new ApiError(
+    [
+      {
+        status: "422",
+        title: "Invalid Attribute",
+        detail: "RouteFolder must be a string",
+        source: { pointer: "/data/attributes/routeFolder" },
+      },
+    ],
+    422,
+  );
+}
+
+function buildUpdatePayload(
+  attributes: PatchSourceAttributes,
+): SourceUpdatePayload {
+  const payload: SourceUpdatePayload = {};
+
+  if (attributes.routeFolder !== undefined) {
+    payload.routeFolder = attributes.routeFolder;
+  }
+
+  if ("fieldMapping" in attributes) {
+    payload.fieldMapping = attributes.fieldMapping ?? null;
+  }
+
+  return payload;
+}
+
 async function updateUserSource(
   userId: string,
   sourceUuid: string,
-  routeFolder: string,
-  fieldMapping: unknown,
+  payload: SourceUpdatePayload,
 ) {
   const db = getDb();
 
   const [updated] = await db
     .update(sources)
-    .set({ routeFolder, fieldMapping: fieldMapping ?? null })
+    .set(payload)
     .where(and(eq(sources.userId, userId), eq(sources.uuid, sourceUuid)))
     .returning();
 
@@ -77,17 +120,22 @@ export default defineEventHandler(async (event): Promise<SourceApiResponse> => {
     }
 
     const body = (await readBody(event)) as PatchSourceBody;
+    const attributes = body?.data?.attributes ?? {};
 
-    apiValidate(body as ApiRequest, VALIDATION_RULES);
+    if (
+      attributes.routeFolder !== undefined &&
+      typeof attributes.routeFolder !== "string"
+    ) {
+      throw routeFolderTypeError();
+    }
 
-    const attributes = body.data.attributes as Required<PatchSourceAttributes>;
+    const payload = buildUpdatePayload(attributes);
 
-    const updated = await updateUserSource(
-      userId,
-      sourceUuid,
-      attributes.routeFolder,
-      attributes.fieldMapping,
-    );
+    if (Object.keys(payload).length === 0) {
+      throw emptyUpdateError();
+    }
+
+    const updated = await updateUserSource(userId, sourceUuid, payload);
 
     if (!updated) {
       throw notFoundError();

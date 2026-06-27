@@ -2,7 +2,7 @@ import { getDb } from "../../db";
 import { sources } from "../../db/schema";
 import type { ApiRequest } from "../../types/api.types";
 import { requireUser } from "../../utils/auth";
-import { apiErrorHandler } from "../../utils/errors";
+import { ApiError, apiErrorHandler } from "../../utils/errors";
 import { generateEndpointSlug } from "../../utils/endpointSlug";
 import { sourceSerializer, type SourceApiResponse } from "../../utils/response";
 import { apiValidate, type AttributeRule } from "../../utils/validate";
@@ -80,19 +80,17 @@ export default defineEventHandler(async (event): Promise<SourceApiResponse> => {
     const attributes = body.data.attributes as Required<CreateSourceAttributes>;
 
     if (!isValidSourceType(attributes.type)) {
-      throw createError({
-        statusCode: 422,
-        data: {
-          errors: [
-            {
-              status: "422",
-              title: "Invalid Attribute",
-              detail: `Type must be one of: ${VALID_SOURCE_TYPES.join(", ")}`,
-              source: { pointer: "/data/attributes/type" },
-            },
-          ],
-        },
-      });
+      throw new ApiError(
+        [
+          {
+            status: "422",
+            title: "Invalid Attribute",
+            detail: `Type must be one of: ${VALID_SOURCE_TYPES.join(", ")}`,
+            source: { pointer: "/data/attributes/type" },
+          },
+        ],
+        422,
+      );
     }
 
     const source = await insertSource(userId, {

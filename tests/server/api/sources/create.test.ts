@@ -176,9 +176,19 @@ describe("POST /api/sources", () => {
     );
 
     await expect(handler(buildEvent(userId))).rejects.toThrow();
-    expect(mockCreateError).toHaveBeenCalledWith(
-      expect.objectContaining({ statusCode: 422 }),
-    );
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 422,
+      data: {
+        errors: [
+          {
+            status: "422",
+            title: "Invalid Attribute",
+            detail: expect.stringContaining("Type must be one of"),
+            source: { pointer: "/data/attributes/type" },
+          },
+        ],
+      },
+    });
   });
 
   it("throws 401 when the user is not authenticated", async () => {
