@@ -1,0 +1,25 @@
+version: 2
+# No target-branch override: updates go to the default branch (main), which also
+# keeps Dependabot security update PRs enabled (those only run on the default
+# branch when no target-branch is set).
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      # Collapse all minor and patch bumps into a single PR to reduce churn.
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      # Keep the SHA-pinned workflow actions current in a single PR.
+      actions:
+        update-types:
+          - minor
+          - patch
