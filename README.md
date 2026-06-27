@@ -132,6 +132,28 @@ Auto-fix:
 npm run lint:fix
 ```
 
+## Security scanning
+
+A deterministic scanner layer guards against committed secrets and vulnerable dependencies, both locally and in CI.
+
+### Secret scanning ([gitleaks](https://github.com/gitleaks/gitleaks))
+
+Rules live in [`.gitleaks.toml`](.gitleaks.toml), which extends the default gitleaks ruleset with checks for Clerk secret keys (`sk_live_`/`sk_test_`) and credentialed Postgres connection strings. Publishable Clerk keys (`pk_*`) are public by design and are not flagged.
+
+- **Locally:** the `.husky/pre-commit` hook scans staged changes and blocks the commit on any finding. Install gitleaks first ([instructions](https://github.com/gitleaks/gitleaks#installing)); if it is not installed, the hook prints a warning and lets the commit through.
+- **Run a manual staged scan:**
+
+  ```bash
+  gitleaks git --staged --redact --verbose --config .gitleaks.toml
+  ```
+
+- **In CI:** the `secret-scan` job in [`.github/workflows/security.yml`](.github/workflows/security.yml) downloads the pinned gitleaks binary, scans the PR commit range on pull requests, and scans full history on push to `main`. It fails the check on any finding.
+
+### Dependency scanning
+
+- **In CI:** the `dependency-audit` job in [`.github/workflows/security.yml`](.github/workflows/security.yml) runs `npm audit`. It fails only on **high** or **critical** advisories and prints moderate/low advisories as a summary.
+- **Automated updates:** [`.github/dependabot.yml`](.github/dependabot.yml) opens weekly PRs against `main`, grouping minor and patch bumps into a single PR.
+
 ## Build & Preview
 
 ```bash
