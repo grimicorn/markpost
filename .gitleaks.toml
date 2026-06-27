@@ -1,0 +1,38 @@
+# gitleaks configuration for markpost
+# Extends the default gitleaks ruleset and adds repo-specific rules for the
+# secrets this project handles: Clerk secret keys and credentialed Postgres
+# connection strings. See https://github.com/gitleaks/gitleaks for the schema.
+
+title = "markpost gitleaks config"
+
+[extend]
+# Inherit every rule from the bundled default ruleset, then add the rules below.
+useDefault = true
+
+[[rules]]
+id = "markpost-clerk-secret-key"
+description = "Clerk secret key (sk_live_ / sk_test_)"
+# Publishable keys (pk_live_/pk_test_) are public by design and intentionally excluded.
+regex = '''sk_(?:live|test)_[A-Za-z0-9_-]{20,}'''
+keywords = ["sk_live_", "sk_test_"]
+
+[[rules]]
+id = "markpost-postgres-credentialed-connection-string"
+description = "Postgres connection string with embedded credentials"
+# Matches postgres:// and postgresql:// URIs that carry a user:password component.
+regex = '''postgres(?:ql)?:\/\/[^\s:@\/]+:[^\s:@\/]+@[^\s\/]+'''
+keywords = ["postgres://", "postgresql://"]
+
+[allowlist]
+description = "Global allowlist for documented placeholders and test fixtures"
+# Any *.example file (covers .env.example and .env.<name>.example) holds
+# documented placeholder values; fixture dirs hold synthetic secrets used by
+# tests. None of these are real leaks. The *.example glob is intentionally
+# broad: example files exist to be committed, so secret-shaped placeholders in
+# them are expected. Keep real secrets out of *.example files.
+paths = [
+  '''.*\.example$''',
+  '''(^|/)fixtures?/''',
+  '''(^|/)__fixtures__/''',
+  '''(^|/)test-fixtures?/''',
+]
