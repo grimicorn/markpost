@@ -373,4 +373,109 @@ describe("POST /api/records", () => {
       ).data.attributes.errorMessage,
     ).toBe("Sync failed");
   });
+
+  it("throws a 422 when syncedAt is not a valid ISO date string", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        title: "My Title",
+        content: "My Content",
+        syncedAt: "not-a-date",
+      }),
+    );
+
+    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 422,
+      data: {
+        errors: [
+          {
+            status: "422",
+            title: "Invalid Attribute",
+            detail: "SyncedAt must be a valid ISO 8601 date string",
+            source: { pointer: "/data/attributes/syncedAt" },
+          },
+        ],
+      },
+    });
+  });
+
+  it("accepts a null syncedAt without error", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({ title: "My Title", content: "My Content", syncedAt: null }),
+    );
+    stubInsertResult([sampleRecord]);
+
+    const response = await handler(buildEvent(userId));
+
+    expect(mockSetResponseStatus).toHaveBeenCalledWith(expect.anything(), 201);
+    expect(
+      (response as { data: { attributes: { syncedAt: null } } }).data.attributes
+        .syncedAt,
+    ).toBeNull();
+  });
+
+  it("throws a 422 when tags is not an array", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        title: "My Title",
+        content: "My Content",
+        tags: "not-an-array",
+      }),
+    );
+
+    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 422,
+      data: {
+        errors: [
+          {
+            status: "422",
+            title: "Invalid Attribute",
+            detail: "Tags must be an array",
+            source: { pointer: "/data/attributes/tags" },
+          },
+        ],
+      },
+    });
+  });
+
+  it("throws a 422 when frontmatter is not an object", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        title: "My Title",
+        content: "My Content",
+        frontmatter: ["array", "not", "object"],
+      }),
+    );
+
+    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 422,
+      data: {
+        errors: [
+          {
+            status: "422",
+            title: "Invalid Attribute",
+            detail: "Frontmatter must be an object",
+            source: { pointer: "/data/attributes/frontmatter" },
+          },
+        ],
+      },
+    });
+  });
+
+  it("accepts null tags without error", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({ title: "My Title", content: "My Content", tags: null }),
+    );
+    stubInsertResult([sampleRecord]);
+
+    const response = await handler(buildEvent(userId));
+
+    expect(mockSetResponseStatus).toHaveBeenCalledWith(expect.anything(), 201);
+    expect(
+      (response as { data: { attributes: { tags: null } } }).data.attributes
+        .tags,
+    ).toBeNull();
+  });
 });
