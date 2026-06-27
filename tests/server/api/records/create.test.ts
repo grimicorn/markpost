@@ -2,9 +2,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { H3Event } from "h3";
 
 const insertMock = vi.fn();
+const selectMock = vi.fn();
 
 vi.mock("../../../../server/db", () => ({
-  getDb: () => ({ insert: insertMock }),
+  getDb: () => ({ insert: insertMock, select: selectMock }),
+}));
+
+// drizzle-orm eq/and used by validateSourceOwnership; mock them as pass-throughs
+vi.mock("drizzle-orm", () => ({
+  eq: (column: unknown, value: unknown) => ({ column, value }),
+  and: (...conditions: unknown[]) => ({ conditions }),
 }));
 
 const mockCreateError = vi.fn((options: object) => {
@@ -22,6 +29,7 @@ const handler = (await import("../../../../server/api/records/index.post"))
   .default;
 
 const userId = "user_abc123";
+const validSourceId = "550e8400-e29b-41d4-a716-446655440099";
 
 const sampleRecord = {
   uuid: "550e8400-e29b-41d4-a716-446655440000",
@@ -54,6 +62,13 @@ function stubInsertResult(rows: unknown[]) {
   return { values, returning };
 }
 
+function stubSelectSourceResult(rows: unknown[]) {
+  const where = vi.fn(() => Promise.resolve(rows));
+  const from = vi.fn(() => ({ where }));
+  selectMock.mockReturnValue({ from });
+  return { from, where };
+}
+
 beforeEach(() => {
   vi.stubGlobal("createError", mockCreateError);
   vi.stubGlobal("readBody", mockReadBody);
@@ -62,6 +77,7 @@ beforeEach(() => {
   mockReadBody.mockClear();
   mockSetResponseStatus.mockClear();
   insertMock.mockReset();
+  selectMock.mockReset();
 });
 
 afterEach(() => {
@@ -249,7 +265,7 @@ describe("POST /api/records", () => {
     const syncedAtString = "2026-06-14T12:00:00Z";
     const sampleRecordWithExtras = {
       ...sampleRecord,
-      sourceId: "550e8400-e29b-41d4-a716-446655440099",
+      sourceId: validSourceId,
       source: "webhook/github",
       status: "synced",
       filePath: "99-incoming/2026-06-14-deploy.md",
@@ -259,11 +275,12 @@ describe("POST /api/records", () => {
       errorMessage: null,
     };
 
+    stubSelectSourceResult([{ uuid: validSourceId }]);
     mockReadBody.mockResolvedValue(
       buildBody({
         title: "My Title",
         content: "My Content",
-        sourceId: sampleRecordWithExtras.sourceId,
+        sourceId: validSourceId,
         source: "webhook/github",
         status: "synced",
         filePath: "99-incoming/2026-06-14-deploy.md",
@@ -288,7 +305,7 @@ describe("POST /api/records", () => {
           userId,
           title: sampleRecordWithExtras.title,
           content: sampleRecordWithExtras.content,
-          sourceId: sampleRecordWithExtras.sourceId,
+          sourceId: validSourceId,
           source: "webhook/github",
           status: "synced",
           filePath: "99-incoming/2026-06-14-deploy.md",
@@ -374,7 +391,7 @@ describe("POST /api/records", () => {
     ).toBe("Sync failed");
   });
 
-  it("throws a 422 when syncedAt is not a valid ISO date string", async () => {
+  it("throws a 422 when syncedAt is not a valid date string", async () => {
     mockReadBody.mockResolvedValue(
       buildBody({
         title: "My Title",
@@ -391,7 +408,32 @@ describe("POST /api/records", () => {
           {
             status: "422",
             title: "Invalid Attribute",
-            detail: "SyncedAt must be a valid ISO 8601 date string",
+            detail: "SyncedAt must be a valid date string",
+            source: { pointer: "/data/attributes/syncedAt" },
+          },
+        ],
+      },
+    });
+  });
+
+  it("throws a 422 when syncedAt is not a string", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        title: "My Title",
+        content: "My Content",
+        syncedAt: 1234567890,
+      }),
+    );
+
+    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 422,
+      data: {
+        errors: [
+          {
+            status: "422",
+            title: "Invalid Attribute",
+            detail: "SyncedAt must be a date string",
             source: { pointer: "/data/attributes/syncedAt" },
           },
         ],
@@ -477,5 +519,31 @@ describe("POST /api/records", () => {
       (response as { data: { attributes: { tags: null } } }).data.attributes
         .tags,
     ).toBeNull();
+  });
+
+  it("throws a 422 when sourceId does not belong to the authenticated user", async () => {
+    stubSelectSourceResult([]);
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        title: "My Title",
+        content: "My Content",
+        sourceId: validSourceId,
+      }),
+    );
+
+    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 422,
+      data: {
+        errors: [
+          {
+            status: "422",
+            title: "Invalid Attribute",
+            detail: "Source not found or does not belong to you",
+            source: { pointer: "/data/attributes/sourceId" },
+          },
+        ],
+      },
+    });
   });
 });

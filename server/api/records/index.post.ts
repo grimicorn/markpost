@@ -1,5 +1,6 @@
+import { eq, and } from "drizzle-orm";
 import { getDb } from "../../db";
-import { records, RECORD_STATUSES } from "../../db/schema";
+import { records, sources, RECORD_STATUSES } from "../../db/schema";
 import type { ApiRequest } from "../../types/api.types";
 import { requireUser } from "../../utils/auth";
 import { apiErrorHandler, ApiError } from "../../utils/errors";
@@ -17,7 +18,7 @@ type CreateRecordAttributes = {
   filePath?: string | null;
   tags?: unknown;
   frontmatter?: unknown;
-  syncedAt?: string | null;
+  syncedAt?: unknown;
   errorMessage?: string | null;
 };
 
@@ -65,24 +66,38 @@ type InsertRecordValues = {
   errorMessage?: string | null;
 };
 
-function parseSyncedAt(raw: string | null): Date | null {
-  if (!raw) {
+function invalidAttribute(detail: string, pointer: string): ApiError {
+  return new ApiError(
+    [
+      {
+        status: "422",
+        title: "Invalid Attribute",
+        detail,
+        source: { pointer },
+      },
+    ],
+    422,
+  );
+}
+
+function parseSyncedAt(raw: unknown): Date | null {
+  if (raw === null) {
     return null;
+  }
+
+  if (typeof raw !== "string") {
+    throw invalidAttribute(
+      "SyncedAt must be a date string",
+      "/data/attributes/syncedAt",
+    );
   }
 
   const parsed = new Date(raw);
 
   if (Number.isNaN(parsed.getTime())) {
-    throw new ApiError(
-      [
-        {
-          status: "422",
-          title: "Invalid Attribute",
-          detail: "SyncedAt must be a valid ISO 8601 date string",
-          source: { pointer: "/data/attributes/syncedAt" },
-        },
-      ],
-      422,
+    throw invalidAttribute(
+      "SyncedAt must be a valid date string",
+      "/data/attributes/syncedAt",
     );
   }
 
@@ -95,17 +110,7 @@ function validateTagsShape(value: unknown): void {
   }
 
   if (!Array.isArray(value)) {
-    throw new ApiError(
-      [
-        {
-          status: "422",
-          title: "Invalid Attribute",
-          detail: "Tags must be an array",
-          source: { pointer: "/data/attributes/tags" },
-        },
-      ],
-      422,
-    );
+    throw invalidAttribute("Tags must be an array", "/data/attributes/tags");
   }
 }
 
@@ -115,16 +120,27 @@ function validateFrontmatterShape(value: unknown): void {
   }
 
   if (typeof value !== "object" || Array.isArray(value)) {
-    throw new ApiError(
-      [
-        {
-          status: "422",
-          title: "Invalid Attribute",
-          detail: "Frontmatter must be an object",
-          source: { pointer: "/data/attributes/frontmatter" },
-        },
-      ],
-      422,
+    throw invalidAttribute(
+      "Frontmatter must be an object",
+      "/data/attributes/frontmatter",
+    );
+  }
+}
+
+async function validateSourceOwnership(
+  db: ReturnType<typeof getDb>,
+  sourceId: string,
+  userId: string,
+): Promise<void> {
+  const [matchedSource] = await db
+    .select({ uuid: sources.uuid })
+    .from(sources)
+    .where(and(eq(sources.uuid, sourceId), eq(sources.userId, userId)));
+
+  if (!matchedSource) {
+    throw invalidAttribute(
+      "Source not found or does not belong to you",
+      "/data/attributes/sourceId",
     );
   }
 }
@@ -144,11 +160,13 @@ function buildInsertValues(
   };
 
   for (const key of SCALAR_OPTIONAL_KEYS) {
-    if ((attributes as Record<ScalarOptionalKey, unknown>)[key] !== undefined) {
-      (values as Record<string, unknown>)[key] = (
-        attributes as Record<ScalarOptionalKey, unknown>
-      )[key];
+    const value = (attributes as Record<ScalarOptionalKey, unknown>)[key];
+
+    if (value === undefined) {
+      continue;
     }
+
+    (values as Record<string, unknown>)[key] = value;
   }
 
   if (attributes.syncedAt !== undefined) {
@@ -179,8 +197,14 @@ export default defineEventHandler(async (event): Promise<RecordApiResponse> => {
     > &
       Omit<CreateRecordAttributes, "title" | "content">;
 
+    const db = getDb();
+
+    if (attributes.sourceId) {
+      await validateSourceOwnership(db, attributes.sourceId, userId);
+    }
+
     const insertValues = buildInsertValues(userId, attributes);
-    const record = await insertRecord(getDb(), insertValues);
+    const record = await insertRecord(db, insertValues);
 
     setResponseStatus(event, 201);
 
