@@ -106,4 +106,75 @@ describe("apiValidate", () => {
       ]);
     }
   });
+
+  it("does not throw when an optional attribute is absent", () => {
+    const body = buildRequest({});
+
+    expect(() =>
+      apiValidate(body, [{ key: "title", optional: true }]),
+    ).not.toThrow();
+  });
+
+  it("throws a 422 when an optional attribute is present but has the wrong type", () => {
+    const body = buildRequest({ count: "not-a-boolean" });
+
+    expect(() =>
+      apiValidate(body, [{ key: "count", type: "boolean", optional: true }]),
+    ).toThrow(ApiError);
+
+    try {
+      apiValidate(body, [{ key: "count", type: "boolean", optional: true }]);
+    } catch (error) {
+      const apiError = error as ApiError;
+      expect(apiError.statusCode).toBe(422);
+      expect(apiError.errors[0].detail).toBe("Count must be a boolean");
+    }
+  });
+
+  it("throws a 422 when an enum attribute has a value not in the allowed list", () => {
+    const body = buildRequest({ strategy: "invalid" });
+
+    expect(() =>
+      apiValidate(body, [
+        {
+          key: "strategy",
+          type: "string",
+          optional: true,
+          enum: ["suffix", "overwrite", "skip"] as const,
+        },
+      ]),
+    ).toThrow(ApiError);
+
+    try {
+      apiValidate(body, [
+        {
+          key: "strategy",
+          type: "string",
+          optional: true,
+          enum: ["suffix", "overwrite", "skip"] as const,
+        },
+      ]);
+    } catch (error) {
+      const apiError = error as ApiError;
+      expect(apiError.statusCode).toBe(422);
+      expect(apiError.errors[0].detail).toBe(
+        "Strategy must be one of: suffix, overwrite, skip",
+      );
+    }
+  });
+
+  it("does not throw when an enum attribute has a valid value", () => {
+    const body = buildRequest({ strategy: "overwrite" });
+
+    expect(() =>
+      apiValidate(body, [
+        {
+          key: "strategy",
+          type: "string",
+          optional: true,
+          enum: ["suffix", "overwrite", "skip"] as const,
+        },
+      ]),
+    ).not.toThrow();
+  });
 });
