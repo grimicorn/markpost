@@ -7,6 +7,7 @@
       type="button"
       role="radio"
       :aria-checked="modelValue === option.value"
+      :disabled="disabled"
       @click="emit('update:modelValue', option.value)"
     >
       {{ option.label }}
@@ -21,8 +22,11 @@ const props = withDefaults(
   defineProps<{
     modelValue: string;
     options: Option[];
+    disabled?: boolean;
   }>(),
-  {},
+  {
+    disabled: false,
+  },
 );
 
 const emit = defineEmits<{
