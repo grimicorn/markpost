@@ -1,5 +1,11 @@
 import type { ApiResourceObject, ApiResponse } from "../types/api.types";
 
+export const CONFLICT_STRATEGIES = ["suffix", "overwrite", "skip"] as const;
+export type ConflictStrategy = (typeof CONFLICT_STRATEGIES)[number];
+
+export const THEMES = ["light", "dark", "system"] as const;
+export type Theme = (typeof THEMES)[number];
+
 type ApiResponseMeta = NonNullable<ApiResponse["meta"]>;
 type ApiResponseLinks = NonNullable<ApiResponse["links"]>;
 
@@ -38,6 +44,53 @@ type PaginationLinks = ApiResponseLinks & {
   next: string | null;
   prev: string | null;
 };
+
+type UserSettingsAttributes = {
+  userId: string;
+  vaultDir: string;
+  filenameTemplate: string;
+  autoSync: boolean;
+  autoDelete: boolean;
+  frontmatter: boolean;
+  conflictStrategy: string;
+  theme: string;
+  accentColor: string;
+  updatedAt: Date;
+};
+
+type UserSettingsInput = UserSettingsAttributes;
+
+type UserSettingsResource = ApiResourceObject & {
+  type: "user_settings";
+  attributes: UserSettingsAttributes;
+  links: { self: string };
+};
+
+export type UserSettingsApiResponse = ApiResponse<UserSettingsResource>;
+
+export function userSettingsSerializer(
+  settings: UserSettingsInput,
+): UserSettingsResource {
+  return {
+    type: "user_settings",
+    id: settings.userId,
+    attributes: {
+      userId: settings.userId,
+      vaultDir: settings.vaultDir,
+      filenameTemplate: settings.filenameTemplate,
+      autoSync: settings.autoSync,
+      autoDelete: settings.autoDelete,
+      frontmatter: settings.frontmatter,
+      conflictStrategy: settings.conflictStrategy,
+      theme: settings.theme,
+      accentColor: settings.accentColor,
+      updatedAt: settings.updatedAt,
+    },
+    links: {
+      self: "/api/settings",
+    },
+  };
+}
 
 export type RecordApiResponse = ApiResponse<RecordResource | null>;
 export type RecordListApiResponse = ApiResponse<RecordResource[]>;
