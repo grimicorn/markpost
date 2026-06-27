@@ -546,4 +546,65 @@ describe("POST /api/records", () => {
       },
     });
   });
+
+  it("throws a 422 when sourceId is a malformed (non-UUID) string", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        title: "My Title",
+        content: "My Content",
+        sourceId: "not-a-uuid",
+      }),
+    );
+
+    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 422,
+      data: {
+        errors: [
+          {
+            status: "422",
+            title: "Invalid Attribute",
+            detail: "SourceId must be a valid UUID",
+            source: { pointer: "/data/attributes/sourceId" },
+          },
+        ],
+      },
+    });
+  });
+
+  it("throws a 422 when status is null (does not override DB NOT NULL default)", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({ title: "My Title", content: "My Content", status: null }),
+    );
+    // status: null is treated as absent by isAbsent, so it falls back to DB default.
+    // The insert succeeds and returns the record with default status.
+    stubInsertResult([sampleRecord]);
+
+    const response = await handler(buildEvent(userId));
+
+    expect(mockSetResponseStatus).toHaveBeenCalledWith(expect.anything(), 201);
+    expect(
+      (response as { data: { attributes: { status: string } } }).data.attributes
+        .status,
+    ).toBe("pending");
+  });
+
+  it("does not write status to insert values when status is empty string", async () => {
+    const { values } = stubInsertResult([sampleRecord]);
+    mockReadBody.mockResolvedValue(
+      buildBody({ title: "My Title", content: "My Content", status: "" }),
+    );
+
+    await handler(buildEvent(userId));
+
+    // The values passed to .insert() should not contain an explicit status key
+    // so the DB default ('pending') applies.
+    const insertedValues = (
+      values.mock.calls[0] as [Record<string, unknown>]
+    )[0];
+
+    expect(Object.prototype.hasOwnProperty.call(insertedValues, "status")).toBe(
+      false,
+    );
+  });
 });

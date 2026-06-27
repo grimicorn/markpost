@@ -5,7 +5,11 @@ import type { ApiRequest } from "../../types/api.types";
 import { requireUser } from "../../utils/auth";
 import { apiErrorHandler, ApiError } from "../../utils/errors";
 import { recordSerializer, type RecordApiResponse } from "../../utils/response";
-import { apiValidate, type AttributeRule } from "../../utils/validate";
+import {
+  apiValidate,
+  isAbsent,
+  type AttributeRule,
+} from "../../utils/validate";
 
 type CreateRecordAttributes = {
   title?: string;
@@ -127,11 +131,21 @@ function validateFrontmatterShape(value: unknown): void {
   }
 }
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 async function validateSourceOwnership(
   db: ReturnType<typeof getDb>,
   sourceId: string,
   userId: string,
 ): Promise<void> {
+  if (!UUID_PATTERN.test(sourceId)) {
+    throw invalidAttribute(
+      "SourceId must be a valid UUID",
+      "/data/attributes/sourceId",
+    );
+  }
+
   const [matchedSource] = await db
     .select({ uuid: sources.uuid })
     .from(sources)
@@ -150,9 +164,6 @@ function buildInsertValues(
   attributes: Required<Pick<CreateRecordAttributes, "title" | "content">> &
     Omit<CreateRecordAttributes, "title" | "content">,
 ): InsertRecordValues {
-  validateTagsShape(attributes.tags);
-  validateFrontmatterShape(attributes.frontmatter);
-
   const values: InsertRecordValues = {
     userId,
     title: attributes.title,
@@ -162,7 +173,7 @@ function buildInsertValues(
   for (const key of SCALAR_OPTIONAL_KEYS) {
     const value = (attributes as Record<ScalarOptionalKey, unknown>)[key];
 
-    if (value === undefined) {
+    if (isAbsent(value)) {
       continue;
     }
 
@@ -196,6 +207,10 @@ export default defineEventHandler(async (event): Promise<RecordApiResponse> => {
       Pick<CreateRecordAttributes, "title" | "content">
     > &
       Omit<CreateRecordAttributes, "title" | "content">;
+
+    // Run synchronous shape checks before any DB queries to avoid wasted round-trips.
+    validateTagsShape(attributes.tags);
+    validateFrontmatterShape(attributes.frontmatter);
 
     const db = getDb();
 
