@@ -5,6 +5,8 @@ version: 2
 updates:
   - package-ecosystem: npm
     directory: "/"
+    assignees:
+      - grimicorn
     schedule:
       interval: weekly
     groups:
@@ -15,6 +17,8 @@ updates:
           - patch
   - package-ecosystem: github-actions
     directory: "/"
+    assignees:
+      - grimicorn
     schedule:
       interval: weekly
     groups:
