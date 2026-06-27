@@ -15,6 +15,7 @@ import {
   useAttrs,
   useSlots,
 } from "vue";
+import { useSyncSettings } from "../app/composables/useSyncSettings";
 
 Object.assign(globalThis, {
   computed,
@@ -32,4 +33,5 @@ Object.assign(globalThis, {
   withDefaults,
   useAttrs,
   useSlots,
+  useSyncSettings,
 });
