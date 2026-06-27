@@ -57,7 +57,7 @@ const ALLOWED_ATTRIBUTE_KEYS: (keyof UpdateSettingsAttributes)[] = [
 ];
 
 function isAttributePresent(value: unknown): boolean {
-  return value !== undefined && value !== "";
+  return value !== undefined && value !== null && value !== "";
 }
 
 function pickAllowedAttributes(

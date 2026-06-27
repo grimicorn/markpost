@@ -121,6 +121,24 @@ describe("upsertUserSettings", () => {
     expect(insertedValues).not.toHaveProperty("filenameTemplate");
     expect(insertedValues.theme).toBe("dark");
   });
+
+  it("does not write null to the database (prevents NOT NULL constraint violation)", async () => {
+    const { values } = stubUpsertResult([sampleSettings]);
+    const attributes = {
+      vaultDir: null as unknown as string,
+      autoSync: null as unknown as boolean,
+      theme: "dark",
+    } as Parameters<typeof upsertUserSettings>[2];
+
+    const db = (await import("../../../../server/db")).getDb();
+    await upsertUserSettings(db, userId, attributes);
+
+    const insertedValues = (values as ReturnType<typeof vi.fn>).mock
+      .calls[0][0];
+    expect(insertedValues).not.toHaveProperty("vaultDir");
+    expect(insertedValues).not.toHaveProperty("autoSync");
+    expect(insertedValues.theme).toBe("dark");
+  });
 });
 
 describe("PUT /api/settings", () => {
