@@ -56,12 +56,16 @@ const ALLOWED_ATTRIBUTE_KEYS: (keyof UpdateSettingsAttributes)[] = [
   "accentColor",
 ];
 
+function isAttributePresent(value: unknown): boolean {
+  return value !== undefined && value !== "";
+}
+
 function pickAllowedAttributes(
   attributes: UpdateSettingsAttributes,
 ): UpdateSettingsAttributes {
   const result: UpdateSettingsAttributes = {};
   for (const key of ALLOWED_ATTRIBUTE_KEYS) {
-    if (attributes[key] !== undefined) {
+    if (isAttributePresent(attributes[key])) {
       result[key] = attributes[key] as never;
     }
   }

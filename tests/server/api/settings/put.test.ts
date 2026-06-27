@@ -103,6 +103,24 @@ describe("upsertUserSettings", () => {
     expect(insertedValues.userId).toBe(userId);
     expect(insertedValues).not.toHaveProperty("unknownField");
   });
+
+  it("does not write empty strings to the database (preserves NOT NULL defaults)", async () => {
+    const { values } = stubUpsertResult([sampleSettings]);
+    const attributes = {
+      vaultDir: "",
+      filenameTemplate: "",
+      theme: "dark",
+    } as Parameters<typeof upsertUserSettings>[2];
+
+    const db = (await import("../../../../server/db")).getDb();
+    await upsertUserSettings(db, userId, attributes);
+
+    const insertedValues = (values as ReturnType<typeof vi.fn>).mock
+      .calls[0][0];
+    expect(insertedValues).not.toHaveProperty("vaultDir");
+    expect(insertedValues).not.toHaveProperty("filenameTemplate");
+    expect(insertedValues.theme).toBe("dark");
+  });
 });
 
 describe("PUT /api/settings", () => {
