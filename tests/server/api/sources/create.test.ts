@@ -191,6 +191,119 @@ describe("POST /api/sources", () => {
     });
   });
 
+  it("accepts provider: null without throwing", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        type: "webhook",
+        name: "My Webhook",
+        routeFolder: "99-incoming/",
+        provider: null,
+      }),
+    );
+    stubInsertResult([sampleSource]);
+
+    const response = await handler(buildEvent(userId));
+
+    expect(mockSetResponseStatus).toHaveBeenCalledWith(expect.anything(), 201);
+    expect(response).toMatchObject({ data: { type: "sources" } });
+  });
+
+  it("throws 422 when provider is not a string or null", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        type: "webhook",
+        name: "My Webhook",
+        routeFolder: "99-incoming/",
+        provider: 123,
+      }),
+    );
+
+    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 422,
+      data: {
+        errors: [
+          {
+            status: "422",
+            title: "Invalid Attribute",
+            detail: "Provider must be a string",
+            source: { pointer: "/data/attributes/provider" },
+          },
+        ],
+      },
+    });
+  });
+
+  it("retries on a unique-slug collision and returns the source on success", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        type: "webhook",
+        name: "My Webhook",
+        routeFolder: "99-incoming/",
+      }),
+    );
+
+    const uniqueViolation = Object.assign(new Error("unique"), {
+      code: "23505",
+    });
+    const returningSuccess = vi.fn(() => Promise.resolve([sampleSource]));
+    const returningFail = vi.fn(() => Promise.reject(uniqueViolation));
+    const values = vi
+      .fn()
+      .mockReturnValueOnce({ returning: returningFail })
+      .mockReturnValue({ returning: returningSuccess });
+    insertMock.mockReturnValue({ values });
+
+    const response = await handler(buildEvent(userId));
+
+    expect(mockSetResponseStatus).toHaveBeenCalledWith(expect.anything(), 201);
+    expect(response).toMatchObject({ data: { type: "sources" } });
+    expect(values).toHaveBeenCalledTimes(2);
+  });
+
+  it("throws 409 after exhausting all slug-collision retries", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        type: "webhook",
+        name: "My Webhook",
+        routeFolder: "99-incoming/",
+      }),
+    );
+
+    const uniqueViolation = Object.assign(new Error("unique"), {
+      code: "23505",
+    });
+    const returning = vi.fn(() => Promise.reject(uniqueViolation));
+    const values = vi.fn(() => ({ returning }));
+    insertMock.mockReturnValue({ values });
+
+    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 409,
+      data: { errors: expect.any(Array) },
+    });
+  });
+
+  it("propagates non-unique-violation DB errors without retrying", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        type: "webhook",
+        name: "My Webhook",
+        routeFolder: "99-incoming/",
+      }),
+    );
+
+    const dbError = Object.assign(new Error("connection failed"), {
+      code: "08000",
+    });
+    const returning = vi.fn(() => Promise.reject(dbError));
+    const values = vi.fn(() => ({ returning }));
+    insertMock.mockReturnValue({ values });
+
+    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    expect(values).toHaveBeenCalledTimes(1);
+  });
+
   it("throws 401 when the user is not authenticated", async () => {
     mockReadBody.mockResolvedValue(
       buildBody({

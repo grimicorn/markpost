@@ -143,6 +143,7 @@ export default defineEventHandler(async (event): Promise<SourceApiResponse> => {
 
     if (
       attributes.provider !== undefined &&
+      attributes.provider !== null &&
       typeof attributes.provider !== "string"
     ) {
       throw invalidProviderError();
