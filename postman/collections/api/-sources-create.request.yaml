@@ -1,0 +1,26 @@
+$kind: http-request
+name: /sources
+url: "{{baseUrl}}/api/sources"
+method: POST
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+        "data": {
+            "type": "sources",
+            "attributes": {
+                "type": "webhook",
+                "name": "My Webhook",
+                "routeFolder": "99-incoming/",
+                "provider": null,
+                "fieldMapping": null
+            }
+        }
+    }
+settings:
+  disabledSystemHeaders:
+    - content-type
+order: 2775917722143

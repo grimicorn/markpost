@@ -110,3 +110,57 @@ function buildPrevLink(options: PaginationLinksOptions): string | null {
 
   return `/api/records?${params.toString()}`;
 }
+
+type SourceAttributes = {
+  uuid: string;
+  userId: string;
+  createdAt: Date;
+  type: string;
+  name: string;
+  provider: string | null;
+  endpointSlug: string;
+  routeFolder: string;
+  fieldMapping: unknown;
+  lastHitAt: Date | null;
+  recordCount: number;
+};
+
+type SourceInput = SourceAttributes;
+
+type SourceResource = ApiResourceObject & {
+  type: "sources";
+  attributes: SourceAttributes;
+  links: { self: string };
+};
+
+export type SourceApiResponse = ApiResponse<SourceResource | null>;
+export type SourceListApiResponse = ApiResponse<SourceResource[]>;
+
+export function sourceSerializer(
+  source: SourceInput | null | undefined,
+): SourceResource | null {
+  if (!source) {
+    return null;
+  }
+
+  return {
+    type: "sources",
+    id: source.uuid,
+    attributes: {
+      uuid: source.uuid,
+      userId: source.userId,
+      createdAt: source.createdAt,
+      type: source.type,
+      name: source.name,
+      provider: source.provider,
+      endpointSlug: source.endpointSlug,
+      routeFolder: source.routeFolder,
+      fieldMapping: source.fieldMapping,
+      lastHitAt: source.lastHitAt,
+      recordCount: source.recordCount,
+    },
+    links: {
+      self: `/api/sources/${source.uuid}`,
+    },
+  };
+}
