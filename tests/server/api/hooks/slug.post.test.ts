@@ -1,6 +1,10 @@
-import { createHmac } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { H3Event } from "h3";
+import {
+  buildValidStripeHeader,
+  stubFailingUpdate,
+  spyConsoleError,
+} from "../../helpers";
 
 const selectMock = vi.fn();
 const insertMock = vi.fn();
@@ -20,6 +24,12 @@ vi.mock("drizzle-orm", () => ({
     strings,
     values,
   }),
+}));
+
+const mockWriteEvent = vi.fn();
+
+vi.mock("../../../../server/utils/eventWriter", () => ({
+  writeEvent: (...args: unknown[]) => mockWriteEvent(...args),
 }));
 
 const mockCreateError = vi.fn((options: object) => {
@@ -114,13 +124,35 @@ function stubUpdateStats() {
   return { set, where };
 }
 
-function buildValidStripeHeader(rawBody: string, secret: string): string {
-  const ts = Math.floor(Date.now() / 1000);
-  const signedPayload = `${ts}.${rawBody}`;
-  const sig = createHmac("sha256", secret)
-    .update(signedPayload, "utf8")
-    .digest("hex");
-  return `t=${ts},v1=${sig}`;
+function expect202Success(
+  response: unknown,
+  mockSetStatus: ReturnType<typeof vi.fn>,
+  expectedUuid: string,
+): void {
+  expect(mockSetStatus).toHaveBeenCalledWith(expect.anything(), 202);
+  expect(response).toMatchObject({ data: { uuid: expectedUuid } });
+}
+
+async function expectBestEffortFailureHandled(
+  setup: () => void,
+  rawBody: string = JSON.stringify({ title: "T", content: "C" }),
+): Promise<void> {
+  stubSourceAndSettings([sampleSource]);
+  stubInsertRecord(sampleRecord);
+  setup();
+  const consoleErrorSpy = spyConsoleError();
+
+  mockReadRawBody.mockResolvedValue(rawBody);
+
+  const response = await handler(buildEvent());
+
+  expect202Success(response, mockSetResponseStatus, sampleRecord.uuid);
+  expect(consoleErrorSpy).toHaveBeenCalledWith(
+    expect.stringContaining("[hooks/ingest]"),
+    expect.any(Error),
+  );
+
+  consoleErrorSpy.mockRestore();
 }
 
 beforeEach(() => {
@@ -139,6 +171,7 @@ beforeEach(() => {
   selectMock.mockReset();
   insertMock.mockReset();
   updateMock.mockReset();
+  mockWriteEvent.mockResolvedValue(undefined);
 
   mockGetRouterParam.mockReturnValue("wh_abc12345");
   mockGetHeader.mockReturnValue(undefined);
@@ -196,11 +229,7 @@ describe("POST /api/hooks/[slug]", () => {
 
       const response = await handler(buildEvent());
 
-      expect(mockSetResponseStatus).toHaveBeenCalledWith(
-        expect.anything(),
-        202,
-      );
-      expect(response).toMatchObject({ data: { uuid: sampleRecord.uuid } });
+      expect202Success(response, mockSetResponseStatus, sampleRecord.uuid);
     });
 
     it("inserts a record with correct sourceId and userId", async () => {
@@ -230,11 +259,7 @@ describe("POST /api/hooks/[slug]", () => {
 
       const response = await handler(buildEvent());
 
-      expect(mockSetResponseStatus).toHaveBeenCalledWith(
-        expect.anything(),
-        202,
-      );
-      expect(response).toMatchObject({ data: { uuid: sampleRecord.uuid } });
+      expect202Success(response, mockSetResponseStatus, sampleRecord.uuid);
     });
 
     it("handles a valid-JSON non-object body (null) without crashing", async () => {
@@ -245,11 +270,7 @@ describe("POST /api/hooks/[slug]", () => {
 
       const response = await handler(buildEvent());
 
-      expect(mockSetResponseStatus).toHaveBeenCalledWith(
-        expect.anything(),
-        202,
-      );
-      expect(response).toMatchObject({ data: { uuid: sampleRecord.uuid } });
+      expect202Success(response, mockSetResponseStatus, sampleRecord.uuid);
     });
 
     it("handles a valid-JSON array body without crashing", async () => {
@@ -260,11 +281,7 @@ describe("POST /api/hooks/[slug]", () => {
 
       const response = await handler(buildEvent());
 
-      expect(mockSetResponseStatus).toHaveBeenCalledWith(
-        expect.anything(),
-        202,
-      );
-      expect(response).toMatchObject({ data: { uuid: sampleRecord.uuid } });
+      expect202Success(response, mockSetResponseStatus, sampleRecord.uuid);
     });
   });
 
@@ -315,11 +332,7 @@ describe("POST /api/hooks/[slug]", () => {
 
       const response = await handler(buildEvent());
 
-      expect(mockSetResponseStatus).toHaveBeenCalledWith(
-        expect.anything(),
-        202,
-      );
-      expect(response).toMatchObject({ data: { uuid: sampleRecord.uuid } });
+      expect202Success(response, mockSetResponseStatus, sampleRecord.uuid);
     });
 
     it("returns 401 when STRIPE_WEBHOOK_SECRET is not configured", async () => {
@@ -384,34 +397,40 @@ describe("POST /api/hooks/[slug]", () => {
 
   describe("source stats update", () => {
     it("does not throw when updateSourceStats fails", async () => {
-      const rawBody = JSON.stringify({ title: "T", content: "C" });
+      await expectBestEffortFailureHandled(() => {
+        stubFailingUpdate(updateMock);
+      });
+    });
+  });
+
+  describe("event writing", () => {
+    it("calls writeEvent with correct fields on successful ingest", async () => {
+      const rawBody = JSON.stringify({
+        title: "Deploy done",
+        content: "Green",
+      });
 
       stubSourceAndSettings([sampleSource]);
-      stubInsertRecord(sampleRecord);
-
-      const where = vi.fn(() => Promise.reject(new Error("db error")));
-      const set = vi.fn(() => ({ where }));
-      updateMock.mockReturnValue({ set });
-
-      const consoleErrorSpy = vi
-        .spyOn(console, "error")
-        .mockImplementation(() => {});
-
+      stubInsertRecord({ ...sampleRecord, title: "Deploy done" });
+      stubUpdateStats();
       mockReadRawBody.mockResolvedValue(rawBody);
 
-      const response = await handler(buildEvent());
+      await handler(buildEvent());
 
-      expect(mockSetResponseStatus).toHaveBeenCalledWith(
-        expect.anything(),
-        202,
-      );
-      expect(response).toMatchObject({ data: { uuid: sampleRecord.uuid } });
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining("[hooks/ingest]"),
-        expect.any(Error),
-      );
+      expect(mockWriteEvent).toHaveBeenCalledWith({
+        userId: USER_ID,
+        kind: "ok",
+        message: expect.stringContaining("Deploy done"),
+        recordUuid: sampleRecord.uuid,
+        sourceId: SOURCE_UUID,
+      });
+    });
 
-      consoleErrorSpy.mockRestore();
+    it("does not throw when writeEvent fails", async () => {
+      await expectBestEffortFailureHandled(() => {
+        stubUpdateStats();
+        mockWriteEvent.mockRejectedValue(new Error("event write error"));
+      });
     });
   });
 });

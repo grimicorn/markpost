@@ -4,23 +4,20 @@ import {
   parseStripeSignatureHeader,
   verifyStripeSignature,
   verifyProviderSignature,
+  type VerificationResult,
 } from "../../../server/utils/signatureVerifier";
+import { buildValidStripeHeader } from "../helpers";
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function buildValidStripeHeader(
-  rawBody: string,
-  secret: string,
-  timestamp?: number,
-): string {
-  const ts = timestamp ?? Math.floor(Date.now() / 1000);
-  const signedPayload = `${ts}.${rawBody}`;
-  const sig = createHmac("sha256", secret)
-    .update(signedPayload, "utf8")
-    .digest("hex");
-  return `t=${ts},v1=${sig}`;
+function expectFailureWithReason(
+  result: VerificationResult,
+  pattern: RegExp,
+): void {
+  expect(result.ok).toBe(false);
+  expect((result as { ok: false; reason: string }).reason).toMatch(pattern);
 }
 
 describe("parseStripeSignatureHeader", () => {
@@ -70,20 +67,14 @@ describe("verifyStripeSignature", () => {
   it("returns ok: false when the signature does not match", () => {
     const header = buildValidStripeHeader(rawBody, "wrong_secret");
     const result = verifyStripeSignature(header, rawBody, secret);
-    expect(result.ok).toBe(false);
-    expect((result as { ok: false; reason: string }).reason).toMatch(
-      /mismatch/i,
-    );
+    expectFailureWithReason(result, /mismatch/i);
   });
 
   it("returns ok: false when the timestamp is stale (> 5 minutes)", () => {
     const staleTimestamp = Math.floor(Date.now() / 1000) - 600;
     const header = buildValidStripeHeader(rawBody, secret, staleTimestamp);
     const result = verifyStripeSignature(header, rawBody, secret);
-    expect(result.ok).toBe(false);
-    expect((result as { ok: false; reason: string }).reason).toMatch(
-      /timestamp/i,
-    );
+    expectFailureWithReason(result, /timestamp/i);
   });
 
   it("returns ok: false for a non-numeric timestamp", () => {
@@ -135,10 +126,7 @@ describe("verifyProviderSignature", () => {
       rawBody,
       secret: null,
     });
-    expect(result.ok).toBe(false);
-    expect((result as { ok: false; reason: string }).reason).toMatch(
-      /Unsupported provider/i,
-    );
+    expectFailureWithReason(result, /Unsupported provider/i);
   });
 
   it("returns ok: false for provider with different casing than supported", () => {
@@ -148,10 +136,14 @@ describe("verifyProviderSignature", () => {
       rawBody,
       secret,
     });
-    // "Stripe" normalizes to "stripe" — should pass through to Stripe verification
-    // (will fail due to bad sig, but should NOT return unsupported provider error)
+    // "Stripe" normalizes to "stripe" — should reach Stripe verification (not unsupported),
+    // then fail on the malformed signature rather than an unsupported-provider error.
+    expect(result.ok).toBe(false);
     expect((result as { ok: false; reason: string }).reason).not.toMatch(
       /Unsupported/i,
+    );
+    expect((result as { ok: false; reason: string }).reason).toMatch(
+      /timestamp|mismatch|signature/i,
     );
   });
 
@@ -162,8 +154,7 @@ describe("verifyProviderSignature", () => {
       rawBody,
       secret: null,
     });
-    expect(result.ok).toBe(false);
-    expect((result as { ok: false; reason: string }).reason).toMatch(/secret/i);
+    expectFailureWithReason(result, /secret/i);
   });
 
   it("returns ok: false for stripe provider when Stripe-Signature header is missing", () => {
@@ -173,19 +164,11 @@ describe("verifyProviderSignature", () => {
       rawBody,
       secret,
     });
-    expect(result.ok).toBe(false);
-    expect((result as { ok: false; reason: string }).reason).toMatch(
-      /Missing Stripe-Signature/i,
-    );
+    expectFailureWithReason(result, /Missing Stripe-Signature/i);
   });
 
   it("returns ok: true for stripe provider with a valid signature", () => {
-    const ts = Math.floor(Date.now() / 1000);
-    const signedPayload = `${ts}.${rawBody}`;
-    const sig = createHmac("sha256", secret)
-      .update(signedPayload, "utf8")
-      .digest("hex");
-    const header = `t=${ts},v1=${sig}`;
+    const header = buildValidStripeHeader(rawBody, secret);
 
     const result = verifyProviderSignature({
       provider: "stripe",

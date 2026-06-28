@@ -10,6 +10,8 @@ import { writeEvent } from "../../utils/eventWriter";
 
 const DEFAULT_FILENAME_TEMPLATE = "{{date}}-{{slug}}.md";
 const STRIPE_WEBHOOK_SECRET_ENV = "STRIPE_WEBHOOK_SECRET";
+const RECORD_STATUS_PENDING = "pending";
+const EVENT_KIND_OK = "ok";
 
 type SourceRow = {
   uuid: string;
@@ -102,7 +104,7 @@ async function insertWebhookRecord(
       content: parsed.body,
       sourceId: source.uuid,
       source: source.name,
-      status: "pending",
+      status: RECORD_STATUS_PENDING,
       tags: parsed.tags,
       frontmatter: parsed.frontmatter,
       filePath: parsed.filePath,
@@ -144,86 +146,120 @@ function buildProviderHeaders(
   };
 }
 
-export default defineEventHandler(async (event) => {
+function parseBodyToPayload(rawBody: string): Record<string, unknown> {
+  if (!rawBody) {
+    return {};
+  }
+
   try {
-    const slug = getRouterParam(event, "slug");
+    const parsed: unknown = JSON.parse(rawBody);
 
-    if (!slug) {
-      throw notFoundError();
+    if (
+      parsed === null ||
+      typeof parsed !== "object" ||
+      Array.isArray(parsed)
+    ) {
+      return {};
     }
 
-    const source = await resolveSourceBySlug(slug);
+    return parsed as Record<string, unknown>;
+  } catch {
+    // Non-JSON body: treat as empty payload; the parser will use defaults
+    return {};
+  }
+}
 
-    if (!source) {
-      throw notFoundError();
-    }
+async function resolveAndValidateSource(
+  slug: string | undefined,
+): Promise<SourceRow> {
+  if (!slug) {
+    throw notFoundError();
+  }
 
-    const rawBodyText = await readRawBody(event);
-    const rawBody = rawBodyText ?? "";
+  const source = await resolveSourceBySlug(slug);
 
-    const providerHeaders = buildProviderHeaders(event);
-    const stripeSecret = process.env[STRIPE_WEBHOOK_SECRET_ENV] ?? null;
+  if (!source) {
+    throw notFoundError();
+  }
 
-    const sigResult = verifyProviderSignature({
-      provider: source.provider,
-      headers: providerHeaders,
-      rawBody,
-      secret: stripeSecret,
-    });
+  return source;
+}
 
-    if (!sigResult.ok) {
-      throw signatureError(sigResult.reason);
-    }
+function checkSignature(
+  source: SourceRow,
+  providerHeaders: Record<string, string | undefined>,
+  rawBody: string,
+): void {
+  const stripeSecret = process.env[STRIPE_WEBHOOK_SECRET_ENV] ?? null;
 
-    let payload: Record<string, unknown> = {};
+  const sigResult = verifyProviderSignature({
+    provider: source.provider,
+    headers: providerHeaders,
+    rawBody,
+    secret: stripeSecret,
+  });
 
-    try {
-      const parsedBody: unknown = rawBody ? JSON.parse(rawBody) : {};
+  if (!sigResult.ok) {
+    throw signatureError(sigResult.reason);
+  }
+}
 
-      if (
-        parsedBody !== null &&
-        typeof parsedBody === "object" &&
-        !Array.isArray(parsedBody)
-      ) {
-        payload = parsedBody as Record<string, unknown>;
-      }
-    } catch {
-      // Non-JSON body: treat as empty payload; the parser will use defaults
-    }
+async function buildAndInsertRecord(source: SourceRow, rawBody: string) {
+  const payload = parseBodyToPayload(rawBody);
+  const webhookPayload = applyFieldMapping(
+    payload,
+    source.fieldMapping,
+    source.name,
+  );
 
-    const webhookPayload = applyFieldMapping(
-      payload,
-      source.fieldMapping,
-      source.name,
-    );
+  const settingsRow = await fetchUserSettings(source.userId);
+  const userSettingsValues: UserSettings = {
+    filenameTemplate: settingsRow.filenameTemplate,
+  };
 
-    const settingsRow = await fetchUserSettings(source.userId);
-    const userSettingsValues: UserSettings = {
-      filenameTemplate: settingsRow.filenameTemplate,
-    };
+  const parsed = parseWebhookPayload(webhookPayload, userSettingsValues);
+  return insertWebhookRecord(source, parsed);
+}
 
-    const parsed = parseWebhookPayload(webhookPayload, userSettingsValues);
-
-    const record = await insertWebhookRecord(source, parsed);
-
-    // Stats and event writes are best-effort: failures do not roll back the record
-    // or change the 202 response, preventing cascading failures on a single ingest.
-    await updateSourceStats(source.uuid).catch((updateError) => {
+async function writeBestEffortSideEffects(
+  source: SourceRow,
+  record: { uuid: string; title: string },
+): Promise<void> {
+  // Stats and event writes are independent best-effort operations: run concurrently
+  // so failures in one do not delay the other, and neither rolls back the record
+  // or changes the 202 response, preventing cascading failures on a single ingest.
+  await Promise.allSettled([
+    updateSourceStats(source.uuid).catch((updateError) => {
       console.error(
         "[hooks/ingest] failed to update source stats:",
         updateError,
       );
-    });
-
-    await writeEvent({
+    }),
+    writeEvent({
       userId: source.userId,
-      kind: "ok",
+      kind: EVENT_KIND_OK,
       message: `Webhook received: ${record.title}`,
       recordUuid: record.uuid,
       sourceId: source.uuid,
     }).catch((writeError) => {
       console.error("[hooks/ingest] failed to write event:", writeError);
-    });
+    }),
+  ]);
+}
+
+export default defineEventHandler(async (event) => {
+  try {
+    const slug = getRouterParam(event, "slug");
+    const source = await resolveAndValidateSource(slug);
+
+    const rawBodyText = await readRawBody(event);
+    const rawBody = rawBodyText ?? "";
+
+    const providerHeaders = buildProviderHeaders(event);
+    checkSignature(source, providerHeaders, rawBody);
+
+    const record = await buildAndInsertRecord(source, rawBody);
+    await writeBestEffortSideEffects(source, record);
 
     setResponseStatus(event, 202);
     return { data: { uuid: record.uuid } };

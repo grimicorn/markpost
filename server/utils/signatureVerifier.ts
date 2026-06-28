@@ -5,7 +5,7 @@ const STRIPE_TIMESTAMP_PREFIX = "t=";
 const STRIPE_V1_PREFIX = "v1=";
 const STRIPE_TIMESTAMP_TOLERANCE_SECONDS = 300;
 
-type VerificationResult = { ok: true } | { ok: false; reason: string };
+export type VerificationResult = { ok: true } | { ok: false; reason: string };
 
 export type StripeSignatureParts = {
   timestamp: string;
@@ -51,6 +51,10 @@ function computeStripeSignature(
 }
 
 function isTimestampFresh(timestamp: string): boolean {
+  if (!/^\d+$/.test(timestamp)) {
+    return false;
+  }
+
   const timestampSeconds = parseInt(timestamp, 10);
 
   if (Number.isNaN(timestampSeconds)) {
