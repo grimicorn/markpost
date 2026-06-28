@@ -57,6 +57,7 @@ const nuxtGlobals = {
   useFetch: "readonly",
   useLazyFetch: "readonly",
   useAsyncData: "readonly",
+  $fetch: "readonly",
 };
 
 const piniaGlobals = {

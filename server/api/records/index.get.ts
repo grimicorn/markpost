@@ -1,15 +1,23 @@
-import { and, count, desc, eq, lt, or } from "drizzle-orm";
+import { and, count, desc, eq, like, lt, or, SQL } from "drizzle-orm";
 import { getDb } from "../../db";
-import { records } from "../../db/schema";
+import { records, RECORD_STATUSES } from "../../db/schema";
 import { ApiError, apiErrorHandler } from "../../utils/errors";
 import { buildRecordListResponse, parsePageSize } from "../../utils/pagination";
 import type { RecordListApiResponse } from "../../utils/response";
+
+const ALLOWED_SOURCE_TYPES = ["webhook", "email"] as const;
+type AllowedSourceType = (typeof ALLOWED_SOURCE_TYPES)[number];
 
 type Database = ReturnType<typeof getDb>;
 
 type CursorPosition = {
   createdAt: Date;
   uuid: string;
+};
+
+type RecordFilters = {
+  source?: AllowedSourceType;
+  status?: string;
 };
 
 async function findCursorPosition(
@@ -52,25 +60,44 @@ async function resolveCursor(
   return cursor;
 }
 
-function buildCursorFilter(userId: string, cursor: CursorPosition | null) {
-  const ownerFilter = eq(records.userId, userId);
-  if (!cursor) {
-    return ownerFilter;
+function buildFilterConditions(
+  userId: string,
+  cursor: CursorPosition | null,
+  filters: RecordFilters,
+): SQL | undefined {
+  const conditions: (SQL | undefined)[] = [eq(records.userId, userId)];
+
+  if (filters.source) {
+    conditions.push(like(records.source, `${filters.source}/%`));
   }
 
-  const beforeCursor = or(
-    lt(records.createdAt, cursor.createdAt),
-    and(eq(records.createdAt, cursor.createdAt), lt(records.uuid, cursor.uuid)),
-  );
+  if (filters.status) {
+    conditions.push(eq(records.status, filters.status));
+  }
 
-  return and(ownerFilter, beforeCursor);
+  if (cursor) {
+    const beforeCursor = or(
+      lt(records.createdAt, cursor.createdAt),
+      and(
+        eq(records.createdAt, cursor.createdAt),
+        lt(records.uuid, cursor.uuid),
+      ),
+    );
+    conditions.push(beforeCursor);
+  }
+
+  return and(...conditions);
 }
 
-async function countUserRecords(db: Database, userId: string): Promise<number> {
+async function countFilteredRecords(
+  db: Database,
+  userId: string,
+  filters: RecordFilters,
+): Promise<number> {
   const [totalRow] = await db
     .select({ value: count() })
     .from(records)
-    .where(eq(records.userId, userId));
+    .where(buildFilterConditions(userId, null, filters));
 
   return totalRow?.value ?? 0;
 }
@@ -80,11 +107,12 @@ function fetchRecordsPage(
   userId: string,
   cursor: CursorPosition | null,
   size: number,
+  filters: RecordFilters,
 ) {
   return db
     .select()
     .from(records)
-    .where(buildCursorFilter(userId, cursor))
+    .where(buildFilterConditions(userId, cursor, filters))
     .orderBy(desc(records.createdAt), desc(records.uuid))
     .limit(size + 1);
 }
@@ -98,10 +126,35 @@ export default defineEventHandler(
       const query = getQuery(event);
       const size = parsePageSize(query["page[size]"] as string | undefined);
       const afterUuid = query["page[after]"] as string | undefined;
+      const filterSource = query["filter[source]"] as string | undefined;
+      const filterStatus = query["filter[status]"] as string | undefined;
+
+      const validatedSource = ALLOWED_SOURCE_TYPES.includes(
+        filterSource as AllowedSourceType,
+      )
+        ? (filterSource as AllowedSourceType)
+        : undefined;
+
+      const validatedStatus = RECORD_STATUSES.includes(
+        filterStatus as (typeof RECORD_STATUSES)[number],
+      )
+        ? filterStatus
+        : undefined;
+
+      const filters: RecordFilters = {
+        source: validatedSource,
+        status: validatedStatus,
+      };
 
       const cursor = await resolveCursor(db, userId, afterUuid);
-      const total = await countUserRecords(db, userId);
-      const pageRecords = await fetchRecordsPage(db, userId, cursor, size);
+      const total = await countFilteredRecords(db, userId, filters);
+      const pageRecords = await fetchRecordsPage(
+        db,
+        userId,
+        cursor,
+        size,
+        filters,
+      );
 
       return buildRecordListResponse({
         records: pageRecords,
