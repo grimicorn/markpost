@@ -10,6 +10,26 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+export const apiTokens = pgTable(
+  "api_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id").notNull(),
+    name: text("name").notNull(),
+    prefix: text("prefix").notNull(),
+    hashedToken: text("hashed_token").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("api_tokens_user_id_idx").on(table.userId),
+    unique("api_tokens_hashed_token_unique").on(table.hashedToken),
+  ],
+);
+
 export const records = pgTable(
   "records",
   {

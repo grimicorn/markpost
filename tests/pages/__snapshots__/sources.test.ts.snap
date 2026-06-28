@@ -1,0 +1,73 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`sources page > matches snapshot in empty state 1`] = `
+"<div active="sources" crumb="WORKSPACE / DAN'S VAULT" title="Sources"><button variant="accent" size="sm" icon="plus">add source</button>
+  <div style="padding: 22px 26px 40px; max-width: 920px;">
+    <div style="margin-bottom: 18px;">
+      <div class="app-alert"> There are only two ways in — a <strong>webhook endpoint</strong> and an <strong>email-in address</strong>. Presets like Stripe or GitHub are just a webhook with provider field-mapping baked in. </div>
+    </div><!-- transient error banners (add/remove failures — do not gate list) -->
+    <!--v-if-->
+    <!--v-if-->
+    <!-- loading state -->
+    <!-- sources list -->
+    <!-- empty state -->
+    <div class="col" style="align-items: center; padding: 60px 0px; color: var(--ink-3); gap: 12px; text-align: center;"><span name="plug" size="32"></span><span style="font-size: 15px; font-weight: 500; color: var(--ink-2);">No sources yet</span><span class="mono" style="font-size: 13px;"> Add a webhook or email-in address to start routing records. </span><button variant="accent" icon="plus" style="margin-top: 8px;"> add source </button></div>
+  </div>
+  <!--v-if-->
+  <!--v-if-->
+</div>"
+`;
+
+exports[`sources page > matches snapshot in loading state 1`] = `
+"<div active="sources" crumb="WORKSPACE / DAN'S VAULT" title="Sources"><button variant="accent" size="sm" icon="plus">add source</button>
+  <div style="padding: 22px 26px 40px; max-width: 920px;">
+    <div style="margin-bottom: 18px;">
+      <div class="app-alert"> There are only two ways in — a <strong>webhook endpoint</strong> and an <strong>email-in address</strong>. Presets like Stripe or GitHub are just a webhook with provider field-mapping baked in. </div>
+    </div><!-- transient error banners (add/remove failures — do not gate list) -->
+    <!--v-if-->
+    <!--v-if-->
+    <!-- loading state -->
+    <div class="col" style="align-items: center; padding: 60px 0px; color: var(--ink-3); gap: 12px;"><span name="refresh" size="24"></span><span class="mono" style="font-size: 13px;">loading sources…</span></div>
+  </div>
+  <!--v-if-->
+  <!--v-if-->
+</div>"
+`;
+
+exports[`sources page > matches snapshot when loadSources throws 1`] = `
+"<div active="sources" crumb="WORKSPACE / DAN'S VAULT" title="Sources"><button variant="accent" size="sm" icon="plus">add source</button>
+  <div style="padding: 22px 26px 40px; max-width: 920px;">
+    <div style="margin-bottom: 18px;">
+      <div class="app-alert"> There are only two ways in — a <strong>webhook endpoint</strong> and an <strong>email-in address</strong>. Presets like Stripe or GitHub are just a webhook with provider field-mapping baked in. </div>
+    </div><!-- transient error banners (add/remove failures — do not gate list) -->
+    <!--v-if-->
+    <!--v-if-->
+    <!-- loading state -->
+    <!-- load error state (full-page, non-dismissable) -->
+    <div class="app-alert" style="margin-bottom: 18px;">Failed to load sources. Please try again.</div>
+  </div>
+  <!--v-if-->
+  <!--v-if-->
+</div>"
+`;
+
+exports[`sources page > matches snapshot with sources 1`] = `
+"<div active="sources" crumb="WORKSPACE / DAN'S VAULT" title="Sources"><button variant="accent" size="sm" icon="plus">add source</button>
+  <div style="padding: 22px 26px 40px; max-width: 920px;">
+    <div style="margin-bottom: 18px;">
+      <div class="app-alert"> There are only two ways in — a <strong>webhook endpoint</strong> and an <strong>email-in address</strong>. Presets like Stripe or GitHub are just a webhook with provider field-mapping baked in. </div>
+    </div><!-- transient error banners (add/remove failures — do not gate list) -->
+    <!--v-if-->
+    <!--v-if-->
+    <!-- loading state -->
+    <!-- sources list -->
+    <!-- empty state -->
+    <div class="col gap-4">
+      <div class="source-card"></div>
+      <div class="source-card"></div><button class="card" style="padding: 20px; border: 1px dashed; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--ink-2); font-family: var(--mono); font-size: 13px; border-width: var(--line-2); border-style: var(--line-2); border-color: var(--line-2);"><span name="plus" size="16"></span>connect another source </button>
+    </div>
+  </div>
+  <!--v-if-->
+  <!--v-if-->
+</div>"
+`;
