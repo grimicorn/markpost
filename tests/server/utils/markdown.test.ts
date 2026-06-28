@@ -73,8 +73,17 @@ describe("titleToSlug", () => {
     expect(titleToSlug(longTitle).length).toBeLessThanOrEqual(80);
   });
 
-  it("returns empty string for an empty title", () => {
-    expect(titleToSlug("")).toBe("");
+  it("returns fallback slug for an empty title", () => {
+    expect(titleToSlug("")).toBe("untitled");
+  });
+
+  it("returns fallback slug for an all-symbol title", () => {
+    expect(titleToSlug("!!!")).toBe("untitled");
+  });
+
+  it("removes leading and trailing hyphens", () => {
+    expect(titleToSlug("-start")).toBe("start");
+    expect(titleToSlug("end-")).toBe("end");
   });
 });
 
@@ -176,6 +185,56 @@ describe("serializeFrontmatter", () => {
     const result = serializeFrontmatter(frontmatter);
     expect(result).toContain("tags: []");
   });
+
+  it("quotes a title containing a colon to prevent YAML parsing errors", () => {
+    const frontmatter = buildFrontmatter(
+      "Deploy: success",
+      "webhook",
+      "2026-06-14T00:00:00Z",
+      [],
+    );
+    const result = serializeFrontmatter(frontmatter);
+    expect(result).toContain('title: "Deploy: success"');
+  });
+
+  it("escapes a newline in a title so it cannot inject a new frontmatter key", () => {
+    const frontmatter = buildFrontmatter(
+      "title\nmalicious: true",
+      "webhook",
+      "2026-06-14T00:00:00Z",
+      [],
+    );
+    const result = serializeFrontmatter(frontmatter);
+    // The title must be on a single quoted line; \n must be escaped to \\n.
+    // A real YAML parser reading this will see one string value, not two keys.
+    expect(result).toContain("\\n");
+    // The result must not contain a bare (unquoted) newline followed by "malicious:"
+    // which would create an independent YAML key.
+    const lines = result.split("\n");
+    expect(lines.every((line) => !line.startsWith("malicious:"))).toBe(true);
+  });
+
+  it("quotes a tag containing a comma", () => {
+    const frontmatter = buildFrontmatter(
+      "Note",
+      "webhook",
+      "2026-06-14T00:00:00Z",
+      ["a,b"],
+    );
+    const result = serializeFrontmatter(frontmatter);
+    expect(result).toContain('"a,b"');
+  });
+
+  it("quotes a tag containing a closing bracket", () => {
+    const frontmatter = buildFrontmatter(
+      "Note",
+      "webhook",
+      "2026-06-14T00:00:00Z",
+      ["a]b"],
+    );
+    const result = serializeFrontmatter(frontmatter);
+    expect(result).toContain('"a]b"');
+  });
 });
 
 describe("parseWebhookPayload", () => {
@@ -249,6 +308,19 @@ describe("parseWebhookPayload", () => {
     const result = parseWebhookPayload(payload, customSettings);
 
     expect(result.filePath).toBe("github/deploy.md");
+  });
+
+  it("falls back to the current date when created is an invalid date string", () => {
+    const payload = {
+      title: "Bad date",
+      content: "hello",
+      created: "yesterday",
+    };
+
+    const result = parseWebhookPayload(payload, settings);
+
+    expect(result.filePath).not.toContain("NaN");
+    expect(result.frontmatter.created).not.toBe("yesterday");
   });
 });
 

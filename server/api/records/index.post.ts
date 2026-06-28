@@ -54,11 +54,14 @@ type CreateRecordBody = {
   };
 };
 
+const PAYLOAD_TYPES = ["webhook", "email"] as const;
+
 const VALIDATION_RULES: AttributeRule[] = [
   { key: "title", type: "string" },
   // content is optional when html is provided; the pipeline derives content from html
   { key: "content", type: "string", optional: true },
   { key: "html", type: "string", optional: true },
+  { key: "payloadType", type: "string", optional: true, enum: PAYLOAD_TYPES },
   { key: "sourceId", type: "string", optional: true },
   { key: "source", type: "string", optional: true },
   { key: "status", type: "string", optional: true, enum: RECORD_STATUSES },
@@ -220,31 +223,37 @@ function buildWebhookPayload(
   };
 }
 
-async function resolveContentFromHtml(
-  attributes: CreateRecordAttributes,
-  settings: UserSettings,
-): Promise<ResolvedContent> {
-  const payloadType = attributes.payloadType ?? "webhook";
-
-  if (payloadType === "email") {
-    const emailPayload = buildEmailPayload(attributes);
-    const parsed = parseEmailPayload(emailPayload, settings);
-    return {
-      content: parsed.body,
-      frontmatter: parsed.frontmatter,
-      tags: parsed.tags,
-      filePath: parsed.filePath,
-    };
-  }
-
-  const webhookPayload = buildWebhookPayload(attributes);
-  const parsed = parseWebhookPayload(webhookPayload, settings);
+function parsedPayloadToResolvedContent(parsed: {
+  body: string;
+  frontmatter: unknown;
+  tags: string[];
+  filePath: string;
+}): ResolvedContent {
   return {
     content: parsed.body,
     frontmatter: parsed.frontmatter,
     tags: parsed.tags,
     filePath: parsed.filePath,
   };
+}
+
+function resolveContentFromHtml(
+  attributes: CreateRecordAttributes,
+  settings: UserSettings,
+): ResolvedContent {
+  const payloadType = attributes.payloadType ?? "webhook";
+
+  if (payloadType === "email") {
+    const emailPayload = buildEmailPayload(attributes);
+    return parsedPayloadToResolvedContent(
+      parseEmailPayload(emailPayload, settings),
+    );
+  }
+
+  const webhookPayload = buildWebhookPayload(attributes);
+  return parsedPayloadToResolvedContent(
+    parseWebhookPayload(webhookPayload, settings),
+  );
 }
 
 async function applyMarkdownPipeline(
@@ -259,7 +268,7 @@ async function applyMarkdownPipeline(
   const filenameTemplate = await fetchFilenameTemplate(database, userId);
   const userSettingsValues: UserSettings = { filenameTemplate };
 
-  const resolved = await resolveContentFromHtml(attributes, userSettingsValues);
+  const resolved = resolveContentFromHtml(attributes, userSettingsValues);
 
   return {
     ...attributes,
