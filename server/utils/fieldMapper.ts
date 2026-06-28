@@ -33,6 +33,8 @@ function isFieldMappingConfig(value: unknown): value is FieldMappingConfig {
   return true;
 }
 
+const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
 function getNestedValue(
   payload: Record<string, unknown>,
   path: string,
@@ -41,7 +43,15 @@ function getNestedValue(
   let current: unknown = payload;
 
   for (const segment of segments) {
+    if (FORBIDDEN_KEYS.has(segment)) {
+      return undefined;
+    }
+
     if (typeof current !== "object" || current === null) {
+      return undefined;
+    }
+
+    if (!Object.prototype.hasOwnProperty.call(current, segment)) {
       return undefined;
     }
 

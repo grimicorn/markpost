@@ -106,6 +106,19 @@ async function insertWebhookRecord(
     })
     .returning();
 
+  if (!created) {
+    throw new ApiError(
+      [
+        {
+          status: "500",
+          title: "Internal Server Error",
+          detail: "Failed to insert record",
+        },
+      ],
+      500,
+    );
+  }
+
   return created;
 }
 

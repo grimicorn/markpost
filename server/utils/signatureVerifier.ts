@@ -64,25 +64,24 @@ function isTimestampFresh(timestamp: string): boolean {
   );
 }
 
+function signaturesMatch(expected: Buffer, candidate: string): boolean {
+  try {
+    const candidateBuffer = Buffer.from(candidate, "hex");
+    return (
+      expected.length === candidateBuffer.length &&
+      timingSafeEqual(expected, candidateBuffer)
+    );
+  } catch {
+    // Buffer.from throws on invalid hex; treat as mismatch
+    return false;
+  }
+}
+
 function compareSignatures(expected: string, candidates: string[]): boolean {
   const expectedBuffer = Buffer.from(expected, "hex");
-
-  for (const candidate of candidates) {
-    try {
-      const candidateBuffer = Buffer.from(candidate, "hex");
-
-      if (
-        expectedBuffer.length === candidateBuffer.length &&
-        timingSafeEqual(expectedBuffer, candidateBuffer)
-      ) {
-        return true;
-      }
-    } catch {
-      // Buffer.from can throw on invalid hex; treat as mismatch
-    }
-  }
-
-  return false;
+  return candidates.some((candidate) =>
+    signaturesMatch(expectedBuffer, candidate),
+  );
 }
 
 export function verifyStripeSignature(
