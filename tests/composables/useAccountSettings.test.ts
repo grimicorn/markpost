@@ -1,11 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ref, computed, watch } from "vue";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { ref, computed } from "vue";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 
 const mockUpdate = vi.fn();
 const mockSetProfileImage = vi.fn();
-const mockCreateTOTP = vi.fn();
 const mockDisableTOTP = vi.fn();
 const mockReload = vi.fn();
 const mockGetSessions = vi.fn();
@@ -31,7 +30,6 @@ function makeMockUser(overrides: Record<string, unknown> = {}) {
     imageUrl: null,
     update: mockUpdate,
     setProfileImage: mockSetProfileImage,
-    createTOTP: mockCreateTOTP,
     disableTOTP: mockDisableTOTP,
     reload: mockReload,
     getSessions: mockGetSessions,
@@ -51,12 +49,10 @@ function setup(userOverrides: Record<string, unknown> = {}) {
 
   // Manually trigger the watch callback since watch is a real Vue watch here
   const composable = useAccountSettings();
-  // Seed the reactive fields the way the composable's watch would
+  // Seed the name field the way the composable's watch would.
+  // email is a computed ref driven by mockUserRef, so no manual seeding needed.
   if (mockUserRef.value) {
     composable.name.value = mockUserRef.value.fullName as string;
-    composable.email.value = (
-      mockUserRef.value.primaryEmailAddress as { emailAddress: string }
-    ).emailAddress;
   }
   return composable;
 }
@@ -67,6 +63,24 @@ describe("useAccountSettings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUserRef.value = null;
+  });
+
+  describe("Clerk watcher", () => {
+    it("populates name from Clerk user on load via the immediate watch", async () => {
+      mockUserRef.value = makeMockUser({ fullName: "Alice Smith" });
+      const { name } = useAccountSettings();
+      // flush the immediate watch
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(name.value).toBe("Alice Smith");
+    });
+
+    it("reflects email directly from the Clerk user ref (computed)", () => {
+      mockUserRef.value = makeMockUser({
+        primaryEmailAddress: { emailAddress: "alice@example.com" },
+      });
+      const { email } = useAccountSettings();
+      expect(email.value).toBe("alice@example.com");
+    });
   });
 
   describe("saveChanges", () => {
@@ -127,15 +141,13 @@ describe("useAccountSettings", () => {
   });
 
   describe("cancelChanges", () => {
-    it("resets name and email back to Clerk values", () => {
-      const { name, email, cancelChanges } = setup({
+    it("resets name back to Clerk value", () => {
+      const { name, cancelChanges } = setup({
         fullName: "Dan Holloran",
-        primaryEmailAddress: { emailAddress: "dan@markpost.io" },
       });
       name.value = "Changed Name";
       cancelChanges();
       expect(name.value).toBe("Dan Holloran");
-      expect(email.value).toBe("dan@markpost.io");
     });
 
     it("resets saveStatus to idle", async () => {
@@ -145,6 +157,43 @@ describe("useAccountSettings", () => {
       expect(saveStatus.value).toBe("error");
       cancelChanges();
       expect(saveStatus.value).toBe("idle");
+    });
+  });
+
+  describe("email", () => {
+    it("reflects the primary email address from Clerk", () => {
+      const { email } = setup({
+        primaryEmailAddress: { emailAddress: "test@example.com" },
+      });
+      expect(email.value).toBe("test@example.com");
+    });
+
+    it("returns empty string when user has no primary email", () => {
+      const { email } = setup({ primaryEmailAddress: null });
+      expect(email.value).toBe("");
+    });
+  });
+
+  describe("name watch", () => {
+    it("clears saveStatus from saved to idle when name changes", async () => {
+      mockUpdate.mockResolvedValue(undefined);
+      const { name, saveChanges, saveStatus } = setup();
+      await saveChanges();
+      expect(saveStatus.value).toBe("saved");
+      name.value = "New Name";
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(saveStatus.value).toBe("idle");
+    });
+
+    it("clears saveStatus and saveError from error to idle when name changes", async () => {
+      mockUpdate.mockRejectedValue(new Error("fail"));
+      const { name, saveChanges, saveStatus, saveError } = setup();
+      await saveChanges();
+      expect(saveStatus.value).toBe("error");
+      name.value = "New Name";
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(saveStatus.value).toBe("idle");
+      expect(saveError.value).toBeNull();
     });
   });
 
@@ -198,15 +247,17 @@ describe("useAccountSettings", () => {
   });
 
   describe("toggleTwoFactor (enable)", () => {
-    it("opens the Clerk security page when 2FA is disabled — does not call createTOTP", async () => {
+    it("opens the Clerk security page when 2FA is disabled", async () => {
       const mockWindowOpen = vi.fn();
+      const originalWindow = globalThis.window;
       vi.stubGlobal("window", { open: mockWindowOpen });
 
       mockUserRef.value = makeMockUser({ twoFactorEnabled: false });
       const { toggleTwoFactor, totpStatus } = useAccountSettings();
       await toggleTwoFactor();
 
-      expect(mockCreateTOTP).not.toHaveBeenCalled();
+      vi.stubGlobal("window", originalWindow);
+
       expect(mockWindowOpen).toHaveBeenCalledWith(
         expect.stringContaining("accounts.clerk.dev"),
         "_blank",
@@ -292,11 +343,35 @@ describe("useAccountSettings", () => {
       expect(mockUserDelete).not.toHaveBeenCalled();
     });
 
+    it("shows a support-contact message when DB delete succeeds but Clerk delete fails", async () => {
+      mockFetch.mockResolvedValue({ meta: { deleted: true } });
+      mockUserDelete.mockRejectedValue(new Error("clerk error"));
+      const { deleteAccount, deleteStatus, deleteError } = setup();
+
+      await deleteAccount();
+
+      expect(deleteStatus.value).toBe("error");
+      expect(deleteError.value).toMatch(/contact support/i);
+    });
+
     it("does nothing when user is null", async () => {
       mockUserRef.value = null;
       const { deleteAccount } = useAccountSettings();
       await deleteAccount();
       expect(mockFetch).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("toggleTwoFactor (disable) error", () => {
+    it("sets totpStatus to error and totpError when disableTOTP throws", async () => {
+      mockDisableTOTP.mockRejectedValue(new Error("totp error"));
+      mockUserRef.value = makeMockUser({ twoFactorEnabled: true });
+
+      const { toggleTwoFactor, totpStatus, totpError } = useAccountSettings();
+      await toggleTwoFactor();
+
+      expect(totpStatus.value).toBe("error");
+      expect(totpError.value).toBe("totp error");
     });
   });
 });

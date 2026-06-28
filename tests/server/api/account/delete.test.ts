@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { H3Event } from "h3";
+import { createMockCreateError } from "../../helpers";
 
 // ── DB mock: capture per-table where calls ────────────────────────────────
 
@@ -37,11 +38,7 @@ vi.mock("drizzle-orm", () => ({
 
 // ── H3 globals ────────────────────────────────────────────────────────────
 
-const mockCreateError = vi.fn((options: object) => {
-  const error = new Error("createError");
-  Object.assign(error, options);
-  return error;
-});
+const mockCreateError = createMockCreateError();
 
 vi.stubGlobal("defineEventHandler", (fn: unknown) => fn);
 vi.stubGlobal("createError", mockCreateError);
@@ -90,6 +87,28 @@ describe("DELETE /api/account", () => {
     const event = buildEvent("user_123");
     await handler(event);
     expect(mockDb.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("deletes in order: records, then sources, then userSettings", async () => {
+    const deleteCalls: string[] = [];
+    mockTransaction.delete.mockImplementation((table: string) => {
+      deleteCalls.push(table);
+      if (table === "records_table") {
+        return { where: recordsWhere };
+      }
+      if (table === "sources_table") {
+        return { where: sourcesWhere };
+      }
+      return { where: userSettingsWhere };
+    });
+
+    await handler(buildEvent("user_123"));
+
+    expect(deleteCalls).toEqual([
+      "records_table",
+      "sources_table",
+      "user_settings_table",
+    ]);
   });
 
   it("deletes records scoped to the authenticated userId", async () => {

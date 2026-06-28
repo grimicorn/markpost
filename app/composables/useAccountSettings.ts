@@ -1,5 +1,8 @@
 import { useUser } from "@clerk/nuxt";
-import type { UserResource, SessionWithActivitiesResource } from "@clerk/types";
+import type {
+  UserResource,
+  SessionWithActivitiesResource,
+} from "@clerk/nuxt/types";
 
 export type AccountSaveStatus = "idle" | "saving" | "saved" | "error";
 export type AvatarUploadStatus = "idle" | "uploading" | "done" | "error";
@@ -18,7 +21,11 @@ export function useAccountSettings() {
 
   // Profile fields — populated once Clerk loads
   const name = ref("");
-  const email = ref("");
+  // Email is read-only: Clerk requires a verification flow to change it,
+  // which is handled via the Clerk security page rather than in-app.
+  const email = computed(
+    () => user.value?.primaryEmailAddress?.emailAddress ?? "",
+  );
   const imageUrl = computed(() => user.value?.imageUrl ?? null);
 
   watch(
@@ -28,7 +35,6 @@ export function useAccountSettings() {
         return;
       }
       name.value = clerkUser.fullName ?? "";
-      email.value = clerkUser.primaryEmailAddress?.emailAddress ?? "";
     },
     { immediate: true },
   );
@@ -82,17 +88,23 @@ export function useAccountSettings() {
       return;
     }
     name.value = clerkUser.fullName ?? "";
-    email.value = clerkUser.primaryEmailAddress?.emailAddress ?? "";
     saveStatus.value = "idle";
     saveError.value = null;
   }
 
-  // Reset the "saved" banner when the user starts editing again
-  watch(name, () => {
-    if (saveStatus.value === "saved") {
-      saveStatus.value = "idle";
-    }
-  });
+  // Reset the status banner when the user starts editing again.
+  // flush: "sync" ensures the reset happens immediately on change, not as a
+  // deferred microtask, so saveChanges can set its own status after the watch fires.
+  watch(
+    name,
+    () => {
+      if (saveStatus.value === "saved" || saveStatus.value === "error") {
+        saveStatus.value = "idle";
+        saveError.value = null;
+      }
+    },
+    { flush: "sync" },
+  );
 
   // ── Avatar upload ──────────────────────────────────────────────────────────
 
@@ -139,9 +151,10 @@ export function useAccountSettings() {
     input.accept = "image/png,image/jpeg";
     input.onchange = (event) => {
       const file = (event.target as HTMLInputElement).files?.[0];
-      if (file) {
-        uploadAvatar(file);
+      if (!file) {
+        return;
       }
+      void uploadAvatar(file);
     };
     input.click();
   }
@@ -215,12 +228,9 @@ export function useAccountSettings() {
 
   // ── Delete account ─────────────────────────────────────────────────────────
   //
-  // The server endpoint deletes all user data in a single DB transaction.
-  // The client then calls clerkUser.delete() to remove the Clerk account and
-  // end the active session. If the Clerk call fails after the DB step succeeds,
-  // the account data is gone but the login survives — a recoverable state (the
-  // user can still sign in and see an empty account). The error message shown
-  // asks them to contact support rather than retrying blindly.
+  // Two-phase delete: server removes DB data first, then Clerk removes the account.
+  // Each phase is caught separately so the user gets a distinct message when the
+  // partial-failure state occurs (DB gone but Clerk account still active).
 
   const deleteStatus = ref<DeleteStatus>("idle");
   const deleteError = ref<string | null>(null);
@@ -237,10 +247,18 @@ export function useAccountSettings() {
     try {
       // Server-side DB cleanup; server does NOT delete the Clerk user
       await $fetch("/api/account", { method: "DELETE" });
-      // Client removes the Clerk account — also ends the active session
-      await clerkUser.delete();
     } catch (error) {
       deleteError.value = extractErrorMessage(error);
+      deleteStatus.value = "error";
+      return;
+    }
+
+    try {
+      // Client removes the Clerk account — also ends the active session
+      await clerkUser.delete();
+    } catch {
+      deleteError.value =
+        "Your data was removed but sign-out failed. Please contact support.";
       deleteStatus.value = "error";
     }
   }
@@ -248,20 +266,27 @@ export function useAccountSettings() {
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   function extractErrorMessage(error: unknown): string {
+    const fallback = "Something went wrong. Please try again.";
     if (!error || typeof error !== "object") {
-      return "Something went wrong. Please try again.";
+      return fallback;
     }
-    const fetchError = error as {
+    const clerkError = error as {
+      errors?: Array<{ longMessage?: unknown; message?: unknown }>;
       data?: { message?: unknown };
       message?: unknown;
     };
-    if (fetchError.data?.message) {
-      return String(fetchError.data.message);
-    }
-    if (fetchError.message) {
-      return String(fetchError.message);
-    }
-    return "Something went wrong. Please try again.";
+    // Check candidates in priority order: Clerk SDK errors first, then fetch errors
+    const candidates = [
+      clerkError.errors?.[0]?.longMessage,
+      clerkError.errors?.[0]?.message,
+      clerkError.data?.message,
+      clerkError.message,
+    ];
+    return (
+      (candidates.find((candidate) => typeof candidate === "string") as
+        | string
+        | undefined) ?? fallback
+    );
   }
 
   return {
