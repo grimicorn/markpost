@@ -22,6 +22,7 @@ import {
   isAbsent,
   type AttributeRule,
 } from "../../utils/validate";
+import { writeEvent } from "../../utils/eventWriter";
 
 const DEFAULT_FILENAME_TEMPLATE = "{{date}}-{{slug}}.md";
 
@@ -376,6 +377,22 @@ export default defineEventHandler(async (event): Promise<RecordApiResponse> => {
 
     const insertValues = buildInsertValues(userId, attributes);
     const record = await insertRecord(db, insertValues);
+
+    const eventKind = record.status === "error" ? "err" : "ok";
+    const eventMessage =
+      record.status === "error"
+        ? `Record created with error: ${record.errorMessage ?? "unknown"}`
+        : `Record created: ${record.title ?? "untitled"}`;
+
+    await writeEvent({
+      userId,
+      kind: eventKind,
+      message: eventMessage,
+      recordUuid: record.uuid,
+      sourceId: record.sourceId ?? null,
+    }).catch((writeError) => {
+      console.error("[records/create] failed to write event:", writeError);
+    });
 
     setResponseStatus(event, 201);
 

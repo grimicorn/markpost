@@ -233,3 +233,77 @@ export function sourceSerializer(
     },
   };
 }
+
+type EventInput = {
+  id: string;
+  userId: string;
+  ts: Date;
+  kind: string;
+  message: string;
+  recordUuid: string | null;
+  sourceId: string | null;
+};
+
+type EventAttributes = Omit<EventInput, "ts"> & { ts: string };
+
+type EventResource = ApiResourceObject & {
+  type: "events";
+  attributes: EventAttributes;
+  links: { self: string };
+};
+
+export type EventListApiResponse = ApiResponse<EventResource[]>;
+
+export function eventSerializer(
+  event: EventInput | null | undefined,
+): EventResource | null {
+  if (!event) {
+    return null;
+  }
+
+  return {
+    type: "events",
+    id: event.id,
+    attributes: {
+      id: event.id,
+      userId: event.userId,
+      ts: event.ts.toISOString(),
+      kind: event.kind,
+      message: event.message,
+      recordUuid: event.recordUuid,
+      sourceId: event.sourceId,
+    },
+    links: {
+      self: `/api/events/${event.id}`,
+    },
+  };
+}
+
+type EventPaginationLinksOptions = {
+  afterCursor: string | null;
+  size: number;
+  hasMore: boolean;
+};
+
+type EventPaginationLinks = ApiResponseLinks & { next: string | null };
+
+export function eventPaginationLinks(
+  options: EventPaginationLinksOptions,
+): EventPaginationLinks {
+  return { next: buildEventNextLink(options) };
+}
+
+function buildEventNextLink(
+  options: EventPaginationLinksOptions,
+): string | null {
+  if (!options.hasMore || !options.afterCursor) {
+    return null;
+  }
+
+  const params = new URLSearchParams({
+    "page[after]": options.afterCursor,
+    "page[size]": String(options.size),
+  });
+
+  return `/api/events?${params.toString()}`;
+}
