@@ -5,18 +5,60 @@
     title="Activity"
   >
     <template #actions>
-      <AppBtn size="sm" icon="download">export log</AppBtn>
+      <AppBtn size="sm" icon="download" @click="triggerExportDownload"
+        >export log</AppBtn
+      >
     </template>
 
     <div style="padding: 22px 26px 40px; max-width: 920px">
-      <div class="row wrap gap-3" style="margin-bottom: 16px">
-        <AppBadge tone="ok" dot>watcher running</AppBadge>
-        <span class="mono faint" style="font-size: 12px">
-          pid 4821 · uptime 3d 4h · ~/.markpost/markpost.log
+      <!-- loading state -->
+      <div
+        v-if="isLoading"
+        class="col"
+        style="
+          align-items: center;
+          padding: 60px 0;
+          color: var(--ink-3);
+          gap: 12px;
+        "
+      >
+        <AppIcon name="refresh" :size="24" />
+        <span class="mono" style="font-size: 13px">loading activity…</span>
+      </div>
+
+      <!-- error state -->
+      <AppAlert
+        v-else-if="loadError"
+        tone="err"
+        title="Failed to load activity"
+        :closeable="false"
+      >
+        {{ loadError }}
+      </AppAlert>
+
+      <!-- empty state -->
+      <div
+        v-else-if="log.length === 0"
+        class="col"
+        style="
+          align-items: center;
+          padding: 60px 0;
+          color: var(--ink-3);
+          gap: 12px;
+          text-align: center;
+        "
+      >
+        <AppIcon name="fileText" :size="32" />
+        <span style="font-size: 15px; font-weight: 500; color: var(--ink-2)"
+          >No activity yet</span
+        >
+        <span class="mono" style="font-size: 13px">
+          Events will appear here once sources start delivering records.
         </span>
       </div>
 
-      <div class="term">
+      <!-- log terminal -->
+      <div v-else class="term">
         <div class="term-bar">
           <span class="dots"><i /><i /><i /></span>
           <span class="t-title">markpost sync --watch</span>
@@ -64,17 +106,11 @@
 </template>
 
 <script setup lang="ts">
+import { useEvents, triggerExportDownload } from "~/composables/useEvents";
+
 definePageMeta({ middleware: "auth" });
 
-const log = [
-  ["09:41:02", "ok", "webhook github:push → 99-incoming/2026-06-14-deploy.md"],
-  ["09:41:02", "dim", "frontmatter: title, source, created, tags[3]"],
-  ["09:27:13", "ok", "email clip@markpost → 99-incoming/vue-suspense.md"],
-  ["08:55:40", "ok", "webhook stripe:invoice → 99-incoming/invoice-1042.md"],
-  ["08:55:41", "dim", "auto-delete: removed remote copy rec_a91f"],
-  ["08:12:09", "warn", "email clip@markpost → pending (vault offline)"],
-  ["07:48:30", "err", "webhook github:issue → conflict: file exists, skipped"],
-  ["07:48:31", "dim", "retry scheduled in 00:05:00"],
-  ["06:30:00", "ok", "scheduled sync complete · 9 records · 0 conflicts"],
-] as [string, string, string][];
+const { log, isLoading, loadError, loadEvents } = useEvents();
+
+onMounted(loadEvents);
 </script>
