@@ -158,4 +158,28 @@ describe("GET /api/events/export", () => {
       "false",
     );
   });
+
+  it("sets X-Export-Truncated to true and caps results when over the limit", async () => {
+    const EXPORT_LIMIT = 10_000;
+    const fixedTs = new Date("2024-06-01T10:00:00Z");
+    const overLimitRows = Array.from({ length: EXPORT_LIMIT + 1 }, (_, i) => ({
+      id: `id-${i}`,
+      userId,
+      ts: fixedTs,
+      kind: "ok",
+      message: `Event ${i}`,
+      recordUuid: null,
+      sourceId: null,
+    }));
+    stubSelectChain(overLimitRows);
+
+    const response = (await handler(buildEvent(userId))) as unknown[];
+
+    expect(response).toHaveLength(EXPORT_LIMIT);
+    expect(mockSetHeader).toHaveBeenCalledWith(
+      expect.anything(),
+      "X-Export-Truncated",
+      "true",
+    );
+  });
 });

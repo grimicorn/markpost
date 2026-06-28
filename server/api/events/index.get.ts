@@ -10,6 +10,7 @@ import {
   paginationMeta,
   type EventListApiResponse,
 } from "../../utils/response";
+import { isValidUuid } from "../../utils/uuid";
 
 type Database = ReturnType<typeof getDb>;
 
@@ -105,7 +106,21 @@ export default defineEventHandler(
 
       const query = getQuery(event);
       const size = parsePageSize(query["page[size]"] as string | undefined);
-      const afterId = query["page[after]"] as string | undefined;
+      const rawAfterId = query["page[after]"];
+      const afterId = typeof rawAfterId === "string" ? rawAfterId : undefined;
+
+      if (afterId !== undefined && !isValidUuid(afterId)) {
+        throw new ApiError(
+          [
+            {
+              status: "400",
+              title: "Invalid cursor",
+              detail: `Event '${afterId}' not found or not accessible`,
+            },
+          ],
+          400,
+        );
+      }
 
       const cursor = await resolveCursor(db, userId, afterId);
 

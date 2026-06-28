@@ -129,8 +129,12 @@ describe("GET /api/events", () => {
   });
 
   it("resolves cursor and returns results when page[after] is set", async () => {
+    const cursorId = "550e8400-e29b-41d4-a716-446655440003";
     const rows = [makeEventRow(2), makeEventRow(1)];
-    mockGetQuery.mockReturnValue({ "page[after]": "id-3", "page[size]": "2" });
+    mockGetQuery.mockReturnValue({
+      "page[after]": cursorId,
+      "page[size]": "2",
+    });
 
     let callCount = 0;
     selectMock.mockImplementation(() => {
@@ -140,7 +144,7 @@ describe("GET /api/events", () => {
       if (callIndex === 0) {
         // findCursorPosition: select().from().where().limit(1)
         const limitFn = vi.fn(() =>
-          Promise.resolve([{ ts: new Date(), id: "id-3" }]),
+          Promise.resolve([{ ts: new Date(), id: cursorId }]),
         );
         const whereFn = vi.fn(() => ({ limit: limitFn }));
         const fromFn = vi.fn(() => ({ where: whereFn }));
@@ -168,8 +172,18 @@ describe("GET /api/events", () => {
     expect(response.meta?.total).toBe(10);
   });
 
-  it("throws 400 when the after cursor is invalid", async () => {
-    mockGetQuery.mockReturnValue({ "page[after]": "nonexistent-id" });
+  it("throws 400 when the after cursor is a non-UUID string", async () => {
+    mockGetQuery.mockReturnValue({ "page[after]": "not-a-uuid" });
+
+    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    expect(mockCreateError).toHaveBeenCalledWith(
+      expect.objectContaining({ statusCode: 400 }),
+    );
+  });
+
+  it("throws 400 when the after cursor is a valid UUID that does not exist", async () => {
+    const validButUnknownUuid = "550e8400-e29b-41d4-a716-446655440099";
+    mockGetQuery.mockReturnValue({ "page[after]": validButUnknownUuid });
 
     selectMock.mockImplementation(() => {
       // findCursorPosition returns empty — no cursor found
