@@ -16,6 +16,7 @@ import {
   useSlots,
 } from "vue";
 import { useSyncSettings } from "../app/composables/useSyncSettings";
+import { useApiTokens } from "../app/composables/useApiTokens";
 
 Object.assign(globalThis, {
   computed,
@@ -34,4 +35,5 @@ Object.assign(globalThis, {
   useAttrs,
   useSlots,
   useSyncSettings,
+  useApiTokens,
 });
