@@ -15,33 +15,114 @@
         </AppAlert>
       </div>
 
-      <div class="col gap-4">
-        <SourceCard
-          v-for="source in sources"
-          :key="source.id"
-          :source="source"
-        />
+      <!-- transient error banners (add/remove failures — do not gate list) -->
+      <AppAlert
+        v-if="addError"
+        tone="err"
+        title="Failed to add source"
+        :closeable="true"
+        style="margin-bottom: 14px"
+        @close="addError = null"
+      >
+        {{ addError }}
+      </AppAlert>
+      <AppAlert
+        v-if="removeError"
+        tone="err"
+        title="Failed to remove source"
+        :closeable="true"
+        style="margin-bottom: 14px"
+        @close="removeError = null"
+      >
+        {{ removeError }}
+      </AppAlert>
 
-        <button
-          class="card"
-          style="
-            padding: 20px;
-            border: 1px dashed var(--line-2);
-            background: transparent;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            color: var(--ink-2);
-            font-family: var(--mono);
-            font-size: 13px;
-          "
-          @click="openModal"
-        >
-          <AppIcon name="plus" :size="16" />connect another source
-        </button>
+      <!-- loading state -->
+      <div
+        v-if="isLoading"
+        class="col"
+        style="
+          align-items: center;
+          padding: 60px 0;
+          color: var(--ink-3);
+          gap: 12px;
+        "
+      >
+        <AppIcon name="refresh" :size="24" />
+        <span class="mono" style="font-size: 13px">loading sources…</span>
       </div>
+
+      <!-- load error state (full-page, non-dismissable) -->
+      <AppAlert
+        v-else-if="loadError"
+        tone="err"
+        :title="LOAD_ERROR_TITLE"
+        :closeable="false"
+        style="margin-bottom: 18px"
+      >
+        {{ loadError }}
+      </AppAlert>
+
+      <!-- sources list -->
+      <template v-else>
+        <!-- empty state -->
+        <div
+          v-if="sources.length === 0"
+          class="col"
+          style="
+            align-items: center;
+            padding: 60px 0;
+            color: var(--ink-3);
+            gap: 12px;
+            text-align: center;
+          "
+        >
+          <AppIcon name="plug" :size="32" />
+          <span style="font-size: 15px; font-weight: 500; color: var(--ink-2)"
+            >No sources yet</span
+          >
+          <span class="mono" style="font-size: 13px">
+            Add a webhook or email-in address to start routing records.
+          </span>
+          <AppBtn
+            variant="accent"
+            icon="plus"
+            style="margin-top: 8px"
+            @click="openModal"
+          >
+            add source
+          </AppBtn>
+        </div>
+
+        <div v-else class="col gap-4">
+          <SourceCard
+            v-for="source in sources"
+            :key="source.attributes.uuid"
+            :source="source"
+            @remove="onRemoveRequested"
+          />
+
+          <button
+            class="card"
+            style="
+              padding: 20px;
+              border: 1px dashed var(--line-2);
+              background: transparent;
+              cursor: pointer;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              gap: 10px;
+              color: var(--ink-2);
+              font-family: var(--mono);
+              font-size: 13px;
+            "
+            @click="openModal"
+          >
+            <AppIcon name="plus" :size="16" />connect another source
+          </button>
+        </div>
+      </template>
     </div>
 
     <AddSourceModal
@@ -51,25 +132,29 @@
       @pick="pickSource"
       @add="addSource"
     />
+
+    <ConfirmDialog
+      v-if="pendingRemoveUuid"
+      :title="REMOVE_CONFIRM_TITLE"
+      :message="REMOVE_CONFIRM_MESSAGE"
+      confirm-label="remove"
+      @confirm="confirmRemove"
+      @cancel="cancelRemove"
+    />
   </TheAppShell>
 </template>
 
 <script setup lang="ts">
+import { useSources } from "~/composables/useSources";
+
 definePageMeta({ middleware: "auth" });
 
-interface SourceItem {
-  id: string;
-  ic?: string;
-  letter?: string;
-  name: string;
-  sub: string;
-  label: string;
-  endpoint: string;
-  endpointHighlight?: string;
-  meta: string[];
-  fresh?: boolean;
-  via?: string;
-}
+const LOAD_ERROR_TITLE = "Failed to load sources";
+const REMOVE_CONFIRM_TITLE = "Remove source?";
+const REMOVE_CONFIRM_MESSAGE =
+  "This will permanently delete the source and its endpoint. Records already ingested are not affected.";
+
+const DEFAULT_ROUTE_FOLDER = "99-incoming/";
 
 interface SourceChoice {
   id: string;
@@ -82,111 +167,93 @@ interface SourceChoice {
 interface ModalState {
   step: "pick" | "config";
   choice: SourceChoice | null;
-  gen: string;
   folder: string;
 }
 
-const sources = ref<SourceItem[]>([
-  {
-    id: "wh1",
-    ic: "zap",
-    name: "Webhook endpoint",
-    sub: "POST · any JSON payload",
-    label: "ingest url",
-    endpoint: "https://ingest.markpost.io/v1/hooks/wh_8f2a91c4",
-    endpointHighlight: "wh_8f2a91c4",
-    meta: ["142 records", "last hit 2m ago", "routes to 99-incoming/"],
-  },
-  {
-    id: "em1",
-    ic: "mail",
-    name: "Email-in address",
-    sub: "forward or send anything",
-    label: "address",
-    endpoint: "clip-8f2a@in.markpost.io",
-    endpointHighlight: "clip-8f2a",
-    meta: ["87 records", "last hit 14m ago", "strips tracking pixels"],
-  },
-]);
+const {
+  sources,
+  isLoading,
+  loadSources,
+  removeSource,
+  addSource: addSourceToList,
+} = useSources();
 
 const modalState = ref<ModalState | null>(null);
+const pendingRemoveUuid = ref<string | null>(null);
+const loadError = ref<string | null>(null);
+const addError = ref<string | null>(null);
+const removeError = ref<string | null>(null);
+
+onMounted(fetchInitialSources);
+
+async function fetchInitialSources(): Promise<void> {
+  try {
+    await loadSources();
+  } catch (fetchError) {
+    console.error("[sources] fetchInitialSources error:", fetchError);
+    loadError.value = "Failed to load sources. Please try again.";
+  }
+}
 
 const openModal = () => {
   modalState.value = {
     step: "pick",
     choice: null,
-    gen: "",
-    folder: "99-incoming/",
+    folder: DEFAULT_ROUTE_FOLDER,
   };
 };
 
 const pickSource = (choice: SourceChoice) => {
-  const generatedId = crypto.randomUUID().slice(0, 8);
   modalState.value = {
     step: "config",
     choice,
-    gen: generatedId,
-    folder: "99-incoming/",
+    folder: DEFAULT_ROUTE_FOLDER,
   };
 };
 
-const buildEmailSource = (gen: string, folder: string): SourceItem => ({
-  id: gen,
-  ic: "mail",
-  name: "Email-in address",
-  sub: "forward or send anything",
-  label: "address",
-  fresh: true,
-  endpoint: `clip-${gen.slice(0, 4)}@in.markpost.io`,
-  endpointHighlight: `clip-${gen.slice(0, 4)}`,
-  meta: ["0 records", "just added", `routes to ${folder}`],
-});
-
-const buildWebhookSource = (gen: string, folder: string): SourceItem => ({
-  id: gen,
-  ic: "zap",
-  name: "Webhook endpoint",
-  sub: "POST · any JSON payload",
-  label: "ingest url",
-  fresh: true,
-  endpoint: `https://ingest.markpost.io/v1/hooks/wh_${gen}`,
-  endpointHighlight: `wh_${gen}`,
-  meta: ["0 records", "just added", `routes to ${folder}`],
-});
-
-const buildIntegrationSource = (
-  choice: SourceChoice,
-  gen: string,
-  folder: string,
-): SourceItem => ({
-  id: gen,
-  letter: choice.name[0],
-  name: choice.name,
-  via: choice.via,
-  sub: choice.map ? "maps " + choice.map : "",
-  label: "ingest url",
-  fresh: true,
-  endpoint: `https://ingest.markpost.io/v1/hooks/${choice.id}_${gen}`,
-  endpointHighlight: `${choice.id}_${gen}`,
-  meta: ["0 records", "just added", `routes to ${folder}`],
-});
-
-const SOURCE_BUILDERS = {
-  email: buildEmailSource,
-  webhook: buildWebhookSource,
-};
-
-const addSource = (folder: string) => {
+const addSource = async (folder: string) => {
   if (!modalState.value?.choice) {
     return;
   }
-  const { choice, gen } = modalState.value;
-  const builder = SOURCE_BUILDERS[choice.id];
-  const newSource = builder
-    ? builder(gen, folder)
-    : buildIntegrationSource(choice, gen, folder);
 
-  sources.value = [...sources.value, newSource];
-  modalState.value = null;
+  const choice = modalState.value.choice;
+  addError.value = null;
+
+  try {
+    await addSourceToList({
+      type: choice.id,
+      name: choice.name,
+      routeFolder: folder,
+    });
+    modalState.value = null;
+  } catch (createError) {
+    console.error("[sources] addSource error:", createError);
+    addError.value = "Failed to add source. Please try again.";
+  }
+};
+
+const onRemoveRequested = (uuid: string) => {
+  pendingRemoveUuid.value = uuid;
+};
+
+const confirmRemove = async () => {
+  if (!pendingRemoveUuid.value) {
+    return;
+  }
+
+  const uuid = pendingRemoveUuid.value;
+  pendingRemoveUuid.value = null;
+  removeError.value = null;
+
+  try {
+    await removeSource(uuid);
+  } catch (deleteError) {
+    console.error("[sources] confirmRemove error:", deleteError);
+    removeError.value = "Failed to remove source. Please try again.";
+  }
+};
+
+const cancelRemove = () => {
+  pendingRemoveUuid.value = null;
 };
 </script>

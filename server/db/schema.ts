@@ -10,18 +10,24 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-export const records = pgTable(
-  "records",
+export const apiTokens = pgTable(
+  "api_tokens",
   {
-    uuid: uuid("uuid").primaryKey().defaultRandom(),
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id").notNull(),
+    name: text("name").notNull(),
+    prefix: text("prefix").notNull(),
+    hashedToken: text("hashed_token").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
-    userId: text("user_id").notNull(),
-    title: text("title").notNull(),
-    content: text("content").notNull(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
   },
-  (table) => [index("records_user_id_idx").on(table.userId)],
+  (table) => [
+    index("api_tokens_user_id_idx").on(table.userId),
+    unique("api_tokens_hashed_token_unique").on(table.hashedToken),
+  ],
 );
 
 export const sources = pgTable(
@@ -44,6 +50,34 @@ export const sources = pgTable(
   (table) => [
     index("sources_user_id_idx").on(table.userId),
     unique("sources_endpoint_slug_unique").on(table.endpointSlug),
+  ],
+);
+
+export const RECORD_STATUSES = ["synced", "pending", "error"] as const;
+export type RecordStatus = (typeof RECORD_STATUSES)[number];
+
+export const records = pgTable(
+  "records",
+  {
+    uuid: uuid("uuid").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    userId: text("user_id").notNull(),
+    title: text("title").notNull(),
+    content: text("content").notNull(),
+    sourceId: uuid("source_id").references(() => sources.uuid),
+    source: text("source"),
+    status: text("status").notNull().default("pending"),
+    filePath: text("file_path"),
+    tags: jsonb("tags"),
+    frontmatter: jsonb("frontmatter"),
+    syncedAt: timestamp("synced_at", { withTimezone: true }),
+    errorMessage: text("error_message"),
+  },
+  (table) => [
+    index("records_user_id_idx").on(table.userId),
+    index("records_status_idx").on(table.status),
   ],
 );
 

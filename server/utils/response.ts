@@ -15,6 +15,14 @@ type RecordAttributes = {
   userId: string;
   title: string;
   content: string;
+  sourceId: string | null;
+  source: string | null;
+  status: string;
+  filePath: string | null;
+  tags: unknown;
+  frontmatter: unknown;
+  syncedAt: Date | null;
+  errorMessage: string | null;
 };
 
 type RecordInput = RecordAttributes;
@@ -111,6 +119,14 @@ export function recordSerializer(
       userId: record.userId,
       title: record.title,
       content: record.content,
+      sourceId: record.sourceId,
+      source: record.source,
+      status: record.status,
+      filePath: record.filePath,
+      tags: record.tags,
+      frontmatter: record.frontmatter,
+      syncedAt: record.syncedAt,
+      errorMessage: record.errorMessage,
     },
     links: {
       self: `/api/records/${record.uuid}`,

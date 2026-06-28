@@ -1,0 +1,111 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SetSync > matches snapshot after settings load successfully 1`] = `
+"<div>
+  <set-head-stub eyebrow="sync · cli" title="Sync" desc="Control how the markpost CLI writes records into your vault. These settings travel with your account and apply on every machine."></set-head-stub>
+  <!--v-if-->
+  <div class="card card-pad">
+    <div class="col gap-4">
+      <div num="01" label="Vault directory" msg="absolute or ~-relative path on the synced machine">
+        <div class="input-wrap"><span class="lead-addon"><app-icon-stub name="folder" size="16"></app-icon-stub></span><input class="input has-lead mono" style="font-size: 13.5px;"></div>
+      </div>
+      <div num="02" label="Filename template" state="ok" msg="renders → 2026-06-14-production-deploy.md"><input class="input mono" style="font-size: 13.5px;"></div>
+    </div>
+  </div>
+  <h3 class="h3" style="margin-top: 28px; margin-bottom: 4px;">Behaviour</h3>
+  <div class="card" style="margin-top: 14px; padding: 4px 22px;">
+    <div class="divide-y">
+      <div label="Auto-sync" hint="Run the watcher continuously and write records the moment they arrive."><input type="checkbox" checked=""></div>
+      <div label="Auto-delete after sync" hint="Once a record is safely written to disk, remove the server-side copy. Your data stays only on your machine.">
+        <div class="col" style="align-items: flex-end; gap: 8px;"><input type="checkbox">
+          <!--v-if-->
+        </div>
+      </div>
+      <div label="Write YAML frontmatter" hint="Prepend title, source, tags and timestamps to each file."><input type="checkbox" checked=""></div>
+      <div label="On filename conflict" hint="What to do when a file already exists at the target path.">
+        <div class="seg"><button class="on">add suffix</button><button class="">overwrite</button><button class="">skip</button></div>
+      </div>
+    </div>
+  </div>
+  <div style="margin-top: 22px;">
+    <div class="app-alert" data-tone="info"> Changes here apply on the next <code>markpost sync</code>. Run <code>markpost config pull</code> to refresh a machine immediately. </div>
+  </div>
+  <!--v-if-->
+  <!--v-if-->
+  <div class="row gap-3" style="margin-top: 24px; justify-content: flex-end;"><button> reset </button><button>save sync settings</button></div>
+</div>"
+`;
+
+exports[`SetSync > matches snapshot in loading state (before fetch resolves) 1`] = `
+"<div>
+  <set-head-stub eyebrow="sync · cli" title="Sync" desc="Control how the markpost CLI writes records into your vault. These settings travel with your account and apply on every machine."></set-head-stub>
+  <!--v-if-->
+  <div class="card card-pad">
+    <div class="col gap-4">
+      <div num="01" label="Vault directory" msg="absolute or ~-relative path on the synced machine">
+        <div class="input-wrap"><span class="lead-addon"><app-icon-stub name="folder" size="16"></app-icon-stub></span><input class="input has-lead mono" style="font-size: 13.5px;" disabled=""></div>
+      </div>
+      <div num="02" label="Filename template" state="ok" msg="renders → 2026-06-14-production-deploy.md"><input class="input mono" style="font-size: 13.5px;" disabled=""></div>
+    </div>
+  </div>
+  <h3 class="h3" style="margin-top: 28px; margin-bottom: 4px;">Behaviour</h3>
+  <div class="card" style="margin-top: 14px; padding: 4px 22px;">
+    <div class="divide-y">
+      <div label="Auto-sync" hint="Run the watcher continuously and write records the moment they arrive."><input type="checkbox" checked="" disabled=""></div>
+      <div label="Auto-delete after sync" hint="Once a record is safely written to disk, remove the server-side copy. Your data stays only on your machine.">
+        <div class="col" style="align-items: flex-end; gap: 8px;"><input type="checkbox" checked="" disabled="">
+          <app-badge-stub tone="accent" style="font-size: 10px;"></app-badge-stub>
+        </div>
+      </div>
+      <div label="Write YAML frontmatter" hint="Prepend title, source, tags and timestamps to each file."><input type="checkbox" checked="" disabled=""></div>
+      <div label="On filename conflict" hint="What to do when a file already exists at the target path.">
+        <div class="seg"><button disabled="" class="on">add suffix</button><button disabled="" class="">overwrite</button><button disabled="" class="">skip</button></div>
+      </div>
+    </div>
+  </div>
+  <div style="margin-top: 22px;">
+    <div class="app-alert" data-tone="info"> Changes here apply on the next <code>markpost sync</code>. Run <code>markpost config pull</code> to refresh a machine immediately. </div>
+  </div>
+  <!--v-if-->
+  <!--v-if-->
+  <div class="row gap-3" style="margin-top: 24px; justify-content: flex-end;"><button disabled=""> reset </button><button disabled="">save sync settings</button></div>
+</div>"
+`;
+
+exports[`SetSync > matches snapshot when load fails 1`] = `
+"<div>
+  <set-head-stub eyebrow="sync · cli" title="Sync" desc="Control how the markpost CLI writes records into your vault. These settings travel with your account and apply on every machine."></set-head-stub>
+  <div style="margin-bottom: 16px;">
+    <div class="app-alert" data-tone="err">DB unavailable. <button size="sm" style="margin-top: 8px;"> retry </button></div>
+  </div>
+  <div class="card card-pad">
+    <div class="col gap-4">
+      <div num="01" label="Vault directory" msg="absolute or ~-relative path on the synced machine">
+        <div class="input-wrap"><span class="lead-addon"><app-icon-stub name="folder" size="16"></app-icon-stub></span><input class="input has-lead mono" style="font-size: 13.5px;" disabled=""></div>
+      </div>
+      <div num="02" label="Filename template" state="ok" msg="renders → 2026-06-14-production-deploy.md"><input class="input mono" style="font-size: 13.5px;" disabled=""></div>
+    </div>
+  </div>
+  <h3 class="h3" style="margin-top: 28px; margin-bottom: 4px;">Behaviour</h3>
+  <div class="card" style="margin-top: 14px; padding: 4px 22px;">
+    <div class="divide-y">
+      <div label="Auto-sync" hint="Run the watcher continuously and write records the moment they arrive."><input type="checkbox" checked="" disabled=""></div>
+      <div label="Auto-delete after sync" hint="Once a record is safely written to disk, remove the server-side copy. Your data stays only on your machine.">
+        <div class="col" style="align-items: flex-end; gap: 8px;"><input type="checkbox" checked="" disabled="">
+          <app-badge-stub tone="accent" style="font-size: 10px;"></app-badge-stub>
+        </div>
+      </div>
+      <div label="Write YAML frontmatter" hint="Prepend title, source, tags and timestamps to each file."><input type="checkbox" checked="" disabled=""></div>
+      <div label="On filename conflict" hint="What to do when a file already exists at the target path.">
+        <div class="seg"><button disabled="" class="on">add suffix</button><button disabled="" class="">overwrite</button><button disabled="" class="">skip</button></div>
+      </div>
+    </div>
+  </div>
+  <div style="margin-top: 22px;">
+    <div class="app-alert" data-tone="info"> Changes here apply on the next <code>markpost sync</code>. Run <code>markpost config pull</code> to refresh a machine immediately. </div>
+  </div>
+  <!--v-if-->
+  <!--v-if-->
+  <div class="row gap-3" style="margin-top: 24px; justify-content: flex-end;"><button disabled=""> reset </button><button disabled="">save sync settings</button></div>
+</div>"
+`;

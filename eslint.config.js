@@ -76,6 +76,8 @@ const clerkGlobals = {
 
 const appGlobals = {
   useTheme: "readonly",
+  useSettings: "readonly",
+  useSyncSettings: "readonly",
 };
 
 export default [

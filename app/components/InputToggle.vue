@@ -4,6 +4,7 @@
       <input
         type="checkbox"
         :checked="modelValue"
+        :disabled="disabled"
         @change="
           emit('update:modelValue', ($event.target as HTMLInputElement).checked)
         "
@@ -20,9 +21,11 @@ withDefaults(
   defineProps<{
     modelValue?: boolean;
     label?: string;
+    disabled?: boolean;
   }>(),
   {
     modelValue: false,
+    disabled: false,
   },
 );
 

@@ -44,7 +44,7 @@ function buildError(rule: AttributeRule, detail: string): ApiErrorObject {
   };
 }
 
-function isAbsent(value: unknown): boolean {
+export function isAbsent(value: unknown): boolean {
   return value === undefined || value === null || value === "";
 }
 
