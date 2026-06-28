@@ -203,21 +203,22 @@
             <span class="lang">{{
               modalState.choice.id === "email" ? "address" : "endpoint"
             }}</span>
-            <AppCopyBtn :text="configEndpoint" />
+            <span class="mono faint" style="font-size: 11px"
+              >assigned on save</span
+            >
           </div>
           <div
             class="code-body mono"
             style="font-size: 12.5px; word-break: break-all"
           >
             <template v-if="modalState.choice.id === 'email'">
-              <span style="color: var(--accent-700)"
-                >clip-{{ modalState.gen.slice(0, 4) }}</span
-              >@in.markpost.io
+              <span style="color: var(--ink-3)">clip-</span
+              ><span style="color: var(--accent-700)">xxxx</span>@in.markpost.io
             </template>
             <template v-else>
               https://ingest.markpost.io/v1/hooks/<span
                 style="color: var(--accent-700)"
-                >{{ configEndpointId }}_{{ modalState.gen }}</span
+                >{{ configEndpointId }}_xxxxxxxx</span
               >
             </template>
           </div>
@@ -288,7 +289,6 @@ interface SourceChoice {
 interface ModalState {
   step: "pick" | "config";
   choice: SourceChoice | null;
-  gen: string;
   folder: string;
 }
 
@@ -367,16 +367,5 @@ const configEndpointId = computed(() => {
     return "";
   }
   return choice.id === "webhook" ? "wh" : choice.id;
-});
-
-const configEndpoint = computed(() => {
-  const choice = props.modalState.choice;
-  if (!choice) {
-    return "";
-  }
-  if (choice.id === "email") {
-    return `clip-${props.modalState.gen.slice(0, 4)}@in.markpost.io`;
-  }
-  return `https://ingest.markpost.io/v1/hooks/${configEndpointId.value}_${props.modalState.gen}`;
 });
 </script>

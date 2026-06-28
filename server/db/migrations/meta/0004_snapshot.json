@@ -1,6 +1,6 @@
 {
-  "id": "92186cc1-76b7-4697-82fd-752f7caf3ec6",
-  "prevId": "23b24c6f-6ae5-42ec-8fd3-8dfb87866313",
+  "id": "ee7bd304-0b7d-4b2f-9ea7-955b22cc23b6",
+  "prevId": "92186cc1-76b7-4697-82fd-752f7caf3ec6",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -124,6 +124,55 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "file_path": {
+          "name": "file_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tags": {
+          "name": "tags",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "frontmatter": {
+          "name": "frontmatter",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "synced_at": {
+          "name": "synced_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error_message": {
+          "name": "error_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -141,9 +190,34 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "records_status_idx": {
+          "name": "records_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "records_source_id_sources_uuid_fk": {
+          "name": "records_source_id_sources_uuid_fk",
+          "tableFrom": "records",
+          "tableTo": "sources",
+          "columnsFrom": ["source_id"],
+          "columnsTo": ["uuid"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
