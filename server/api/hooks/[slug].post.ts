@@ -206,6 +206,8 @@ export default defineEventHandler(async (event) => {
 
     const record = await insertWebhookRecord(source, parsed);
 
+    // Stats and event writes are best-effort: failures do not roll back the record
+    // or change the 202 response, preventing cascading failures on a single ingest.
     await updateSourceStats(source.uuid).catch((updateError) => {
       console.error(
         "[hooks/ingest] failed to update source stats:",

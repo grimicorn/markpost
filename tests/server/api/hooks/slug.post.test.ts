@@ -362,6 +362,26 @@ describe("POST /api/hooks/[slug]", () => {
     });
   });
 
+  describe("insert failure", () => {
+    it("throws 500 when the DB insert returns no row", async () => {
+      const rawBody = JSON.stringify({ title: "T", content: "C" });
+
+      stubSourceAndSettings([sampleSource]);
+
+      const returning = vi.fn(() => Promise.resolve([]));
+      const values = vi.fn(() => ({ returning }));
+      insertMock.mockReturnValue({ values });
+
+      stubUpdateStats();
+      mockReadRawBody.mockResolvedValue(rawBody);
+
+      await expect(handler(buildEvent())).rejects.toThrow();
+      expect(mockCreateError).toHaveBeenCalledWith(
+        expect.objectContaining({ statusCode: 500 }),
+      );
+    });
+  });
+
   describe("source stats update", () => {
     it("does not throw when updateSourceStats fails", async () => {
       const rawBody = JSON.stringify({ title: "T", content: "C" });

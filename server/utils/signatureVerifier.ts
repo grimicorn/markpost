@@ -65,16 +65,13 @@ function isTimestampFresh(timestamp: string): boolean {
 }
 
 function signaturesMatch(expected: Buffer, candidate: string): boolean {
-  try {
-    const candidateBuffer = Buffer.from(candidate, "hex");
-    return (
-      expected.length === candidateBuffer.length &&
-      timingSafeEqual(expected, candidateBuffer)
-    );
-  } catch {
-    // Buffer.from throws on invalid hex; treat as mismatch
-    return false;
-  }
+  const candidateBuffer = Buffer.from(candidate, "hex");
+  // Buffer.from("hex") silently drops invalid chars producing a shorter buffer;
+  // the length check below catches that mismatch.
+  return (
+    expected.length === candidateBuffer.length &&
+    timingSafeEqual(expected, candidateBuffer)
+  );
 }
 
 function compareSignatures(expected: string, candidates: string[]): boolean {
@@ -118,11 +115,25 @@ export type ProviderSignatureInput = {
   secret: string | null;
 };
 
+function normalizeProvider(provider: string | null): string {
+  return provider?.toLowerCase().trim() ?? "";
+}
+
 export function verifyProviderSignature(
   input: ProviderSignatureInput,
 ): VerificationResult {
-  if (input.provider !== "stripe") {
+  const provider = normalizeProvider(input.provider);
+
+  if (provider === "") {
+    // No provider configured: slug-only authentication, no signature required.
     return { ok: true };
+  }
+
+  if (provider !== "stripe") {
+    return {
+      ok: false,
+      reason: `Unsupported provider for signature verification: ${input.provider}`,
+    };
   }
 
   if (!input.secret) {

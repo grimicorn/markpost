@@ -108,17 +108,7 @@ describe("verifyProviderSignature", () => {
   const secret = "whsec_test_secret";
   const rawBody = JSON.stringify({ type: "charge.succeeded" });
 
-  it("returns ok: true for non-stripe providers without checking headers", () => {
-    const result = verifyProviderSignature({
-      provider: "github",
-      headers: {},
-      rawBody,
-      secret: null,
-    });
-    expect(result).toEqual({ ok: true });
-  });
-
-  it("returns ok: true for null provider", () => {
+  it("returns ok: true for null provider (slug-only, no signature required)", () => {
     const result = verifyProviderSignature({
       provider: null,
       headers: {},
@@ -126,6 +116,43 @@ describe("verifyProviderSignature", () => {
       secret: null,
     });
     expect(result).toEqual({ ok: true });
+  });
+
+  it("returns ok: true for empty-string provider", () => {
+    const result = verifyProviderSignature({
+      provider: "",
+      headers: {},
+      rawBody,
+      secret: null,
+    });
+    expect(result).toEqual({ ok: true });
+  });
+
+  it("returns ok: false for unrecognized non-null provider (fail closed)", () => {
+    const result = verifyProviderSignature({
+      provider: "github",
+      headers: {},
+      rawBody,
+      secret: null,
+    });
+    expect(result.ok).toBe(false);
+    expect((result as { ok: false; reason: string }).reason).toMatch(
+      /Unsupported provider/i,
+    );
+  });
+
+  it("returns ok: false for provider with different casing than supported", () => {
+    const result = verifyProviderSignature({
+      provider: "Stripe",
+      headers: { "stripe-signature": "t=1,v1=abc" },
+      rawBody,
+      secret,
+    });
+    // "Stripe" normalizes to "stripe" — should pass through to Stripe verification
+    // (will fail due to bad sig, but should NOT return unsupported provider error)
+    expect((result as { ok: false; reason: string }).reason).not.toMatch(
+      /Unsupported/i,
+    );
   });
 
   it("returns ok: false for stripe provider when secret is missing", () => {
