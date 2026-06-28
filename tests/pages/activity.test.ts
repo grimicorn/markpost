@@ -39,7 +39,7 @@ const globalConfig = {
       },
       AppBtn: {
         template:
-          '<button class="app-btn" @click="$emit(\'click\')"><slot /></button>',
+          '<button class="app-btn" :disabled="disabled || undefined" @click="$emit(\'click\')"><slot /></button>',
         props: ["variant", "size", "icon", "disabled"],
         emits: ["click"],
       },
@@ -147,5 +147,26 @@ describe("activity page", () => {
     const wrapper = mount(ActivityPage, globalConfig);
     await flushPromises();
     expect(wrapper.text()).not.toContain("markpost sync --watch");
+  });
+
+  it("disables export button when loading", async () => {
+    isLoadingRef.value = true;
+    const wrapper = mount(ActivityPage, globalConfig);
+    await flushPromises();
+    expect(wrapper.find(".app-btn").attributes("disabled")).toBeDefined();
+  });
+
+  it("disables export button when log is empty", async () => {
+    logRef.value = [];
+    const wrapper = mount(ActivityPage, globalConfig);
+    await flushPromises();
+    expect(wrapper.find(".app-btn").attributes("disabled")).toBeDefined();
+  });
+
+  it("enables export button when log has rows and no error", async () => {
+    logRef.value = sampleRows;
+    const wrapper = mount(ActivityPage, globalConfig);
+    await flushPromises();
+    expect(wrapper.find(".app-btn").attributes("disabled")).toBeUndefined();
   });
 });

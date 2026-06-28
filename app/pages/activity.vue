@@ -5,7 +5,11 @@
     title="Activity"
   >
     <template #actions>
-      <AppBtn size="sm" icon="download" @click="triggerExportDownload"
+      <AppBtn
+        size="sm"
+        icon="download"
+        :disabled="isLoading || !!loadError || log.length === 0"
+        @click="triggerExportDownload"
         >export log</AppBtn
       >
     </template>

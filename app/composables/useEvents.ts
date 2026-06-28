@@ -60,9 +60,11 @@ async function fetchEventPage(url: string): Promise<EventListResponse> {
 
 async function fetchEventList(): Promise<EventResource[]> {
   const allEvents: EventResource[] = [];
+  const visitedUrls = new Set<string>();
   let nextUrl: string | null | undefined = "/api/events";
 
-  while (nextUrl) {
+  while (nextUrl && !visitedUrls.has(nextUrl)) {
+    visitedUrls.add(nextUrl);
     const response = await fetchEventPage(nextUrl);
     allEvents.push(...(response.data ?? []));
     nextUrl = response.links?.next ?? null;

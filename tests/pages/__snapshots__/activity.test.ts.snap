@@ -1,7 +1,7 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`activity page > matches snapshot in empty state 1`] = `
-"<div active="activity" crumb="WORKSPACE / DAN'S VAULT" title="Activity"><button class="app-btn">export log</button>
+"<div active="activity" crumb="WORKSPACE / DAN'S VAULT" title="Activity"><button class="app-btn" disabled="">export log</button>
   <div style="padding: 22px 26px 40px; max-width: 920px;">
     <!-- loading state -->
     <!-- empty state -->
@@ -11,7 +11,7 @@ exports[`activity page > matches snapshot in empty state 1`] = `
 `;
 
 exports[`activity page > matches snapshot in error state 1`] = `
-"<div active="activity" crumb="WORKSPACE / DAN'S VAULT" title="Activity"><button class="app-btn">export log</button>
+"<div active="activity" crumb="WORKSPACE / DAN'S VAULT" title="Activity"><button class="app-btn" disabled="">export log</button>
   <div style="padding: 22px 26px 40px; max-width: 920px;">
     <!-- loading state -->
     <!-- error state -->
@@ -21,7 +21,7 @@ exports[`activity page > matches snapshot in error state 1`] = `
 `;
 
 exports[`activity page > matches snapshot in loading state 1`] = `
-"<div active="activity" crumb="WORKSPACE / DAN'S VAULT" title="Activity"><button class="app-btn">export log</button>
+"<div active="activity" crumb="WORKSPACE / DAN'S VAULT" title="Activity"><button class="app-btn" disabled="">export log</button>
   <div style="padding: 22px 26px 40px; max-width: 920px;">
     <!-- loading state -->
     <div class="col" style="align-items: center; padding: 60px 0px; color: var(--ink-3); gap: 12px;"><span name="refresh" size="24"></span><span class="mono" style="font-size: 13px;">loading activity…</span></div>

@@ -176,6 +176,31 @@ describe("useEvents", () => {
     expect(log.value).toEqual([]);
   });
 
+  it("stops fetching when links.next is null", async () => {
+    const event = makeEvent();
+    mockFetch.mockResolvedValue({ data: [event], links: { next: null } });
+
+    const { events, loadEvents } = useEvents();
+    await loadEvents();
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(events.value).toHaveLength(1);
+  });
+
+  it("breaks out of a cyclic links.next instead of looping forever", async () => {
+    const event = makeEvent();
+    mockFetch.mockResolvedValue({
+      data: [event],
+      links: { next: "/api/events" },
+    });
+
+    const { events, loadEvents } = useEvents();
+    await loadEvents();
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(events.value).toHaveLength(1);
+  });
+
   it("follows pagination links.next to load all pages", async () => {
     const eventPage1 = makeEvent();
     const eventPage2: EventResource = {
