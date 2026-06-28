@@ -40,7 +40,7 @@
     {
       "idx": 5,
       "version": "7",
-      "when": 1751011200000,
+      "when": 1782700000000,
       "tag": "0005_add_events_table",
       "breakpoints": true
     }

@@ -95,10 +95,7 @@ export const events = pgTable(
     recordUuid: uuid("record_uuid"),
     sourceId: uuid("source_id"),
   },
-  (table) => [
-    index("events_user_id_ts_idx").on(table.userId, table.ts),
-    index("events_user_id_idx").on(table.userId),
-  ],
+  (table) => [index("events_user_id_ts_idx").on(table.userId, table.ts)],
 );
 
 export const userSettings = pgTable("user_settings", {

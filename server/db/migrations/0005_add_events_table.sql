@@ -8,5 +8,4 @@ CREATE TABLE "events" (
 	"source_id" uuid
 );
 --> statement-breakpoint
-CREATE INDEX "events_user_id_ts_idx" ON "events" USING btree ("user_id","ts");--> statement-breakpoint
-CREATE INDEX "events_user_id_idx" ON "events" USING btree ("user_id");
+CREATE INDEX "events_user_id_ts_idx" ON "events" USING btree ("user_id","ts");

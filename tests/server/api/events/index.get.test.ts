@@ -100,7 +100,6 @@ describe("GET /api/events", () => {
     expect(response.data).toEqual([]);
     expect(response.meta).toEqual({ total: 0, size: 100, hasMore: false });
     expect(response.links?.next).toBeNull();
-    expect(response.links?.prev).toBeNull();
   });
 
   it("returns serialized events newest first", async () => {
@@ -129,7 +128,7 @@ describe("GET /api/events", () => {
     expect(response.links?.next).toContain("page%5Bafter%5D=id-2");
   });
 
-  it("returns a prev cursor link when page[after] cursor is set", async () => {
+  it("resolves cursor and returns results when page[after] is set", async () => {
     const rows = [makeEventRow(2), makeEventRow(1)];
     mockGetQuery.mockReturnValue({ "page[after]": "id-3", "page[size]": "2" });
 
@@ -165,8 +164,8 @@ describe("GET /api/events", () => {
 
     const response = await handler(buildEvent(userId));
 
-    expect(response.links?.prev).toContain("/api/events");
-    expect(response.links?.prev).toContain("page%5Bafter%5D=id-3");
+    expect(response.data).toHaveLength(2);
+    expect(response.meta?.total).toBe(10);
   });
 
   it("throws 400 when the after cursor is invalid", async () => {

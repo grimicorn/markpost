@@ -234,7 +234,7 @@ export function sourceSerializer(
   };
 }
 
-type EventAttributes = {
+type EventInput = {
   id: string;
   userId: string;
   ts: Date;
@@ -244,7 +244,7 @@ type EventAttributes = {
   sourceId: string | null;
 };
 
-type EventInput = EventAttributes;
+type EventAttributes = Omit<EventInput, "ts"> & { ts: string };
 
 type EventResource = ApiResourceObject & {
   type: "events";
@@ -267,7 +267,7 @@ export function eventSerializer(
     attributes: {
       id: event.id,
       userId: event.userId,
-      ts: event.ts,
+      ts: event.ts.toISOString(),
       kind: event.kind,
       message: event.message,
       recordUuid: event.recordUuid,
@@ -279,38 +279,29 @@ export function eventSerializer(
   };
 }
 
-export function eventPaginationLinks(
-  options: PaginationLinksOptions,
-): PaginationLinks {
-  const nextLink = buildEventNextLink(options);
-  const prevLink = buildEventPrevLink(options);
+type EventPaginationLinksOptions = {
+  afterCursor: string | null;
+  size: number;
+  hasMore: boolean;
+};
 
-  return {
-    next: nextLink,
-    prev: prevLink,
-  };
+type EventPaginationLinks = ApiResponseLinks & { next: string | null };
+
+export function eventPaginationLinks(
+  options: EventPaginationLinksOptions,
+): EventPaginationLinks {
+  return { next: buildEventNextLink(options) };
 }
 
-function buildEventNextLink(options: PaginationLinksOptions): string | null {
+function buildEventNextLink(
+  options: EventPaginationLinksOptions,
+): string | null {
   if (!options.hasMore || !options.afterCursor) {
     return null;
   }
 
   const params = new URLSearchParams({
     "page[after]": options.afterCursor,
-    "page[size]": String(options.size),
-  });
-
-  return `/api/events?${params.toString()}`;
-}
-
-function buildEventPrevLink(options: PaginationLinksOptions): string | null {
-  if (!options.prevCursor) {
-    return null;
-  }
-
-  const params = new URLSearchParams({
-    "page[after]": options.prevCursor,
     "page[size]": String(options.size),
   });
 

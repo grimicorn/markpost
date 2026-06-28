@@ -24,11 +24,12 @@ export function validateEventKind(value: string): EventKind {
 }
 
 export async function writeEvent(input: WriteEventInput): Promise<void> {
+  const validatedKind = validateEventKind(input.kind);
   const db = getDb();
 
   await db.insert(events).values({
     userId: input.userId,
-    kind: input.kind,
+    kind: validatedKind,
     message: input.message,
     recordUuid: input.recordUuid ?? null,
     sourceId: input.sourceId ?? null,

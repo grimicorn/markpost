@@ -44,9 +44,11 @@ export default defineEventHandler(async (event) => {
       .from(events)
       .where(eq(events.userId, userId))
       .orderBy(desc(events.ts), desc(events.id))
-      .limit(EXPORT_LIMIT);
+      .limit(EXPORT_LIMIT + 1);
 
-    const exportRows = rows.map(serializeExportRow);
+    const isTruncated = rows.length > EXPORT_LIMIT;
+    const visibleRows = isTruncated ? rows.slice(0, EXPORT_LIMIT) : rows;
+    const exportRows = visibleRows.map(serializeExportRow);
 
     setHeader(event, "Content-Type", "application/json");
     setHeader(
@@ -54,6 +56,7 @@ export default defineEventHandler(async (event) => {
       "Content-Disposition",
       `attachment; filename="${EXPORT_FILENAME}"`,
     );
+    setHeader(event, "X-Export-Truncated", String(isTruncated));
 
     return exportRows;
   } catch (error) {

@@ -146,4 +146,16 @@ describe("GET /api/events/export", () => {
 
     expect(response).toEqual([]);
   });
+
+  it("sets X-Export-Truncated to false when results are within the limit", async () => {
+    stubSelectChain([makeEventRow(1)]);
+
+    await handler(buildEvent(userId));
+
+    expect(mockSetHeader).toHaveBeenCalledWith(
+      expect.anything(),
+      "X-Export-Truncated",
+      "false",
+    );
+  });
 });

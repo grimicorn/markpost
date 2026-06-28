@@ -108,8 +108,11 @@ export default defineEventHandler(
       const afterId = query["page[after]"] as string | undefined;
 
       const cursor = await resolveCursor(db, userId, afterId);
-      const total = await countUserEvents(db, userId);
-      const pageEvents = await fetchEventsPage(db, userId, cursor, size);
+
+      const [total, pageEvents] = await Promise.all([
+        countUserEvents(db, userId),
+        fetchEventsPage(db, userId, cursor, size),
+      ]);
 
       const hasMore = pageEvents.length > size;
       const visibleEvents = hasMore ? pageEvents.slice(0, size) : pageEvents;
@@ -124,12 +127,7 @@ export default defineEventHandler(
       return {
         data,
         meta: paginationMeta({ total, size, hasMore }),
-        links: eventPaginationLinks({
-          afterCursor,
-          prevCursor: afterId ?? null,
-          size,
-          hasMore,
-        }),
+        links: eventPaginationLinks({ afterCursor, size, hasMore }),
       };
     } catch (error) {
       return apiErrorHandler(error);
