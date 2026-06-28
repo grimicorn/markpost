@@ -42,6 +42,7 @@ const SOURCE_UUID = "550e8400-e29b-41d4-a716-446655440001";
 const USER_ID = "user_abc123";
 const SOURCE_NAME = "My Webhook";
 const STRIPE_SECRET = "whsec_test_stripe_secret";
+const DEFAULT_FILENAME_TEMPLATE = "{{date}}-{{slug}}.md";
 
 const sampleSource = {
   uuid: SOURCE_UUID,
@@ -72,19 +73,31 @@ function buildEvent(): H3Event {
   return { context: {} } as unknown as H3Event;
 }
 
-function stubSourceLookup(rows: unknown[]) {
-  const limit = vi.fn(() => Promise.resolve(rows));
+function makeSelectChain(resolvedRows: unknown[]) {
+  const limit = vi.fn(() => Promise.resolve(resolvedRows));
   const where = vi.fn(() => ({ limit }));
   const from = vi.fn(() => ({ where }));
-  selectMock.mockReturnValue({ from });
   return { from, where, limit };
 }
 
-function stubSettingsLookup(filenameTemplate = "{{date}}-{{slug}}.md") {
-  const limit = vi.fn(() => Promise.resolve([{ filenameTemplate }]));
-  const where = vi.fn(() => ({ limit }));
-  const from = vi.fn(() => ({ where }));
-  return { from, where, limit };
+function stubSourceAndSettings(
+  sourceRows: unknown[],
+  filenameTemplate = DEFAULT_FILENAME_TEMPLATE,
+) {
+  const sourceChain = makeSelectChain(sourceRows);
+  const settingsChain = makeSelectChain([{ filenameTemplate }]);
+
+  selectMock
+    .mockReturnValueOnce({ from: sourceChain.from })
+    .mockReturnValueOnce({ from: settingsChain.from });
+
+  return { sourceChain, settingsChain };
+}
+
+function stubSourceOnly(sourceRows: unknown[]) {
+  const sourceChain = makeSelectChain(sourceRows);
+  selectMock.mockReturnValueOnce({ from: sourceChain.from });
+  return sourceChain;
 }
 
 function stubInsertRecord(row: unknown) {
@@ -140,7 +153,7 @@ afterEach(() => {
 describe("POST /api/hooks/[slug]", () => {
   describe("unknown slug", () => {
     it("returns 404 when no source matches the slug", async () => {
-      stubSourceLookup([]);
+      stubSourceOnly([]);
       mockReadRawBody.mockResolvedValue(JSON.stringify({ title: "T" }));
 
       await expect(handler(buildEvent())).rejects.toThrow();
@@ -176,27 +189,9 @@ describe("POST /api/hooks/[slug]", () => {
         content: "Build #42 passed",
       });
 
-      selectMock
-        .mockReturnValueOnce({
-          from: vi.fn(() => ({
-            where: vi.fn(() => ({
-              limit: vi.fn(() => Promise.resolve([sampleSource])),
-            })),
-          })),
-        })
-        .mockReturnValueOnce({
-          from: vi.fn(() => ({
-            where: vi.fn(() => ({
-              limit: vi.fn(() =>
-                Promise.resolve([{ filenameTemplate: "{{date}}-{{slug}}.md" }]),
-              ),
-            })),
-          })),
-        });
-
+      stubSourceAndSettings([sampleSource]);
       stubInsertRecord({ ...sampleRecord, title: "Deploy succeeded" });
       stubUpdateStats();
-
       mockReadRawBody.mockResolvedValue(rawBody);
 
       const response = await handler(buildEvent());
@@ -211,27 +206,9 @@ describe("POST /api/hooks/[slug]", () => {
     it("inserts a record with correct sourceId and userId", async () => {
       const rawBody = JSON.stringify({ title: "T", content: "C" });
 
-      selectMock
-        .mockReturnValueOnce({
-          from: vi.fn(() => ({
-            where: vi.fn(() => ({
-              limit: vi.fn(() => Promise.resolve([sampleSource])),
-            })),
-          })),
-        })
-        .mockReturnValueOnce({
-          from: vi.fn(() => ({
-            where: vi.fn(() => ({
-              limit: vi.fn(() =>
-                Promise.resolve([{ filenameTemplate: "{{date}}-{{slug}}.md" }]),
-              ),
-            })),
-          })),
-        });
-
+      stubSourceAndSettings([sampleSource]);
       const { values } = stubInsertRecord(sampleRecord);
       stubUpdateStats();
-
       mockReadRawBody.mockResolvedValue(rawBody);
 
       await handler(buildEvent());
@@ -246,30 +223,43 @@ describe("POST /api/hooks/[slug]", () => {
     });
 
     it("handles a non-JSON body without crashing", async () => {
-      selectMock
-        .mockReturnValueOnce({
-          from: vi.fn(() => ({
-            where: vi.fn(() => ({
-              limit: vi.fn(() => Promise.resolve([sampleSource])),
-            })),
-          })),
-        })
-        .mockReturnValueOnce({
-          from: vi.fn(() => ({
-            where: vi.fn(() => ({
-              limit: vi.fn(() =>
-                Promise.resolve([{ filenameTemplate: "{{date}}-{{slug}}.md" }]),
-              ),
-            })),
-          })),
-        });
-
+      stubSourceAndSettings([sampleSource]);
       stubInsertRecord(sampleRecord);
       stubUpdateStats();
-
       mockReadRawBody.mockResolvedValue("not-json");
 
       const response = await handler(buildEvent());
+
+      expect(mockSetResponseStatus).toHaveBeenCalledWith(
+        expect.anything(),
+        202,
+      );
+      expect(response).toMatchObject({ data: { uuid: sampleRecord.uuid } });
+    });
+
+    it("handles a valid-JSON non-object body (null) without crashing", async () => {
+      stubSourceAndSettings([sampleSource]);
+      stubInsertRecord(sampleRecord);
+      stubUpdateStats();
+      mockReadRawBody.mockResolvedValue("null");
+
+      const response = await handler(buildEvent());
+
+      expect(mockSetResponseStatus).toHaveBeenCalledWith(
+        expect.anything(),
+        202,
+      );
+      expect(response).toMatchObject({ data: { uuid: sampleRecord.uuid } });
+    });
+
+    it("handles a valid-JSON array body without crashing", async () => {
+      stubSourceAndSettings([sampleSource]);
+      stubInsertRecord(sampleRecord);
+      stubUpdateStats();
+      mockReadRawBody.mockResolvedValue(JSON.stringify([1, 2, 3]));
+
+      const response = await handler(buildEvent());
+
       expect(mockSetResponseStatus).toHaveBeenCalledWith(
         expect.anything(),
         202,
@@ -279,22 +269,12 @@ describe("POST /api/hooks/[slug]", () => {
   });
 
   describe("stripe signature verification", () => {
-    const stripeSource = {
-      ...sampleSource,
-      provider: "stripe",
-    };
+    const stripeSource = { ...sampleSource, provider: "stripe" };
 
     it("returns 401 when Stripe-Signature header is missing", async () => {
       process.env.STRIPE_WEBHOOK_SECRET = STRIPE_SECRET;
 
-      selectMock.mockReturnValueOnce({
-        from: vi.fn(() => ({
-          where: vi.fn(() => ({
-            limit: vi.fn(() => Promise.resolve([stripeSource])),
-          })),
-        })),
-      });
-
+      stubSourceOnly([stripeSource]);
       mockReadRawBody.mockResolvedValue(
         JSON.stringify({ type: "charge.succeeded" }),
       );
@@ -310,14 +290,7 @@ describe("POST /api/hooks/[slug]", () => {
       process.env.STRIPE_WEBHOOK_SECRET = STRIPE_SECRET;
       const rawBody = JSON.stringify({ type: "charge.succeeded" });
 
-      selectMock.mockReturnValueOnce({
-        from: vi.fn(() => ({
-          where: vi.fn(() => ({
-            limit: vi.fn(() => Promise.resolve([stripeSource])),
-          })),
-        })),
-      });
-
+      stubSourceOnly([stripeSource]);
       mockReadRawBody.mockResolvedValue(rawBody);
       mockGetHeader.mockReturnValue(
         buildValidStripeHeader(rawBody, "wrong_secret"),
@@ -334,31 +307,14 @@ describe("POST /api/hooks/[slug]", () => {
       const rawBody = JSON.stringify({ type: "charge.succeeded" });
       const validHeader = buildValidStripeHeader(rawBody, STRIPE_SECRET);
 
-      selectMock
-        .mockReturnValueOnce({
-          from: vi.fn(() => ({
-            where: vi.fn(() => ({
-              limit: vi.fn(() => Promise.resolve([stripeSource])),
-            })),
-          })),
-        })
-        .mockReturnValueOnce({
-          from: vi.fn(() => ({
-            where: vi.fn(() => ({
-              limit: vi.fn(() =>
-                Promise.resolve([{ filenameTemplate: "{{date}}-{{slug}}.md" }]),
-              ),
-            })),
-          })),
-        });
-
+      stubSourceAndSettings([stripeSource]);
       stubInsertRecord(sampleRecord);
       stubUpdateStats();
-
       mockReadRawBody.mockResolvedValue(rawBody);
       mockGetHeader.mockReturnValue(validHeader);
 
       const response = await handler(buildEvent());
+
       expect(mockSetResponseStatus).toHaveBeenCalledWith(
         expect.anything(),
         202,
@@ -370,14 +326,7 @@ describe("POST /api/hooks/[slug]", () => {
       delete process.env.STRIPE_WEBHOOK_SECRET;
       const rawBody = JSON.stringify({ type: "charge.succeeded" });
 
-      selectMock.mockReturnValueOnce({
-        from: vi.fn(() => ({
-          where: vi.fn(() => ({
-            limit: vi.fn(() => Promise.resolve([stripeSource])),
-          })),
-        })),
-      });
-
+      stubSourceOnly([stripeSource]);
       mockReadRawBody.mockResolvedValue(rawBody);
       mockGetHeader.mockReturnValue("t=1,v1=abc");
 
@@ -398,27 +347,9 @@ describe("POST /api/hooks/[slug]", () => {
         event: { name: "Deployment done", body: "All green" },
       });
 
-      selectMock
-        .mockReturnValueOnce({
-          from: vi.fn(() => ({
-            where: vi.fn(() => ({
-              limit: vi.fn(() => Promise.resolve([mappedSource])),
-            })),
-          })),
-        })
-        .mockReturnValueOnce({
-          from: vi.fn(() => ({
-            where: vi.fn(() => ({
-              limit: vi.fn(() =>
-                Promise.resolve([{ filenameTemplate: "{{date}}-{{slug}}.md" }]),
-              ),
-            })),
-          })),
-        });
-
+      stubSourceAndSettings([mappedSource]);
       const { values } = stubInsertRecord(sampleRecord);
       stubUpdateStats();
-
       mockReadRawBody.mockResolvedValue(rawBody);
 
       await handler(buildEvent());
@@ -435,24 +366,7 @@ describe("POST /api/hooks/[slug]", () => {
     it("does not throw when updateSourceStats fails", async () => {
       const rawBody = JSON.stringify({ title: "T", content: "C" });
 
-      selectMock
-        .mockReturnValueOnce({
-          from: vi.fn(() => ({
-            where: vi.fn(() => ({
-              limit: vi.fn(() => Promise.resolve([sampleSource])),
-            })),
-          })),
-        })
-        .mockReturnValueOnce({
-          from: vi.fn(() => ({
-            where: vi.fn(() => ({
-              limit: vi.fn(() =>
-                Promise.resolve([{ filenameTemplate: "{{date}}-{{slug}}.md" }]),
-              ),
-            })),
-          })),
-        });
-
+      stubSourceAndSettings([sampleSource]);
       stubInsertRecord(sampleRecord);
 
       const where = vi.fn(() => Promise.reject(new Error("db error")));

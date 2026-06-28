@@ -81,28 +81,31 @@ async function fetchUserSettings(userId: string): Promise<UserSettingsRow> {
   };
 }
 
+type ParsedWebhookResult = {
+  title: string;
+  body: string;
+  tags: string[];
+  frontmatter: unknown;
+  filePath: string;
+};
+
 async function insertWebhookRecord(
-  userId: string,
   source: SourceRow,
-  title: string,
-  content: string,
-  tags: unknown,
-  frontmatter: unknown,
-  filePath: string,
+  parsed: ParsedWebhookResult,
 ) {
   const db = getDb();
   const [created] = await db
     .insert(records)
     .values({
-      userId,
-      title,
-      content,
+      userId: source.userId,
+      title: parsed.title,
+      content: parsed.body,
       sourceId: source.uuid,
       source: source.name,
       status: "pending",
-      tags,
-      frontmatter,
-      filePath,
+      tags: parsed.tags,
+      frontmatter: parsed.frontmatter,
+      filePath: parsed.filePath,
     })
     .returning();
 
@@ -175,7 +178,15 @@ export default defineEventHandler(async (event) => {
     let payload: Record<string, unknown> = {};
 
     try {
-      payload = rawBody ? (JSON.parse(rawBody) as Record<string, unknown>) : {};
+      const parsedBody: unknown = rawBody ? JSON.parse(rawBody) : {};
+
+      if (
+        parsedBody !== null &&
+        typeof parsedBody === "object" &&
+        !Array.isArray(parsedBody)
+      ) {
+        payload = parsedBody as Record<string, unknown>;
+      }
     } catch {
       // Non-JSON body: treat as empty payload; the parser will use defaults
     }
@@ -193,15 +204,7 @@ export default defineEventHandler(async (event) => {
 
     const parsed = parseWebhookPayload(webhookPayload, userSettingsValues);
 
-    const record = await insertWebhookRecord(
-      source.userId,
-      source,
-      parsed.title,
-      parsed.body,
-      parsed.tags,
-      parsed.frontmatter,
-      parsed.filePath,
-    );
+    const record = await insertWebhookRecord(source, parsed);
 
     await updateSourceStats(source.uuid).catch((updateError) => {
       console.error(

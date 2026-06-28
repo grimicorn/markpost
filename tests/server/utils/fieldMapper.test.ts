@@ -125,4 +125,22 @@ describe("applyFieldMapping", () => {
     );
     expect(result.source).toBe("github/my-repo");
   });
+
+  it("treats an empty-object fieldMapping as a valid mapping that produces no fields", () => {
+    // An empty {} is a valid FieldMappingConfig; all pick* calls return undefined
+    // because no paths are configured. Use fieldMapping: null to get raw passthrough.
+    const result = applyFieldMapping({ title: "T", content: "C" }, {}, "src");
+    expect(result.title).toBeUndefined();
+    expect(result.content).toBeUndefined();
+    expect(result.source).toBe("src");
+  });
+
+  it("does not traverse prototype keys via fieldMapping paths", () => {
+    const result = applyFieldMapping(
+      {},
+      { title: "__proto__.polluted" },
+      "src",
+    );
+    expect(result.title).toBeUndefined();
+  });
 });
