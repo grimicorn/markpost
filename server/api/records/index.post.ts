@@ -1,9 +1,21 @@
 import { eq, and } from "drizzle-orm";
 import { getDb } from "../../db";
-import { records, sources, RECORD_STATUSES } from "../../db/schema";
+import {
+  records,
+  sources,
+  userSettings,
+  RECORD_STATUSES,
+} from "../../db/schema";
 import type { ApiRequest } from "../../types/api.types";
 import { requireUser } from "../../utils/auth";
 import { apiErrorHandler, ApiError } from "../../utils/errors";
+import {
+  parseWebhookPayload,
+  parseEmailPayload,
+  type WebhookPayload,
+  type EmailPayload,
+  type UserSettings,
+} from "../../utils/markdown";
 import { recordSerializer, type RecordApiResponse } from "../../utils/response";
 import {
   apiValidate,
@@ -11,9 +23,15 @@ import {
   type AttributeRule,
 } from "../../utils/validate";
 
+const DEFAULT_FILENAME_TEMPLATE = "{{date}}-{{slug}}.md";
+
 type CreateRecordAttributes = {
   title?: string;
   content?: string;
+  // html triggers the Markdown pipeline: converted to content + frontmatter + tags + filePath
+  html?: string;
+  // payloadType controls which parser runs when html is present; defaults to "webhook"
+  payloadType?: "webhook" | "email";
   sourceId?: string | null;
   source?: string | null;
   // status, syncedAt, filePath, and errorMessage are intentionally client-settable on create
@@ -24,6 +42,9 @@ type CreateRecordAttributes = {
   frontmatter?: unknown;
   syncedAt?: unknown;
   errorMessage?: string | null;
+  // passed through to email parser when payloadType is "email"
+  emailFrom?: string | null;
+  created?: string | null;
 };
 
 type CreateRecordBody = {
@@ -35,7 +56,9 @@ type CreateRecordBody = {
 
 const VALIDATION_RULES: AttributeRule[] = [
   { key: "title", type: "string" },
-  { key: "content", type: "string" },
+  // content is optional when html is provided; the pipeline derives content from html
+  { key: "content", type: "string", optional: true },
+  { key: "html", type: "string", optional: true },
   { key: "sourceId", type: "string", optional: true },
   { key: "source", type: "string", optional: true },
   { key: "status", type: "string", optional: true, enum: RECORD_STATUSES },
@@ -53,6 +76,8 @@ const SCALAR_OPTIONAL_KEYS = [
   "frontmatter",
   "errorMessage",
 ] as const;
+
+type Database = ReturnType<typeof getDb>;
 
 type ScalarOptionalKey = (typeof SCALAR_OPTIONAL_KEYS)[number];
 
@@ -131,6 +156,120 @@ function validateFrontmatterShape(value: unknown): void {
   }
 }
 
+function validateContentOrHtml(attributes: CreateRecordAttributes): void {
+  if (!isAbsent(attributes.content) || !isAbsent(attributes.html)) {
+    return;
+  }
+
+  throw new ApiError(
+    [
+      {
+        status: "422",
+        title: "Invalid Attribute",
+        detail: "Content or html is required",
+        source: { pointer: "/data/attributes/content" },
+      },
+    ],
+    422,
+  );
+}
+
+async function fetchFilenameTemplate(
+  database: Database,
+  userId: string,
+): Promise<string> {
+  const [row] = await database
+    .select({ filenameTemplate: userSettings.filenameTemplate })
+    .from(userSettings)
+    .where(eq(userSettings.userId, userId))
+    .limit(1);
+
+  return row?.filenameTemplate ?? DEFAULT_FILENAME_TEMPLATE;
+}
+
+type ResolvedContent = {
+  content: string;
+  frontmatter: unknown;
+  tags: unknown;
+  filePath: string | null;
+};
+
+function buildEmailPayload(attributes: CreateRecordAttributes): EmailPayload {
+  return {
+    subject: attributes.title,
+    html: attributes.html,
+    from: attributes.emailFrom ?? undefined,
+    tags: Array.isArray(attributes.tags)
+      ? (attributes.tags as string[])
+      : undefined,
+    date: attributes.created ?? undefined,
+  };
+}
+
+function buildWebhookPayload(
+  attributes: CreateRecordAttributes,
+): WebhookPayload {
+  return {
+    title: attributes.title,
+    html: attributes.html,
+    source: attributes.source ?? undefined,
+    tags: Array.isArray(attributes.tags)
+      ? (attributes.tags as string[])
+      : undefined,
+    created: attributes.created ?? undefined,
+  };
+}
+
+async function resolveContentFromHtml(
+  attributes: CreateRecordAttributes,
+  settings: UserSettings,
+): Promise<ResolvedContent> {
+  const payloadType = attributes.payloadType ?? "webhook";
+
+  if (payloadType === "email") {
+    const emailPayload = buildEmailPayload(attributes);
+    const parsed = parseEmailPayload(emailPayload, settings);
+    return {
+      content: parsed.body,
+      frontmatter: parsed.frontmatter,
+      tags: parsed.tags,
+      filePath: parsed.filePath,
+    };
+  }
+
+  const webhookPayload = buildWebhookPayload(attributes);
+  const parsed = parseWebhookPayload(webhookPayload, settings);
+  return {
+    content: parsed.body,
+    frontmatter: parsed.frontmatter,
+    tags: parsed.tags,
+    filePath: parsed.filePath,
+  };
+}
+
+async function applyMarkdownPipeline(
+  attributes: CreateRecordAttributes,
+  database: Database,
+  userId: string,
+): Promise<CreateRecordAttributes> {
+  if (isAbsent(attributes.html)) {
+    return attributes;
+  }
+
+  const filenameTemplate = await fetchFilenameTemplate(database, userId);
+  const userSettingsValues: UserSettings = { filenameTemplate };
+
+  const resolved = await resolveContentFromHtml(attributes, userSettingsValues);
+
+  return {
+    ...attributes,
+    content: attributes.content ?? resolved.content,
+    frontmatter: attributes.frontmatter ?? resolved.frontmatter,
+    tags: attributes.tags ?? resolved.tags,
+    filePath: attributes.filePath ?? resolved.filePath,
+  };
+}
+
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -203,16 +342,24 @@ export default defineEventHandler(async (event): Promise<RecordApiResponse> => {
 
     apiValidate(body as ApiRequest, VALIDATION_RULES);
 
-    const attributes = body.data!.attributes as Required<
-      Pick<CreateRecordAttributes, "title" | "content">
-    > &
-      Omit<CreateRecordAttributes, "title" | "content">;
+    const rawAttributes = body.data!.attributes as CreateRecordAttributes;
+
+    // Ensure at least one of content or html is present before hitting the DB.
+    validateContentOrHtml(rawAttributes);
 
     // Run synchronous shape checks before any DB queries to avoid wasted round-trips.
-    validateTagsShape(attributes.tags);
-    validateFrontmatterShape(attributes.frontmatter);
+    validateTagsShape(rawAttributes.tags);
+    validateFrontmatterShape(rawAttributes.frontmatter);
 
     const db = getDb();
+
+    // Apply markdown pipeline when html is present; this may fetch user settings.
+    const attributes = (await applyMarkdownPipeline(
+      rawAttributes,
+      db,
+      userId,
+    )) as Required<Pick<CreateRecordAttributes, "title" | "content">> &
+      Omit<CreateRecordAttributes, "title" | "content">;
 
     if (attributes.sourceId) {
       await validateSourceOwnership(db, attributes.sourceId, userId);

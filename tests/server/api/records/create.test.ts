@@ -138,7 +138,7 @@ describe("POST /api/records", () => {
     });
   });
 
-  it("throws a 422 with one error when content is missing", async () => {
+  it("throws a 422 with one error when both content and html are missing", async () => {
     mockReadBody.mockResolvedValue(buildBody({ title: "My Title" }));
 
     await expect(handler(buildEvent(userId))).rejects.toThrow();
@@ -149,7 +149,7 @@ describe("POST /api/records", () => {
           {
             status: "422",
             title: "Invalid Attribute",
-            detail: "Content is required",
+            detail: "Content or html is required",
             source: { pointer: "/data/attributes/content" },
           },
         ],
@@ -224,10 +224,11 @@ describe("POST /api/records", () => {
     });
   });
 
-  it("throws a 422 with two errors when both title and content are missing", async () => {
+  it("throws a 422 with one error when title is missing and neither content nor html is given", async () => {
     mockReadBody.mockResolvedValue(buildBody({}));
 
     await expect(handler(buildEvent(userId))).rejects.toThrow();
+    // title is still required via apiValidate; content/html check fires only after title passes
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
       data: {
@@ -237,12 +238,6 @@ describe("POST /api/records", () => {
             title: "Invalid Attribute",
             detail: "Title is required",
             source: { pointer: "/data/attributes/title" },
-          },
-          {
-            status: "422",
-            title: "Invalid Attribute",
-            detail: "Content is required",
-            source: { pointer: "/data/attributes/content" },
           },
         ],
       },
