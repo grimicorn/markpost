@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mockFetch = vi.fn();
 vi.stubGlobal("$fetch", mockFetch);
@@ -65,12 +65,26 @@ describe("eventToLogRow", () => {
 });
 
 describe("triggerExportDownload", () => {
-  it("sets window.location.href to the export URL", () => {
+  let originalLocation: Location;
+
+  beforeEach(() => {
+    originalLocation = window.location;
     Object.defineProperty(window, "location", {
       value: { href: "" },
       writable: true,
+      configurable: true,
     });
+  });
 
+  afterEach(() => {
+    Object.defineProperty(window, "location", {
+      value: originalLocation,
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  it("sets window.location.href to the export URL", () => {
     triggerExportDownload();
     expect(window.location.href).toBe("/api/events/export");
   });
@@ -160,5 +174,33 @@ describe("useEvents", () => {
 
     expect(events.value).toEqual([]);
     expect(log.value).toEqual([]);
+  });
+
+  it("follows pagination links.next to load all pages", async () => {
+    const eventPage1 = makeEvent();
+    const eventPage2: EventResource = {
+      ...makeEvent(),
+      id: "evt-2",
+      attributes: { ...makeEvent().attributes, id: "evt-2" },
+      links: { self: "/api/events/evt-2" },
+    };
+
+    mockFetch
+      .mockResolvedValueOnce({
+        data: [eventPage1],
+        links: { next: "/api/events?page[after]=evt-1" },
+      })
+      .mockResolvedValueOnce({
+        data: [eventPage2],
+        links: { next: null },
+      });
+
+    const { events, loadEvents } = useEvents();
+    await loadEvents();
+
+    expect(events.value).toHaveLength(2);
+    expect(events.value[0].id).toBe("evt-1");
+    expect(events.value[1].id).toBe("evt-2");
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 });

@@ -1,26 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
-import { ref, computed } from "vue";
+import { ref } from "vue";
 
 vi.stubGlobal("definePageMeta", vi.fn());
 vi.stubGlobal("onMounted", (fn: () => void) => fn());
 
-const eventsRef = ref<object[]>([]);
+import type { LogRow } from "../../app/composables/useEvents";
+
+const logRef = ref<LogRow[]>([]);
 const isLoadingRef = ref(false);
 const loadErrorRef = ref<string | null>(null);
-
-const logRef = computed(() =>
-  eventsRef.value.map((event) => {
-    const typedEvent = event as {
-      attributes: { ts: string; kind: string; message: string };
-    };
-    return [
-      typedEvent.attributes.ts,
-      typedEvent.attributes.kind,
-      typedEvent.attributes.message,
-    ];
-  }),
-);
 
 const mockLoadEvents = vi.fn();
 
@@ -30,7 +19,6 @@ const { mockTriggerExportDownload } = vi.hoisted(() => ({
 
 vi.mock("../../app/composables/useEvents", () => ({
   useEvents: () => ({
-    events: eventsRef,
     log: logRef,
     isLoading: isLoadingRef,
     loadError: loadErrorRef,
@@ -60,29 +48,14 @@ const globalConfig = {
   },
 };
 
-function makeLogRow(
-  kind: string = "ok",
-  message: string = "webhook github:push → 99-incoming/deploy.md",
-) {
-  return {
-    type: "events" as const,
-    id: "evt-1",
-    attributes: {
-      id: "evt-1",
-      userId: "user-1",
-      ts: "09:41:02",
-      kind,
-      message,
-      recordUuid: null,
-      sourceId: null,
-    },
-    links: { self: "/api/events/evt-1" },
-  };
-}
+const sampleRows: LogRow[] = [
+  ["09:41:02", "ok", "webhook github:push → 99-incoming/deploy.md"],
+  ["07:48:30", "err", "conflict: file exists, skipped"],
+];
 
 describe("activity page", () => {
   beforeEach(() => {
-    eventsRef.value = [];
+    logRef.value = [];
     isLoadingRef.value = false;
     loadErrorRef.value = null;
     mockLoadEvents.mockReset();
@@ -111,17 +84,14 @@ describe("activity page", () => {
   });
 
   it("matches snapshot in empty state", async () => {
-    eventsRef.value = [];
+    logRef.value = [];
     const wrapper = mount(ActivityPage, globalConfig);
     await flushPromises();
     expect(wrapper.html()).toMatchSnapshot();
   });
 
   it("matches snapshot with events", async () => {
-    eventsRef.value = [
-      makeLogRow("ok"),
-      makeLogRow("err", "conflict: file exists, skipped"),
-    ];
+    logRef.value = sampleRows;
     const wrapper = mount(ActivityPage, globalConfig);
     await flushPromises();
     expect(wrapper.html()).toMatchSnapshot();
@@ -142,21 +112,21 @@ describe("activity page", () => {
   });
 
   it("shows empty state when log is empty", async () => {
-    eventsRef.value = [];
+    logRef.value = [];
     const wrapper = mount(ActivityPage, globalConfig);
     await flushPromises();
     expect(wrapper.text()).toContain("No activity yet");
   });
 
   it("does not show empty state when log has rows", async () => {
-    eventsRef.value = [makeLogRow()];
+    logRef.value = sampleRows;
     const wrapper = mount(ActivityPage, globalConfig);
     await flushPromises();
     expect(wrapper.text()).not.toContain("No activity yet");
   });
 
   it("calls triggerExportDownload when export button is clicked", async () => {
-    eventsRef.value = [makeLogRow()];
+    logRef.value = sampleRows;
     const wrapper = mount(ActivityPage, globalConfig);
     await flushPromises();
     await wrapper.find(".app-btn").trigger("click");
@@ -165,7 +135,7 @@ describe("activity page", () => {
 
   it("does not show terminal when loading", async () => {
     isLoadingRef.value = true;
-    eventsRef.value = [makeLogRow()];
+    logRef.value = sampleRows;
     const wrapper = mount(ActivityPage, globalConfig);
     await flushPromises();
     expect(wrapper.text()).not.toContain("markpost sync --watch");
@@ -173,7 +143,7 @@ describe("activity page", () => {
 
   it("does not show terminal when there is an error", async () => {
     loadErrorRef.value = "Failed to load activity. Please try again.";
-    eventsRef.value = [makeLogRow()];
+    logRef.value = sampleRows;
     const wrapper = mount(ActivityPage, globalConfig);
     await flushPromises();
     expect(wrapper.text()).not.toContain("markpost sync --watch");

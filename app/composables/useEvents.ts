@@ -19,6 +19,9 @@ export type EventResource = {
 
 type EventListResponse = {
   data: EventResource[];
+  links?: {
+    next?: string | null;
+  };
 };
 
 export type LogRow = [string, EventKind, string];
@@ -35,7 +38,7 @@ function formatTimestamp(isoString: string): string {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
-    hour12: false,
+    hourCycle: "h23",
   });
 }
 
@@ -51,9 +54,21 @@ export function eventToLogRow(event: EventResource): LogRow {
   return [time, kind, event.attributes.message];
 }
 
+async function fetchEventPage(url: string): Promise<EventListResponse> {
+  return $fetch<EventListResponse>(url);
+}
+
 async function fetchEventList(): Promise<EventResource[]> {
-  const response = await $fetch<EventListResponse>("/api/events");
-  return response.data ?? [];
+  const allEvents: EventResource[] = [];
+  let nextUrl: string | null | undefined = "/api/events";
+
+  while (nextUrl) {
+    const response = await fetchEventPage(nextUrl);
+    allEvents.push(...(response.data ?? []));
+    nextUrl = response.links?.next ?? null;
+  }
+
+  return allEvents;
 }
 
 export function triggerExportDownload(): void {
