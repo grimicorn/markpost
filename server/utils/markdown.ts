@@ -69,6 +69,14 @@ function sanitizeSource(source: string): string {
     .replace(/[^\w/.-]/g, "-");
 }
 
+function sanitizeFilePath(filePath: string): string {
+  return filePath
+    .split("/")
+    .filter((segment) => segment !== ".." && segment !== ".")
+    .join("/")
+    .replace(/^\/+/, "");
+}
+
 export function buildFilename(
   template: string,
   date: Date,
@@ -79,10 +87,12 @@ export function buildFilename(
   const slug = titleToSlug(title);
   const safeSource = sanitizeSource(source);
 
-  return template
+  const assembled = template
     .replace(/\{\{date\}\}/g, dateString)
     .replace(/\{\{slug\}\}/g, slug)
     .replace(/\{\{source\}\}/g, safeSource);
+
+  return sanitizeFilePath(assembled);
 }
 
 function formatDateForFilename(date: Date): string {
@@ -101,14 +111,16 @@ function resolveCreatedDate(rawDate: string): {
     const now = new Date();
     return { created: now.toISOString(), createdDate: now };
   }
-  return { created: rawDate, createdDate: candidate };
+  // Normalize to ISO-8601 so non-standard parseable strings (e.g. "2026-01-01 12:00")
+  // are stored and serialized consistently.
+  return { created: candidate.toISOString(), createdDate: candidate };
 }
 
 function quoteYamlScalar(value: string): string {
   const needsQuoting =
     /[:#\[\]{}&!|>'"%@`,]/.test(value) ||
     /\n/.test(value) ||
-    value.trimStart() !== value;
+    value.trim() !== value;
   if (!needsQuoting) {
     return value;
   }

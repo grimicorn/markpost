@@ -129,6 +129,17 @@ describe("buildFilename", () => {
     );
     expect(result).toBe("2026-06-14/2026-06-14-my-note.md");
   });
+
+  it("strips traversal segments from a malicious filename template", () => {
+    const result = buildFilename(
+      "../../{{slug}}.md",
+      referenceDate,
+      "Escape",
+      "webhook",
+    );
+    expect(result).not.toContain("..");
+    expect(result).not.toMatch(/^\//);
+  });
 });
 
 describe("buildFrontmatter", () => {
@@ -235,6 +246,17 @@ describe("serializeFrontmatter", () => {
     const result = serializeFrontmatter(frontmatter);
     expect(result).toContain('"a]b"');
   });
+
+  it("quotes a value with trailing whitespace so YAML does not strip it silently", () => {
+    const frontmatter = buildFrontmatter(
+      "trailing space ",
+      "webhook",
+      "2026-06-14T00:00:00Z",
+      [],
+    );
+    const result = serializeFrontmatter(frontmatter);
+    expect(result).toContain('"trailing space "');
+  });
 });
 
 describe("parseWebhookPayload", () => {
@@ -257,7 +279,7 @@ describe("parseWebhookPayload", () => {
     expect(result.frontmatter).toEqual({
       title: "Production deploy succeeded",
       source: "webhook/github",
-      created: "2026-06-14T09:41:02Z",
+      created: "2026-06-14T09:41:02.000Z",
       tags: ["ci", "deploy"],
     });
     expect(result.tags).toEqual(["ci", "deploy"]);
@@ -343,7 +365,7 @@ describe("parseEmailPayload", () => {
     expect(result.frontmatter).toEqual({
       title: "Weekly digest",
       source: "email/newsletters@example.com",
-      created: "2026-06-14T08:00:00Z",
+      created: "2026-06-14T08:00:00.000Z",
       tags: ["newsletter"],
     });
     expect(result.filePath).toBe("2026-06-14-weekly-digest.md");
