@@ -11,10 +11,14 @@ const loadErrorRef = ref<string | null>(null);
 
 const logRef = computed(() =>
   eventsRef.value.map((event) => {
-    const e = event as {
+    const typedEvent = event as {
       attributes: { ts: string; kind: string; message: string };
     };
-    return [e.attributes.ts, e.attributes.kind, e.attributes.message];
+    return [
+      typedEvent.attributes.ts,
+      typedEvent.attributes.kind,
+      typedEvent.attributes.message,
+    ];
   }),
 );
 

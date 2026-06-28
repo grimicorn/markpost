@@ -19,11 +19,6 @@ export type EventResource = {
 
 type EventListResponse = {
   data: EventResource[];
-  meta?: {
-    total?: number;
-    size?: number;
-    hasMore?: boolean;
-  };
 };
 
 export type LogRow = [string, EventKind, string];
@@ -67,7 +62,7 @@ export function triggerExportDownload(): void {
 
 export function useEvents() {
   const events = ref<EventResource[]>([]);
-  const isLoading = ref(false);
+  const isLoading = ref(true);
   const loadError = ref<string | null>(null);
 
   const log = computed<LogRow[]>(() => events.value.map(eventToLogRow));

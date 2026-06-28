@@ -81,10 +81,10 @@ describe("useEvents", () => {
     mockFetch.mockReset();
   });
 
-  it("starts with empty events and isLoading false", () => {
+  it("starts with empty events and isLoading true", () => {
     const { events, isLoading, loadError } = useEvents();
     expect(events.value).toEqual([]);
-    expect(isLoading.value).toBe(false);
+    expect(isLoading.value).toBe(true);
     expect(loadError.value).toBeNull();
   });
 
