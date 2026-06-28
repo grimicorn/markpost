@@ -25,6 +25,7 @@ function makeErrorResponse(detail = "Something went wrong.") {
   return { errors: [{ detail }] };
 }
 
+// prettier-ignore
 function makeMintResponse(token = "mp_live_abc123") { // gitleaks:allow
   return {
     data: {
