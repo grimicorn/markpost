@@ -12,7 +12,7 @@
       </span>
       <div class="row wrap gap-3">
         <button
-          v-for="themeOption in themeOptions"
+          v-for="themeOption in THEME_OPTIONS"
           :key="themeOption.id"
           class="col"
           :style="{
@@ -37,7 +37,7 @@
                 ? '0 0 0 3px var(--accent-tint)'
                 : 'none',
           }"
-          @click="applyTheme(themeOption.id)"
+          @click="onThemeSelect(themeOption.id)"
         >
           <div
             :style="{
@@ -131,7 +131,7 @@
         style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 12px"
       >
         <button
-          v-for="accentOption in ACCENTS"
+          v-for="accentOption in ACCENT_OPTIONS"
           :key="accentOption.id"
           class="col"
           :style="{
@@ -142,7 +142,7 @@
             cursor: 'pointer',
           }"
           :title="accentOption.name"
-          @click="applyAccent(accentOption.hex)"
+          @click="onAccentSelect(accentOption.hex)"
         >
           <span
             :style="{
@@ -204,6 +204,21 @@
           </div>
         </div>
       </div>
+
+      <p
+        v-if="loadError"
+        class="muted"
+        style="margin-top: 16px; font-size: 13px; color: var(--err, #e11d48)"
+      >
+        {{ loadError }}
+      </p>
+      <p
+        v-if="saveError"
+        class="muted"
+        style="margin-top: 16px; font-size: 13px; color: var(--err, #e11d48)"
+      >
+        {{ saveError }}
+      </p>
     </div>
   </div>
 </template>
@@ -211,7 +226,7 @@
 <script setup lang="ts">
 import SetHead from "./SetHead.vue";
 
-const ACCENTS = [
+const ACCENT_OPTIONS = [
   { id: "violet", name: "violet", hex: "#a855f7" },
   { id: "indigo", name: "indigo", hex: "#6366f1" },
   { id: "blue", name: "blue", hex: "#2f6fed" },
@@ -222,44 +237,134 @@ const ACCENTS = [
   { id: "ink", name: "graphite", hex: "#3f3d39" },
 ];
 
-const themeOptions = [
+const VALID_THEMES = ["light", "dark", "system"] as const;
+const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
+
+const THEME_OPTIONS = [
   { id: "light", ic: "sun", label: "Light" },
   { id: "dark", ic: "moon", label: "Dark" },
   { id: "system", ic: "sliders", label: "System" },
 ];
 
+const {
+  isDark,
+  setTheme,
+  persistAccentLocally,
+  persistThemeChoiceLocally,
+  getStoredThemeChoice,
+  getStoredAccent,
+} = useTheme();
+const {
+  accentColor: accountAccent,
+  theme: accountTheme,
+  fetchSettings,
+  updateAppearance,
+} = useSettings();
+
 const currentTheme = ref("light");
 const currentAccent = ref("#a855f7");
+const saveError = ref<string | null>(null);
+const loadError = ref<string | null>(null);
+// Per-dimension guards: prevent the server response from clobbering a selection
+// the user made while the initial GET was in flight.
+const userChoseTheme = ref(false);
+const userChoseAccent = ref(false);
 
-const { isDark, setTheme } = useTheme();
+function isValidTheme(value: string): value is (typeof VALID_THEMES)[number] {
+  return (VALID_THEMES as readonly string[]).includes(value);
+}
 
-const THEME_CHOICE_KEY = "mp_theme_choice";
+function isValidHexColor(value: string): boolean {
+  return HEX_COLOR_PATTERN.test(value);
+}
 
-onMounted(() => {
-  const storedChoice = localStorage.getItem(THEME_CHOICE_KEY);
-  currentTheme.value = storedChoice ?? (isDark.value ? "dark" : "light");
-  const storedAccent = localStorage.getItem("mp_accent");
-  if (storedAccent) {
-    applyAccent(storedAccent);
+function resolveThemeFromAccount(accountThemeValue: string): void {
+  if (!isValidTheme(accountThemeValue)) {
+    return;
   }
-});
+  currentTheme.value = accountThemeValue;
+  persistThemeChoiceLocally(accountThemeValue);
+  applyThemeLocally(accountThemeValue);
+}
 
-const applyTheme = (themeId: string) => {
-  currentTheme.value = themeId;
-  localStorage.setItem(THEME_CHOICE_KEY, themeId);
+function resolveAccentFromAccount(hex: string): void {
+  if (!isValidHexColor(hex)) {
+    return;
+  }
+  currentAccent.value = hex;
+  persistAccentLocally(hex);
+}
+
+function applyThemeLocally(themeId: string): void {
   if (themeId === "system") {
     const prefersDark = window.matchMedia(
       "(prefers-color-scheme: dark)",
     ).matches;
     setTheme(prefersDark ? "dark" : "light");
-  } else {
-    setTheme(themeId as "dark" | "light");
+    return;
   }
-};
+  setTheme(themeId as "dark" | "light");
+}
 
-const applyAccent = (hex: string) => {
+function resolveInitialTheme(): void {
+  const storedThemeChoice = getStoredThemeChoice();
+  if (storedThemeChoice) {
+    currentTheme.value = storedThemeChoice;
+    return;
+  }
+  currentTheme.value = isDark.value ? "dark" : "light";
+}
+
+function resolveInitialAccent(): void {
+  const storedAccent = getStoredAccent();
+  if (storedAccent) {
+    currentAccent.value = storedAccent;
+  }
+}
+
+onMounted(async () => {
+  resolveInitialTheme();
+  resolveInitialAccent();
+
+  try {
+    await fetchSettings();
+  } catch {
+    loadError.value =
+      "Couldn't load your account settings. Showing local values.";
+    return;
+  }
+
+  if (!userChoseTheme.value && accountTheme.value) {
+    resolveThemeFromAccount(accountTheme.value);
+  }
+
+  if (!userChoseAccent.value && accountAccent.value) {
+    resolveAccentFromAccount(accountAccent.value);
+  }
+});
+
+async function onThemeSelect(themeId: string): Promise<void> {
+  saveError.value = null;
+  userChoseTheme.value = true;
+  currentTheme.value = themeId;
+  persistThemeChoiceLocally(themeId);
+  applyThemeLocally(themeId);
+  try {
+    await updateAppearance({ theme: themeId });
+  } catch {
+    saveError.value = "Couldn't save theme to your account. Try again.";
+  }
+}
+
+async function onAccentSelect(hex: string): Promise<void> {
+  saveError.value = null;
+  userChoseAccent.value = true;
   currentAccent.value = hex;
-  localStorage.setItem("mp_accent", hex);
-  document.documentElement.style.setProperty("--accent", hex);
-};
+  persistAccentLocally(hex);
+  try {
+    await updateAppearance({ accentColor: hex });
+  } catch {
+    saveError.value = "Couldn't save accent colour to your account. Try again.";
+  }
+}
 </script>
