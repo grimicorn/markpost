@@ -226,7 +226,7 @@ export default defineEventHandler(async (event): Promise<RecordApiResponse> => {
     const eventMessage =
       record.status === "error"
         ? `Record created with error: ${record.errorMessage ?? "unknown"}`
-        : `Record created: ${record.title}`;
+        : `Record created: ${record.title ?? "untitled"}`;
 
     await writeEvent({
       userId,

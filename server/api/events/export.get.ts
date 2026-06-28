@@ -16,14 +16,9 @@ type ExportRow = {
   sourceId: string | null;
 };
 
-function serializeExportRow(row: {
-  id: string;
-  ts: Date;
-  kind: string;
-  message: string;
-  recordUuid: string | null;
-  sourceId: string | null;
-}): ExportRow {
+function serializeExportRow(
+  row: Omit<ExportRow, "ts"> & { ts: Date },
+): ExportRow {
   return {
     id: row.id,
     ts: row.ts.toISOString(),

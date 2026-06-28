@@ -90,13 +90,15 @@ export default defineEventHandler(
       const uuids = validateUuids(body);
       const deletedCount = await deleteUserRecords(userId, uuids);
 
-      await writeEvent({
-        userId,
-        kind: "dim",
-        message: `Deleted ${deletedCount} record${deletedCount === 1 ? "" : "s"}`,
-      }).catch((writeError) => {
-        console.error("[records/delete] failed to write event:", writeError);
-      });
+      if (deletedCount > 0) {
+        await writeEvent({
+          userId,
+          kind: "dim",
+          message: `Deleted ${deletedCount} record${deletedCount === 1 ? "" : "s"}`,
+        }).catch((writeError) => {
+          console.error("[records/delete] failed to write event:", writeError);
+        });
+      }
 
       return { meta: { deleted: deletedCount } };
     } catch (error) {
