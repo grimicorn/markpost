@@ -1,7 +1,14 @@
 <template>
   <TheAppShell active="inbox" crumb="WORKSPACE / DAN'S VAULT" title="Inbox">
     <template #actions>
-      <AppBtn variant="accent" size="sm" icon="refresh">sync now</AppBtn>
+      <AppBtn
+        variant="accent"
+        size="sm"
+        icon="refresh"
+        :disabled="isSyncing"
+        @click="syncNow"
+        >sync now</AppBtn
+      >
     </template>
 
     <div style="padding: 22px 26px 40px; max-width: 1080px">
@@ -12,10 +19,20 @@
           :closeable="true"
           @close="showToast = false"
         >
-          Wrote <strong>3 new records</strong> to
-          <code>~/vault/99-incoming</code> · 0 conflicts.
+          Records refreshed successfully.
         </AppAlert>
       </div>
+
+      <AppAlert
+        v-if="syncError"
+        tone="err"
+        title="Sync failed"
+        :closeable="true"
+        style="margin-bottom: 18px"
+        @close="syncError = null"
+      >
+        {{ syncError }}
+      </AppAlert>
 
       <!-- stat row -->
       <div
@@ -27,7 +44,7 @@
         "
       >
         <div
-          v-for="stat in stats"
+          v-for="stat in statsDisplay"
           :key="stat.k"
           class="card"
           style="padding: 16px"
@@ -61,186 +78,176 @@
       <div class="row between wrap gap-3" style="margin-bottom: 14px">
         <InputSegmented v-model="filter" :options="filterOptions" />
         <span class="mono faint" style="font-size: 12px"
-          >{{ filteredRecords.length }} records</span
+          >{{ records.length }} records</span
         >
       </div>
 
+      <!-- loading state -->
+      <div
+        v-if="isLoading"
+        class="col"
+        style="
+          align-items: center;
+          padding: 60px 0;
+          color: var(--ink-3);
+          gap: 12px;
+        "
+      >
+        <AppIcon name="refresh" :size="24" />
+        <span class="mono" style="font-size: 13px">loading records…</span>
+      </div>
+
+      <!-- load error state -->
+      <AppAlert
+        v-else-if="loadError"
+        tone="err"
+        title="Failed to load records"
+        :closeable="false"
+      >
+        {{ loadError }}
+      </AppAlert>
+
       <!-- table -->
-      <div class="card" style="overflow: hidden">
+      <template v-else>
+        <!-- empty state -->
         <div
-          class="row"
+          v-if="records.length === 0"
+          class="col"
           style="
-            padding: 10px 18px;
-            border-bottom: 1px solid var(--line);
-            background: var(--bg-2);
-            font-family: var(--mono);
-            font-size: 10.5px;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
+            align-items: center;
+            padding: 60px 0;
             color: var(--ink-3);
+            gap: 12px;
+            text-align: center;
           "
         >
-          <span style="width: 120px">source</span>
-          <span style="flex: 1">record</span>
-          <span style="width: 230px">file</span>
-          <span style="width: 90px">status</span>
-          <span style="width: 80px; text-align: right">time</span>
+          <AppIcon name="inbox" :size="32" />
+          <span style="font-size: 15px; font-weight: 500; color: var(--ink-2)"
+            >No records yet</span
+          >
+          <span class="mono" style="font-size: 13px">
+            Records will appear here once a source delivers them.
+          </span>
         </div>
-        <div class="divide-y">
+
+        <div v-else class="card" style="overflow: hidden">
           <div
-            v-for="(record, index) in filteredRecords"
-            :key="index"
             class="row"
             style="
-              padding: 13px 18px;
-              cursor: pointer;
-              transition: background 0.1s;
-            "
-            @mouseenter="
-              ($event.currentTarget as HTMLElement).style.background =
-                'var(--bg-2)'
-            "
-            @mouseleave="
-              ($event.currentTarget as HTMLElement).style.background =
-                'transparent'
+              padding: 10px 18px;
+              border-bottom: 1px solid var(--line);
+              background: var(--bg-2);
+              font-family: var(--mono);
+              font-size: 10.5px;
+              letter-spacing: 0.1em;
+              text-transform: uppercase;
+              color: var(--ink-3);
             "
           >
-            <span class="row gap-2" style="width: 120px">
-              <AppIcon
-                :name="record.src === 'email' ? 'mail' : 'zap'"
-                :size="15"
-                :style="{ color: 'var(--accent)', flex: 'none' }"
-              />
+            <span style="width: 120px">source</span>
+            <span style="flex: 1">record</span>
+            <span style="width: 230px">file</span>
+            <span style="width: 90px">status</span>
+            <span style="width: 80px; text-align: right">time</span>
+          </div>
+          <div class="divide-y">
+            <div
+              v-for="record in records"
+              :key="record.id"
+              class="row"
+              style="
+                padding: 13px 18px;
+                cursor: pointer;
+                transition: background 0.1s;
+              "
+              @mouseenter="
+                ($event.currentTarget as HTMLElement).style.background =
+                  'var(--bg-2)'
+              "
+              @mouseleave="
+                ($event.currentTarget as HTMLElement).style.background =
+                  'transparent'
+              "
+            >
+              <span class="row gap-2" style="width: 120px">
+                <AppIcon
+                  :name="sourceTypeIcon(record.attributes.source)"
+                  :size="15"
+                  :style="{ color: 'var(--accent)', flex: 'none' }"
+                />
+                <span
+                  class="mono"
+                  style="
+                    font-size: 11.5px;
+                    color: var(--ink-2);
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                  "
+                >
+                  {{ formatSourceLabel(record.attributes.source) }}
+                </span>
+              </span>
               <span
-                class="mono"
                 style="
-                  font-size: 11.5px;
-                  color: var(--ink-2);
+                  flex: 1;
+                  font-size: 14px;
+                  font-weight: 500;
                   white-space: nowrap;
                   overflow: hidden;
                   text-overflow: ellipsis;
+                  padding-right: 16px;
                 "
               >
-                {{ record.name }}
+                {{ record.attributes.title }}
               </span>
-            </span>
-            <span
-              style="
-                flex: 1;
-                font-size: 14px;
-                font-weight: 500;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                padding-right: 16px;
-              "
-            >
-              {{ record.title }}
-            </span>
-            <span
-              class="mono"
-              :style="{
-                width: '230px',
-                fontSize: '11.5px',
-                color: record.file === '—' ? 'var(--ink-3)' : 'var(--info)',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }"
-            >
-              {{ record.file }}
-            </span>
-            <span style="width: 90px">
-              <AppBadge :tone="statusTone[record.status] ?? ''" dot>{{
-                record.status
-              }}</AppBadge>
-            </span>
-            <span
-              class="mono faint"
-              style="width: 80px; text-align: right; font-size: 11.5px"
-            >
-              {{ record.time }}
-            </span>
+              <span
+                class="mono"
+                :style="{
+                  width: '230px',
+                  fontSize: '11.5px',
+                  color: record.attributes.filePath
+                    ? 'var(--info)'
+                    : 'var(--ink-3)',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }"
+              >
+                {{ record.attributes.filePath ?? "—" }}
+              </span>
+              <span style="width: 90px">
+                <AppBadge
+                  :tone="STATUS_TONE_MAP[record.attributes.status] ?? ''"
+                  dot
+                  >{{ record.attributes.status }}</AppBadge
+                >
+              </span>
+              <span
+                class="mono faint"
+                style="width: 80px; text-align: right; font-size: 11.5px"
+              >
+                {{ formatRelativeTime(record.attributes.createdAt) }}
+              </span>
+            </div>
           </div>
         </div>
-      </div>
+      </template>
     </div>
   </TheAppShell>
 </template>
 
 <script setup lang="ts">
+import {
+  useRecords,
+  fetchRecordStats,
+  formatRelativeTime,
+  type RecordStats,
+} from "~/composables/useRecords";
+
 definePageMeta({ middleware: "auth" });
 
-const showToast = ref(true);
-const filter = ref("all");
-
-const filterOptions = [
-  { value: "all", label: "all" },
-  { value: "webhook", label: "webhooks" },
-  { value: "email", label: "email" },
-  { value: "errors", label: "errors" },
-];
-
-const RECORDS = [
-  {
-    src: "webhook",
-    name: "github · push",
-    title: "Production deploy succeeded",
-    file: "99-incoming/2026-06-14-deploy.md",
-    time: "2m ago",
-    status: "synced",
-  },
-  {
-    src: "email",
-    name: "clip@markpost",
-    title: "A Deep Dive into Vue 3 Suspense",
-    file: "99-incoming/vue-suspense.md",
-    time: "14m ago",
-    status: "synced",
-  },
-  {
-    src: "webhook",
-    name: "stripe · invoice",
-    title: "Invoice #1042 paid — $80.00",
-    file: "99-incoming/invoice-1042.md",
-    time: "1h ago",
-    status: "synced",
-  },
-  {
-    src: "email",
-    name: "clip@markpost",
-    title: "Obsidian Canvas: a visual vault",
-    file: "—",
-    time: "1h ago",
-    status: "pending",
-  },
-  {
-    src: "webhook",
-    name: "zapier · rss",
-    title: "SvelteKit remote functions land",
-    file: "99-incoming/sveltekit-remote.md",
-    time: "3h ago",
-    status: "synced",
-  },
-  {
-    src: "webhook",
-    name: "github · issue",
-    title: "Bug: frontmatter date offset",
-    file: "—",
-    time: "5h ago",
-    status: "error",
-  },
-  {
-    src: "email",
-    name: "clip@markpost",
-    title: "Tailwind v4: ditch the config file",
-    file: "99-incoming/tw4-config.md",
-    time: "yesterday",
-    status: "synced",
-  },
-];
-
-const statusTone: Record<
+const STATUS_TONE_MAP: Record<
   string,
   "" | "ok" | "warn" | "err" | "info" | "accent"
 > = {
@@ -249,20 +256,103 @@ const statusTone: Record<
   error: "err",
 };
 
-const filteredRecords = computed(() => {
-  if (filter.value === "all") {
-    return RECORDS;
-  }
-  if (filter.value === "errors") {
-    return RECORDS.filter((record) => record.status === "error");
-  }
-  return RECORDS.filter((record) => record.src === filter.value);
-});
-
-const stats = [
-  { k: "synced today", v: "12", ic: "checkCircle", t: "ok" },
-  { k: "pending", v: "1", ic: "clock", t: "warn" },
-  { k: "errors", v: "1", ic: "triangle", t: "err" },
-  { k: "this month", v: "284", sub: "/ ∞", ic: "fileText", t: "" },
+const filterOptions = [
+  { value: "all", label: "all" },
+  { value: "webhook", label: "webhooks" },
+  { value: "email", label: "email" },
+  { value: "errors", label: "errors" },
 ];
+
+const { records, isLoading, loadError, filter, loadRecords } =
+  useRecords("all");
+
+const showToast = ref(false);
+const syncError = ref<string | null>(null);
+const isSyncing = ref(false);
+const stats = ref<RecordStats | null>(null);
+
+const statsDisplay = computed(() => [
+  {
+    k: "synced today",
+    v: stats.value !== null ? String(stats.value.syncedToday) : "—",
+    ic: "checkCircle",
+    t: "ok",
+    sub: null,
+  },
+  {
+    k: "pending",
+    v: stats.value !== null ? String(stats.value.pending) : "—",
+    ic: "clock",
+    t: "warn",
+    sub: null,
+  },
+  {
+    k: "errors",
+    v: stats.value !== null ? String(stats.value.errors) : "—",
+    ic: "triangle",
+    t: "err",
+    sub: null,
+  },
+  {
+    k: "this month",
+    v: stats.value !== null ? String(stats.value.thisMonth) : "—",
+    ic: "fileText",
+    t: "",
+    sub: "/ ∞",
+  },
+]);
+
+function sourceTypeIcon(source: string | null): string {
+  if (!source) {
+    return "zap";
+  }
+
+  if (source.startsWith("email/")) {
+    return "mail";
+  }
+
+  return "zap";
+}
+
+function formatSourceLabel(source: string | null): string {
+  if (!source) {
+    return "unknown";
+  }
+
+  const slashIndex = source.indexOf("/");
+  if (slashIndex === -1) {
+    return source;
+  }
+
+  return source.slice(slashIndex + 1).replaceAll("/", " · ");
+}
+
+async function refreshStats(): Promise<void> {
+  const fetchedStats = await fetchRecordStats();
+  if (fetchedStats !== null) {
+    stats.value = fetchedStats;
+  }
+}
+
+async function syncNow(): Promise<void> {
+  isSyncing.value = true;
+  syncError.value = null;
+  showToast.value = false;
+
+  try {
+    await Promise.all([loadRecords(), refreshStats()]);
+
+    if (loadError.value) {
+      syncError.value = "Sync failed. Please try again.";
+    } else {
+      showToast.value = true;
+    }
+  } finally {
+    isSyncing.value = false;
+  }
+}
+
+onMounted(async () => {
+  await Promise.all([loadRecords(), refreshStats()]);
+});
 </script>
