@@ -13,6 +13,51 @@ describe("records schema", () => {
   it("userId column maps to user_id in the database", () => {
     expect(records.userId.name).toBe("user_id");
   });
+
+  it("includes a nullable sourceId column mapped to source_id", () => {
+    expect(records.sourceId).toBeDefined();
+    expect(records.sourceId.name).toBe("source_id");
+    expect(records.sourceId.notNull).toBe(false);
+  });
+
+  it("includes a nullable source column", () => {
+    expect(records.source).toBeDefined();
+    expect(records.source.notNull).toBe(false);
+  });
+
+  it("status column defaults to pending and is not nullable", () => {
+    expect(records.status).toBeDefined();
+    expect(records.status.notNull).toBe(true);
+    expect(records.status.default).toBe("pending");
+  });
+
+  it("includes a nullable filePath column mapped to file_path", () => {
+    expect(records.filePath).toBeDefined();
+    expect(records.filePath.name).toBe("file_path");
+    expect(records.filePath.notNull).toBe(false);
+  });
+
+  it("includes a nullable tags jsonb column", () => {
+    expect(records.tags).toBeDefined();
+    expect(records.tags.columnType).toBe("PgJsonb");
+  });
+
+  it("includes a nullable frontmatter jsonb column", () => {
+    expect(records.frontmatter).toBeDefined();
+    expect(records.frontmatter.columnType).toBe("PgJsonb");
+  });
+
+  it("includes a nullable syncedAt timestamp column mapped to synced_at", () => {
+    expect(records.syncedAt).toBeDefined();
+    expect(records.syncedAt.name).toBe("synced_at");
+    expect(records.syncedAt.notNull).toBe(false);
+  });
+
+  it("includes a nullable errorMessage column mapped to error_message", () => {
+    expect(records.errorMessage).toBeDefined();
+    expect(records.errorMessage.name).toBe("error_message");
+    expect(records.errorMessage.notNull).toBe(false);
+  });
 });
 
 describe("sources schema", () => {
