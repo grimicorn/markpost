@@ -81,6 +81,26 @@ export const records = pgTable(
   ],
 );
 
+export const EVENT_KINDS = ["ok", "dim", "warn", "err"] as const;
+export type EventKind = (typeof EVENT_KINDS)[number];
+
+export const events = pgTable(
+  "events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id").notNull(),
+    ts: timestamp("ts", { withTimezone: true }).defaultNow().notNull(),
+    kind: text("kind").notNull(),
+    message: text("message").notNull(),
+    recordUuid: uuid("record_uuid"),
+    sourceId: uuid("source_id"),
+  },
+  (table) => [
+    index("events_user_id_ts_idx").on(table.userId, table.ts),
+    index("events_user_id_idx").on(table.userId),
+  ],
+);
+
 export const userSettings = pgTable("user_settings", {
   userId: text("user_id").primaryKey(),
   vaultDir: text("vault_dir").notNull().default("~/Documents/Vault"),

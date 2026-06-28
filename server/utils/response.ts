@@ -233,3 +233,86 @@ export function sourceSerializer(
     },
   };
 }
+
+type EventAttributes = {
+  id: string;
+  userId: string;
+  ts: Date;
+  kind: string;
+  message: string;
+  recordUuid: string | null;
+  sourceId: string | null;
+};
+
+type EventInput = EventAttributes;
+
+type EventResource = ApiResourceObject & {
+  type: "events";
+  attributes: EventAttributes;
+  links: { self: string };
+};
+
+export type EventListApiResponse = ApiResponse<EventResource[]>;
+
+export function eventSerializer(
+  event: EventInput | null | undefined,
+): EventResource | null {
+  if (!event) {
+    return null;
+  }
+
+  return {
+    type: "events",
+    id: event.id,
+    attributes: {
+      id: event.id,
+      userId: event.userId,
+      ts: event.ts,
+      kind: event.kind,
+      message: event.message,
+      recordUuid: event.recordUuid,
+      sourceId: event.sourceId,
+    },
+    links: {
+      self: `/api/events/${event.id}`,
+    },
+  };
+}
+
+export function eventPaginationLinks(
+  options: PaginationLinksOptions,
+): PaginationLinks {
+  const nextLink = buildEventNextLink(options);
+  const prevLink = buildEventPrevLink(options);
+
+  return {
+    next: nextLink,
+    prev: prevLink,
+  };
+}
+
+function buildEventNextLink(options: PaginationLinksOptions): string | null {
+  if (!options.hasMore || !options.afterCursor) {
+    return null;
+  }
+
+  const params = new URLSearchParams({
+    "page[after]": options.afterCursor,
+    "page[size]": String(options.size),
+  });
+
+  return `/api/events?${params.toString()}`;
+}
+
+function buildEventPrevLink(options: PaginationLinksOptions): string | null {
+  if (!options.prevCursor) {
+    return null;
+  }
+
+  const params = new URLSearchParams({
+    "page[after]": options.prevCursor,
+    "page[size]": String(options.size),
+  });
+
+  return `/api/events?${params.toString()}`;
+}

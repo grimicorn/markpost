@@ -6,6 +6,7 @@ import { ApiError, apiErrorHandler } from "../../utils/errors";
 import { apiValidate } from "../../utils/validate";
 import { isValidUuid } from "../../utils/uuid";
 import type { ApiRequest } from "../../types/api.types";
+import { writeEvent } from "../../utils/eventWriter";
 
 const MAX_DELETE_BATCH_SIZE = 100;
 
@@ -88,6 +89,14 @@ export default defineEventHandler(
 
       const uuids = validateUuids(body);
       const deletedCount = await deleteUserRecords(userId, uuids);
+
+      await writeEvent({
+        userId,
+        kind: "dim",
+        message: `Deleted ${deletedCount} record${deletedCount === 1 ? "" : "s"}`,
+      }).catch((writeError) => {
+        console.error("[records/delete] failed to write event:", writeError);
+      });
 
       return { meta: { deleted: deletedCount } };
     } catch (error) {
