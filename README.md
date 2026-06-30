@@ -53,9 +53,42 @@ Open Drizzle Studio (visual database browser):
 npm run db:studio
 ```
 
-| Table     | Description                                               |
-| --------- | --------------------------------------------------------- |
-| `records` | Content records with uuid, title, content, and created_at |
+| Table           | Description                                                         |
+| --------------- | ------------------------------------------------------------------- |
+| `records`       | Content records with uuid, title, content, and created_at           |
+| `subscriptions` | One row per user tracking plan, status, trial dates, and Stripe IDs |
+
+## Billing and subscriptions
+
+Billing is handled via [Stripe](https://stripe.com). The integration consists of three API routes under `/api/billing/`:
+
+| Route                   | Method | Auth                    | Description                                                                                                                                                                                                                                           |
+| ----------------------- | ------ | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/api/billing/checkout` | POST   | Clerk / API token       | Creates a Stripe Checkout session for upgrading to Pro. Returns `{ data: { url } }` — redirect the user to this URL.                                                                                                                                  |
+| `/api/billing/portal`   | POST   | Clerk / API token       | Creates a Stripe Customer Portal session for managing an existing subscription. Returns `{ data: { url } }`. Requires the user to have an existing Stripe customer ID (i.e. they have completed at least one Checkout session).                       |
+| `/api/billing/webhook`  | POST   | None (Stripe signature) | Receives Stripe lifecycle events (`customer.subscription.created/updated/deleted`, `checkout.session.completed`) and updates the local `subscriptions` table. The Stripe-Signature header is verified on every request using `STRIPE_WEBHOOK_SECRET`. |
+| `/api/billing/usage`    | GET    | Clerk / API token       | Returns the number of records synced this month and the number of connected sources.                                                                                                                                                                  |
+
+### Required environment variables
+
+| Variable                     | Description                                                                                                                   |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `STRIPE_SECRET_KEY`          | Stripe secret key (from [Dashboard → API Keys](https://dashboard.stripe.com/apikeys)). Server-only.                           |
+| `STRIPE_WEBHOOK_SECRET`      | Webhook signing secret (from [Dashboard → Webhooks → your endpoint → Signing secret](https://dashboard.stripe.com/webhooks)). |
+| `STRIPE_PRO_PRICE_ID`        | Stripe price ID for the monthly Pro plan.                                                                                     |
+| `STRIPE_PRO_ANNUAL_PRICE_ID` | Stripe price ID for the annual Pro plan (optional; falls back to monthly).                                                    |
+
+### Setting up the Stripe webhook
+
+1. Go to [Stripe Webhooks](https://dashboard.stripe.com/webhooks) and add an endpoint pointing to `https://your-domain.com/api/billing/webhook`.
+2. Subscribe to: `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `checkout.session.completed`.
+3. Copy the signing secret into `STRIPE_WEBHOOK_SECRET`.
+
+For local development, use the [Stripe CLI](https://stripe.com/docs/stripe-cli):
+
+```bash
+stripe listen --forward-to http://localhost:3000/api/billing/webhook
+```
 
 ## Authentication
 
@@ -174,3 +207,7 @@ Required repository secrets (Settings → Secrets → Actions):
 - `SENTRY_DSN`
 - `SENTRY_ORG`
 - `SENTRY_PROJECT`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_PRO_PRICE_ID`
+- `STRIPE_PRO_ANNUAL_PRICE_ID` (optional)

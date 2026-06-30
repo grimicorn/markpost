@@ -66,6 +66,7 @@ async function authenticateViaClerk(token: string): Promise<string | null> {
 }
 
 const HOOKS_PATH_PREFIX = "/api/hooks/";
+const BILLING_WEBHOOK_PATH = "/api/billing/webhook";
 
 export default defineEventHandler(async (event) => {
   if (!event.path.startsWith("/api/")) {
@@ -73,6 +74,10 @@ export default defineEventHandler(async (event) => {
   }
 
   if (event.path.startsWith(HOOKS_PATH_PREFIX)) {
+    return;
+  }
+
+  if (event.path === BILLING_WEBHOOK_PATH) {
     return;
   }
 
