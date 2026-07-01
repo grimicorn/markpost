@@ -1,0 +1,40 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SetAccount > matches snapshot in idle state 1`] = `
+"<div>
+  <div class="set-head-stub" eyebrow="account" title="Account" desc="Manage how you sign in and how your name appears across markpost."></div><!-- Profile card -->
+  <div class="card card-pad">
+    <!-- Avatar row -->
+    <div class="row gap-4" style="margin-bottom: 22px;"><span style="width: 56px; height: 56px; border-radius: 12px; background: var(--accent-tint); color: var(--accent-700); display: grid; place-items: center; font-family: var(--mono); font-size: 22px; font-weight: 600; flex-grow: 0; flex-shrink: 0; flex-basis: auto;" aria-hidden="true">D</span>
+      <div class="col gap-2"><button class="app-btn-stub">upload avatar</button><span class="mono faint" style="font-size: 11px;"> PNG or JPG · max 1 MB </span>
+        <!--v-if-->
+        <!--v-if-->
+      </div>
+    </div><!-- Name + email inputs -->
+    <div class="col gap-4"><input class="input-text-stub" value="Dan Holloran"><input class="input-text-stub" disabled="" value="dan@markpost.io"></div>
+  </div><!-- Security section -->
+  <h3 class="h3" style="margin-top: 30px; margin-bottom: 4px;">Security</h3>
+  <div class="card" style="margin-top: 14px; padding: 4px 22px;">
+    <div class="divide-y">
+      <div class="set-row-stub" data-label="Password"><button class="app-btn-stub"> change </button></div>
+      <div class="set-row-stub" data-label="Two-factor auth">
+        <div class="col" style="align-items: flex-end; gap: 6px;"><input type="checkbox" class="input-toggle-stub">
+          <!--v-if-->
+        </div>
+      </div>
+      <div class="set-row-stub" data-label="Active sessions"><button class="app-btn-stub">manage</button></div>
+    </div>
+  </div><!-- Sessions list (shown after "manage" is clicked) -->
+  <!--v-if-->
+  <!--v-if-->
+  <!-- Danger zone -->
+  <h3 class="h3" style="margin-top: 30px; margin-bottom: 4px; color: var(--err);"> Danger zone </h3>
+  <div class="card" style="margin-top: 14px; padding: 4px 22px;">
+    <div class="set-row-stub" data-label="Delete account"><button class="app-btn-stub" style="color: var(--err);"> delete </button></div>
+  </div><!-- Save / cancel row -->
+  <!--v-if-->
+  <!--v-if-->
+  <div class="row gap-3" style="margin-top: 24px; justify-content: flex-end;"><button class="app-btn-stub"> cancel </button><button class="app-btn-stub">save changes</button></div><!-- Delete confirmation modal -->
+  <div class="delete-modal-stub" data-open="false"></div>
+</div>"
+`;

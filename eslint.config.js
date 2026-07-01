@@ -57,6 +57,7 @@ const nuxtGlobals = {
   useFetch: "readonly",
   useLazyFetch: "readonly",
   useAsyncData: "readonly",
+  $fetch: "readonly",
 };
 
 const piniaGlobals = {
@@ -76,7 +77,9 @@ const clerkGlobals = {
 
 const appGlobals = {
   useTheme: "readonly",
+  useSettings: "readonly",
   useSyncSettings: "readonly",
+  useApiTokens: "readonly",
 };
 
 export default [

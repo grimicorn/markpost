@@ -1,0 +1,72 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SetTokens > matches snapshot in loading state 1`] = `
+"<div>
+  <set-head-stub eyebrow="api · access" title="API Tokens" desc="Tokens authenticate the markpost CLI and direct API calls. Treat them like passwords — they carry full access to your records."></set-head-stub>
+  <!--v-if-->
+  <!--v-if-->
+  <!--v-if-->
+  <!--v-if-->
+  <!--v-if-->
+  <div class="row between" style="margin-bottom: 14px;"><span class="kicker">loading…</span><button>generate token</button></div>
+  <div class="card" style="overflow: hidden;">
+    <div class="divide-y"></div>
+  </div>
+  <h3 class="h3" style="margin-top: 30px;">Use it</h3>
+  <div class="code" style="margin-top: 14px;">
+    <div class="code-head"><span class="lang">bash</span><button class="copy-btn" text="curl -H 'Authorization: Bearer mp_live_…' https://ingest.markpost.io/v1/records"></button></div>
+    <div class="code-body" style="white-space:pre;"><span class="c"># authenticate the CLI</span><span class="k">markpost</span> auth <span class="s">mp_live_8f2a…</span><span class="c"># or call the API directly</span><span class="k">curl</span> -H <span class="s">"Authorization: Bearer mp_live_…"</span> \\ https://ingest.markpost.io/v1/records </div>
+  </div>
+</div>"
+`;
+
+exports[`SetTokens > matches snapshot with no tokens loaded 1`] = `
+"<div>
+  <set-head-stub eyebrow="api · access" title="API Tokens" desc="Tokens authenticate the markpost CLI and direct API calls. Treat them like passwords — they carry full access to your records."></set-head-stub>
+  <!--v-if-->
+  <!--v-if-->
+  <!--v-if-->
+  <!--v-if-->
+  <!--v-if-->
+  <div class="row between" style="margin-bottom: 14px;"><span class="kicker">0 active tokens</span><button>generate token</button></div>
+  <div class="card" style="overflow: hidden;">
+    <div class="divide-y"></div>
+  </div>
+  <h3 class="h3" style="margin-top: 30px;">Use it</h3>
+  <div class="code" style="margin-top: 14px;">
+    <div class="code-head"><span class="lang">bash</span><button class="copy-btn" text="curl -H 'Authorization: Bearer mp_live_…' https://ingest.markpost.io/v1/records"></button></div>
+    <div class="code-body" style="white-space:pre;"><span class="c"># authenticate the CLI</span><span class="k">markpost</span> auth <span class="s">mp_live_8f2a…</span><span class="c"># or call the API directly</span><span class="k">curl</span> -H <span class="s">"Authorization: Bearer mp_live_…"</span> \\ https://ingest.markpost.io/v1/records </div>
+  </div>
+</div>"
+`;
+
+exports[`SetTokens > matches snapshot with tokens loaded 1`] = `
+"<div>
+  <set-head-stub eyebrow="api · access" title="API Tokens" desc="Tokens authenticate the markpost CLI and direct API calls. Treat them like passwords — they carry full access to your records."></set-head-stub>
+  <!--v-if-->
+  <!--v-if-->
+  <!--v-if-->
+  <!--v-if-->
+  <!--v-if-->
+  <div class="row between" style="margin-bottom: 14px;"><span class="kicker">2 active tokens</span><button>generate token</button></div>
+  <div class="card" style="overflow: hidden;">
+    <div class="divide-y">
+      <div class="row between" style="padding: 15px 20px; gap: 16px;">
+        <div class="row gap-3" style="min-width: 0;"><span style="width: 34px; height: 34px; border-radius: 8px; border: 1px solid; display: grid; place-items: center; color: var(--ink-2); border-width: var(--line-2); border-style: var(--line-2); border-color: var(--line-2); flex-grow: 0; flex-shrink: 0; flex-basis: auto;"><span class="stub-icon" name="key" size="16"></span></span>
+          <div class="col" style="gap: 3px; min-width: 0;"><span style="font-weight: 500; font-size: 14px;">obsidian-laptop</span><span class="mono faint" style="font-size: 11.5px;">mp_live_8f2a•••••••••••• · created Apr 02, 2026 · used Jun 27, 2026</span></div>
+        </div><button class="icon-btn" style="color: var(--err);" title="revoke"><span class="stub-icon" name="trash" size="16"></span></button>
+      </div>
+      <div class="row between" style="padding: 15px 20px; gap: 16px;">
+        <div class="row gap-3" style="min-width: 0;"><span style="width: 34px; height: 34px; border-radius: 8px; border: 1px solid; display: grid; place-items: center; color: var(--ink-2); border-width: var(--line-2); border-style: var(--line-2); border-color: var(--line-2); flex-grow: 0; flex-shrink: 0; flex-basis: auto;"><span class="stub-icon" name="key" size="16"></span></span>
+          <div class="col" style="gap: 3px; min-width: 0;"><span style="font-weight: 500; font-size: 14px;">home-server</span><span class="mono faint" style="font-size: 11.5px;">mp_live_2c71•••••••••••• · created Mar 18, 2026 · used never</span></div>
+        </div><button class="icon-btn" style="color: var(--err);" title="revoke"><span class="stub-icon" name="trash" size="16"></span></button>
+      </div>
+    </div>
+  </div>
+  <h3 class="h3" style="margin-top: 30px;">Use it</h3>
+  <div class="code" style="margin-top: 14px;">
+    <div class="code-head"><span class="lang">bash</span><button class="copy-btn" text="curl -H 'Authorization: Bearer mp_live_…' https://ingest.markpost.io/v1/records"></button></div>
+    <div class="code-body" style="white-space:pre;"><span class="c"># authenticate the CLI</span><span class="k">markpost</span> auth <span class="s">mp_live_8f2a…</span><span class="c"># or call the API directly</span><span class="k">curl</span> -H <span class="s">"Authorization: Bearer mp_live_…"</span> \\ https://ingest.markpost.io/v1/records </div>
+  </div>
+</div>"
+`;

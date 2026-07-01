@@ -11,7 +11,7 @@
         tone="warn"
         title="Copy your new token now"
         :closeable="true"
-        @close="revealedToken = ''"
+        @close="clearRevealedToken"
       >
         For your security it won't be shown again.
         <div class="code" style="margin-top: 10px">
@@ -29,9 +29,79 @@
       </AppAlert>
     </div>
 
+    <div v-if="loadError" style="margin-bottom: 16px">
+      <AppAlert tone="err" title="Load error">
+        {{ loadError }}
+        <AppBtn
+          variant="ghost"
+          size="sm"
+          style="margin-top: 8px"
+          :disabled="isLoading"
+          @click="loadTokens"
+        >
+          retry
+        </AppBtn>
+      </AppAlert>
+    </div>
+
+    <div v-if="mintError" style="margin-bottom: 16px">
+      <AppAlert tone="err" title="Failed to generate token">
+        {{ mintError }}
+      </AppAlert>
+    </div>
+
+    <div v-if="revokeError" style="margin-bottom: 16px">
+      <AppAlert tone="err" title="Failed to revoke token">
+        {{ revokeError }}
+      </AppAlert>
+    </div>
+
+    <div v-if="isGenerating" class="card card-pad" style="margin-bottom: 16px">
+      <div class="col gap-3">
+        <label class="col gap-2">
+          <span style="font-size: 13px; font-weight: 500">Token name</span>
+          <input
+            v-model="pendingTokenName"
+            class="input"
+            placeholder="e.g. obsidian-laptop"
+            :disabled="isMinting"
+            @keydown.enter="confirmGenerate"
+            @keydown.escape="cancelGenerate"
+          />
+        </label>
+        <div class="row gap-3">
+          <AppBtn
+            variant="accent"
+            size="sm"
+            icon="check"
+            :disabled="!pendingTokenName.trim() || isMinting"
+            @click="confirmGenerate"
+          >
+            {{ isMinting ? "generating…" : "generate" }}
+          </AppBtn>
+          <AppBtn
+            variant="ghost"
+            size="sm"
+            :disabled="isMinting"
+            @click="cancelGenerate"
+          >
+            cancel
+          </AppBtn>
+        </div>
+      </div>
+    </div>
+
     <div class="row between" style="margin-bottom: 14px">
-      <span class="kicker">{{ tokens.length }} active tokens</span>
-      <AppBtn size="sm" variant="accent" icon="plus" @click="generateToken"
+      <span class="kicker">
+        <template v-if="isLoading">loading…</template>
+        <template v-else>{{ tokens.length }} active tokens</template>
+      </span>
+      <AppBtn
+        size="sm"
+        variant="accent"
+        icon="plus"
+        :disabled="isGenerating || isMinting"
+        @click="startGenerate"
         >generate token</AppBtn
       >
     </div>
@@ -64,8 +134,9 @@
                 token.name
               }}</span>
               <span class="mono faint" style="font-size: 11.5px">
-                {{ token.prefix }}•••••••••••• · created {{ token.created }} ·
-                used {{ token.used }}
+                {{ token.prefix }}•••••••••••• · created
+                {{ formatDate(token.createdAt) }} · used
+                {{ formatDate(token.lastUsedAt) }}
               </span>
             </div>
           </div>
@@ -73,6 +144,7 @@
             class="icon-btn"
             style="color: var(--err)"
             title="revoke"
+            :disabled="isRevoking"
             @click="revokeToken(token.id)"
           >
             <AppIcon name="trash" :size="16" />
@@ -106,53 +178,66 @@
 <script setup lang="ts">
 import SetHead from "./SetHead.vue";
 
-interface Token {
-  id: number;
-  name: string;
-  prefix: string;
-  created: string;
-  used: string;
+const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
+  month: "short",
+  day: "2-digit",
+  year: "numeric",
+  timeZone: "UTC",
+};
+
+function formatDate(date: Date | null): string {
+  if (!date) {
+    return "never";
+  }
+  return date.toLocaleDateString("en-US", DATE_FORMAT_OPTIONS);
 }
 
-const tokens = ref<Token[]>([
-  {
-    id: 1,
-    name: "obsidian-laptop",
-    prefix: "mp_live_8f2a",
-    created: "Apr 02, 2026",
-    used: "2m ago",
-  },
-  {
-    id: 2,
-    name: "home-server",
-    prefix: "mp_live_2c71",
-    created: "Mar 18, 2026",
-    used: "yesterday",
-  },
-]);
+const {
+  tokens,
+  isLoading,
+  loadError,
+  isMinting,
+  mintError,
+  isRevoking,
+  revokeError,
+  revealedToken,
+  loadTokens,
+  mintToken,
+  revokeToken,
+  clearRevealedToken,
+} = useApiTokens();
 
-const revealedToken = ref("");
+const isGenerating = ref(false);
+const pendingTokenName = ref("");
 
-const generateToken = () => {
-  const bytes = crypto.getRandomValues(new Uint8Array(20));
-  const hex = Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-  const token = `mp_live_${hex}`;
-  revealedToken.value = token;
-  tokens.value = [
-    {
-      id: Date.now(),
-      name: "new-token",
-      prefix: token.slice(0, 12),
-      created: "just now",
-      used: "never",
-    },
-    ...tokens.value,
-  ];
-};
+function startGenerate() {
+  isGenerating.value = true;
+  pendingTokenName.value = "";
+}
 
-const revokeToken = (id: number) => {
-  tokens.value = tokens.value.filter((token) => token.id !== id);
-};
+function cancelGenerate() {
+  isGenerating.value = false;
+  pendingTokenName.value = "";
+}
+
+async function confirmGenerate() {
+  const name = pendingTokenName.value.trim();
+
+  if (!name) {
+    return;
+  }
+
+  await mintToken(name);
+
+  if (mintError.value) {
+    return;
+  }
+
+  isGenerating.value = false;
+  pendingTokenName.value = "";
+}
+
+onMounted(() => {
+  loadTokens();
+});
 </script>

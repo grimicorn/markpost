@@ -13,10 +13,18 @@ const baseRecord = {
   userId: "user_abc123",
   title: "Test Post",
   content: "Some content here",
+  sourceId: null,
+  source: null,
+  status: "pending",
+  filePath: null,
+  tags: null,
+  frontmatter: null,
+  syncedAt: null,
+  errorMessage: null,
 };
 
 describe("recordSerializer", () => {
-  it("returns the correct JSON API shape for a valid record", () => {
+  it("returns the correct JSON API shape for a valid record with required fields only", () => {
     const result = recordSerializer(baseRecord);
 
     expect(result).toEqual({
@@ -28,11 +36,65 @@ describe("recordSerializer", () => {
         userId: baseRecord.userId,
         title: baseRecord.title,
         content: baseRecord.content,
+        sourceId: null,
+        source: null,
+        status: "pending",
+        filePath: null,
+        tags: null,
+        frontmatter: null,
+        syncedAt: null,
+        errorMessage: null,
       },
       links: {
         self: `/api/records/${baseRecord.uuid}`,
       },
     });
+  });
+
+  it("includes optional fields when present", () => {
+    const syncedAt = new Date("2026-06-14T12:00:00Z");
+    const recordWithExtras = {
+      ...baseRecord,
+      sourceId: "550e8400-e29b-41d4-a716-446655440099",
+      source: "webhook/github",
+      status: "synced",
+      filePath: "99-incoming/2026-06-14-deploy.md",
+      tags: ["deploy", "github"],
+      frontmatter: { date: "2026-06-14", tags: ["deploy"] },
+      syncedAt,
+      errorMessage: null,
+    };
+
+    const result = recordSerializer(recordWithExtras);
+
+    expect(result?.attributes.sourceId).toBe(recordWithExtras.sourceId);
+    expect(result?.attributes.source).toBe("webhook/github");
+    expect(result?.attributes.status).toBe("synced");
+    expect(result?.attributes.filePath).toBe(
+      "99-incoming/2026-06-14-deploy.md",
+    );
+    expect(result?.attributes.tags).toEqual(["deploy", "github"]);
+    expect(result?.attributes.frontmatter).toEqual({
+      date: "2026-06-14",
+      tags: ["deploy"],
+    });
+    expect(result?.attributes.syncedAt).toEqual(syncedAt);
+    expect(result?.attributes.errorMessage).toBeNull();
+  });
+
+  it("surfaces errorMessage when status is error", () => {
+    const recordWithError = {
+      ...baseRecord,
+      status: "error",
+      errorMessage: "Sync failed: file already exists",
+    };
+
+    const result = recordSerializer(recordWithError);
+
+    expect(result?.attributes.status).toBe("error");
+    expect(result?.attributes.errorMessage).toBe(
+      "Sync failed: file already exists",
+    );
   });
 
   it("returns null for null input", () => {

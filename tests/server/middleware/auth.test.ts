@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { H3Event } from "h3";
 import { generateRawToken, hashToken } from "../../../server/utils/tokens";
+import { stubFailingUpdate, spyConsoleError } from "../helpers";
 
 const selectMock = vi.fn();
 const updateMock = vi.fn();
@@ -135,13 +136,8 @@ describe("auth middleware", () => {
       mockGetHeader.mockReturnValue(`Bearer ${rawToken}`);
       stubSelectResult([{ id: tokenId, userId }]);
 
-      const where = vi.fn(() => Promise.reject(new Error("db error")));
-      const set = vi.fn(() => ({ where }));
-      updateMock.mockReturnValue({ set });
-
-      const consoleErrorSpy = vi
-        .spyOn(console, "error")
-        .mockImplementation(() => {});
+      stubFailingUpdate(updateMock);
+      const consoleErrorSpy = spyConsoleError();
 
       const event = buildEvent();
       await handler(event);

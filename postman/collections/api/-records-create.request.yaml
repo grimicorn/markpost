@@ -13,7 +13,15 @@ body:
             "type": "records",
             "attributes": {
                 "title": "Title 3",
-                "content": "Content 3"
+                "content": "Content 3",
+                "sourceId": null,
+                "source": "webhook/github",
+                "status": "pending",
+                "filePath": null,
+                "tags": ["deploy", "github"],
+                "frontmatter": {"date": "2026-06-14", "tags": ["deploy"]},
+                "syncedAt": null,
+                "errorMessage": null
             }
         }
     }

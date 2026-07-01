@@ -30,20 +30,6 @@ export const apiTokens = pgTable(
   ],
 );
 
-export const records = pgTable(
-  "records",
-  {
-    uuid: uuid("uuid").primaryKey().defaultRandom(),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-    userId: text("user_id").notNull(),
-    title: text("title").notNull(),
-    content: text("content").notNull(),
-  },
-  (table) => [index("records_user_id_idx").on(table.userId)],
-);
-
 export const sources = pgTable(
   "sources",
   {
@@ -65,6 +51,51 @@ export const sources = pgTable(
     index("sources_user_id_idx").on(table.userId),
     unique("sources_endpoint_slug_unique").on(table.endpointSlug),
   ],
+);
+
+export const RECORD_STATUSES = ["synced", "pending", "error"] as const;
+export type RecordStatus = (typeof RECORD_STATUSES)[number];
+
+export const records = pgTable(
+  "records",
+  {
+    uuid: uuid("uuid").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    userId: text("user_id").notNull(),
+    title: text("title").notNull(),
+    content: text("content").notNull(),
+    sourceId: uuid("source_id").references(() => sources.uuid),
+    source: text("source"),
+    status: text("status").notNull().default("pending"),
+    filePath: text("file_path"),
+    tags: jsonb("tags"),
+    frontmatter: jsonb("frontmatter"),
+    syncedAt: timestamp("synced_at", { withTimezone: true }),
+    errorMessage: text("error_message"),
+  },
+  (table) => [
+    index("records_user_id_idx").on(table.userId),
+    index("records_status_idx").on(table.status),
+  ],
+);
+
+export const EVENT_KINDS = ["ok", "dim", "warn", "err"] as const;
+export type EventKind = (typeof EVENT_KINDS)[number];
+
+export const events = pgTable(
+  "events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id").notNull(),
+    ts: timestamp("ts", { withTimezone: true }).defaultNow().notNull(),
+    kind: text("kind").notNull(),
+    message: text("message").notNull(),
+    recordUuid: uuid("record_uuid"),
+    sourceId: uuid("source_id"),
+  },
+  (table) => [index("events_user_id_ts_idx").on(table.userId, table.ts)],
 );
 
 export const userSettings = pgTable("user_settings", {
