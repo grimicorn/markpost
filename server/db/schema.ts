@@ -10,6 +10,45 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+export const SUBSCRIPTION_PLANS = ["hobby", "pro"] as const;
+export type SubscriptionPlan = (typeof SUBSCRIPTION_PLANS)[number];
+
+export const SUBSCRIPTION_STATUSES = [
+  "active",
+  "trialing",
+  "past_due",
+  "canceled",
+  "incomplete",
+] as const;
+export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
+
+export const subscriptions = pgTable(
+  "subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id").notNull(),
+    plan: text("plan").notNull().default("hobby"),
+    status: text("status").notNull().default("trialing"),
+    trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
+    stripeCustomerId: text("stripe_customer_id"),
+    stripeSubscriptionId: text("stripe_subscription_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("subscriptions_user_id_idx").on(table.userId),
+    unique("subscriptions_user_id_unique").on(table.userId),
+    index("subscriptions_stripe_customer_id_idx").on(table.stripeCustomerId),
+    unique("subscriptions_stripe_subscription_id_unique").on(
+      table.stripeSubscriptionId,
+    ),
+  ],
+);
+
 export const apiTokens = pgTable(
   "api_tokens",
   {
