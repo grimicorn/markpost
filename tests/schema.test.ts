@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { events, records, sources } from "../server/db/schema";
+import { events, records, sources, subscriptions } from "../server/db/schema";
 
 describe("records schema", () => {
   it("includes a userId column", () => {
@@ -137,5 +137,58 @@ describe("events schema", () => {
     expect(events.sourceId).toBeDefined();
     expect(events.sourceId.name).toBe("source_id");
     expect(events.sourceId.notNull).toBe(false);
+  });
+});
+
+describe("subscriptions schema", () => {
+  it("includes an id uuid primary key column", () => {
+    expect(subscriptions.id).toBeDefined();
+  });
+
+  it("includes a userId column mapped to user_id", () => {
+    expect(subscriptions.userId.name).toBe("user_id");
+  });
+
+  it("userId column is not nullable", () => {
+    expect(subscriptions.userId.notNull).toBe(true);
+  });
+
+  it("plan defaults to hobby and is not nullable", () => {
+    expect(subscriptions.plan).toBeDefined();
+    expect(subscriptions.plan.notNull).toBe(true);
+    expect(subscriptions.plan.default).toBe("hobby");
+  });
+
+  it("status defaults to trialing and is not nullable", () => {
+    expect(subscriptions.status).toBeDefined();
+    expect(subscriptions.status.notNull).toBe(true);
+    expect(subscriptions.status.default).toBe("trialing");
+  });
+
+  it("includes a nullable trialEndsAt timestamp column mapped to trial_ends_at", () => {
+    expect(subscriptions.trialEndsAt).toBeDefined();
+    expect(subscriptions.trialEndsAt.name).toBe("trial_ends_at");
+    expect(subscriptions.trialEndsAt.notNull).toBe(false);
+  });
+
+  it("includes a nullable stripeCustomerId column mapped to stripe_customer_id", () => {
+    expect(subscriptions.stripeCustomerId).toBeDefined();
+    expect(subscriptions.stripeCustomerId.name).toBe("stripe_customer_id");
+    expect(subscriptions.stripeCustomerId.notNull).toBe(false);
+  });
+
+  it("includes a nullable stripeSubscriptionId column mapped to stripe_subscription_id", () => {
+    expect(subscriptions.stripeSubscriptionId).toBeDefined();
+    expect(subscriptions.stripeSubscriptionId.name).toBe(
+      "stripe_subscription_id",
+    );
+    expect(subscriptions.stripeSubscriptionId.notNull).toBe(false);
+  });
+
+  it("includes createdAt and updatedAt timestamp columns", () => {
+    expect(subscriptions.createdAt).toBeDefined();
+    expect(subscriptions.createdAt.notNull).toBe(true);
+    expect(subscriptions.updatedAt).toBeDefined();
+    expect(subscriptions.updatedAt.notNull).toBe(true);
   });
 });
