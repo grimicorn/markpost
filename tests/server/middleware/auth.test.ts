@@ -16,6 +16,12 @@ vi.mock("@clerk/backend", () => ({
   createClerkClient: () => ({ verifyToken: mockVerifyToken }),
 }));
 
+const mockEnsureUserRegistered = vi.fn();
+
+vi.mock("../../../server/utils/auth", () => ({
+  ensureUserRegistered: mockEnsureUserRegistered,
+}));
+
 const mockCreateError = vi.fn((options: object) => {
   const error = new Error("createError");
   Object.assign(error, options);
@@ -61,6 +67,7 @@ beforeEach(() => {
   selectMock.mockReset();
   updateMock.mockReset();
   mockVerifyToken.mockReset();
+  mockEnsureUserRegistered.mockReset();
   process.env.NUXT_CLERK_SECRET_KEY = "test_secret";
 });
 
@@ -231,6 +238,42 @@ describe("auth middleware", () => {
       await handler(buildEvent());
 
       expect(selectMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("sign-up registration", () => {
+    it("registers the user on the Clerk path", async () => {
+      const clerkToken = "eyJhbGciOiJSUzI1NiJ9.payload.signature";
+      mockGetHeader.mockReturnValue(`Bearer ${clerkToken}`);
+      mockVerifyToken.mockResolvedValue({ sub: userId });
+
+      await handler(buildEvent());
+
+      expect(mockEnsureUserRegistered).toHaveBeenCalledWith(userId);
+    });
+
+    it("does not run registration for API token authentication", async () => {
+      const rawToken = generateRawToken();
+      mockGetHeader.mockReturnValue(`Bearer ${rawToken}`);
+      stubSelectResult([{ id: tokenId, userId }]);
+      stubUpdateSuccess();
+
+      await handler(buildEvent());
+
+      expect(mockEnsureUserRegistered).not.toHaveBeenCalled();
+    });
+
+    it("propagates a rejection from registration and leaves userId unset", async () => {
+      const clerkToken = "eyJhbGciOiJSUzI1NiJ9.payload.signature";
+      mockGetHeader.mockReturnValue(`Bearer ${clerkToken}`);
+      mockVerifyToken.mockResolvedValue({ sub: userId });
+      mockEnsureUserRegistered.mockRejectedValue(
+        Object.assign(new Error("disabled"), { statusCode: 403 }),
+      );
+
+      const event = buildEvent();
+      await expect(handler(event)).rejects.toMatchObject({ statusCode: 403 });
+      expect(event.context.userId).toBeUndefined();
     });
   });
 });

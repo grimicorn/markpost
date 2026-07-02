@@ -17,6 +17,10 @@ export default defineNuxtConfig({
   },
   runtimeConfig: {
     databaseUrl: process.env.E2E_DATABASE_URL || process.env.DATABASE_URL || "",
+    // Read process.env INLINE so the value bakes into the server bundle at build
+    // time. The Netlify preset does not re-inject NUXT_* at function runtime, so a
+    // bare "" default would resolve to empty in the deployed function.
+    disableSignups: process.env.NUXT_DISABLE_SIGNUPS || "",
     public: {
       sentryDsn: "",
     },

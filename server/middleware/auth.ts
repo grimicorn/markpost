@@ -3,6 +3,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { getDb } from "../db";
 import { apiTokens } from "../db/schema";
 import { hashToken, isApiToken } from "../utils/tokens";
+import { ensureUserRegistered } from "../utils/auth";
 
 const BEARER_PREFIX = /^Bearer\s+/i;
 
@@ -84,12 +85,21 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 401, statusMessage: "Unauthorized" });
   }
 
-  const userId = isApiToken(rawToken)
+  const viaApiToken = isApiToken(rawToken);
+  const userId = viaApiToken
     ? await authenticateViaApiToken(rawToken)
     : await authenticateViaClerk(rawToken);
 
   if (!userId) {
     throw createError({ statusCode: 401, statusMessage: "Unauthorized" });
   }
+
+  // Only the Clerk path can carry a brand-new identity; an API token can only
+  // exist for an already-registered user. Runs outside authenticateViaClerk's
+  // try/catch so a disabled-signups 403 is not swallowed into a 401.
+  if (!viaApiToken) {
+    await ensureUserRegistered(userId);
+  }
+
   event.context.userId = userId;
 });
