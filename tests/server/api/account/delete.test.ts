@@ -2,24 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { H3Event } from "h3";
 import { createMockCreateError } from "../../helpers";
 
-// ── DB mock: capture per-table where calls ────────────────────────────────
+// ── DB mock: capture the users delete ─────────────────────────────────────
 
-const recordsWhere = vi.fn().mockResolvedValue([]);
-const sourcesWhere = vi.fn().mockResolvedValue([]);
-const userSettingsWhere = vi.fn().mockResolvedValue([]);
-
-const mockTransaction = {
-  delete: vi.fn(),
-};
-
-type TransactionCallback = (
-  transaction: typeof mockTransaction,
-) => Promise<void>;
+const usersWhere = vi.fn().mockResolvedValue([]);
+const deleteMock = vi.fn(() => ({ where: usersWhere }));
 
 const mockDb = {
-  transaction: vi.fn(async (callback: TransactionCallback) => {
-    await callback(mockTransaction);
-  }),
+  delete: deleteMock,
 };
 
 vi.mock("../../../../server/db", () => ({
@@ -27,9 +16,7 @@ vi.mock("../../../../server/db", () => ({
 }));
 
 vi.mock("../../../../server/db/schema", () => ({
-  records: "records_table",
-  sources: "sources_table",
-  userSettings: "user_settings_table",
+  users: "users_table",
 }));
 
 vi.mock("drizzle-orm", () => ({
@@ -64,15 +51,8 @@ describe("DELETE /api/account", () => {
       Object.assign(error, options);
       return error;
     });
-    mockTransaction.delete.mockImplementation((table: string) => {
-      if (table === "records_table") {
-        return { where: recordsWhere };
-      }
-      if (table === "sources_table") {
-        return { where: sourcesWhere };
-      }
-      return { where: userSettingsWhere };
-    });
+    usersWhere.mockResolvedValue([]);
+    deleteMock.mockImplementation(() => ({ where: usersWhere }));
   });
 
   it("throws 401 when the request is unauthenticated", async () => {
@@ -83,64 +63,25 @@ describe("DELETE /api/account", () => {
     );
   });
 
-  it("wraps all deletes in a single transaction", async () => {
-    const event = buildEvent("user_123");
-    await handler(event);
-    expect(mockDb.transaction).toHaveBeenCalledTimes(1);
+  it("deletes the users row so every user-owned table cascades", async () => {
+    await handler(buildEvent("user_123"));
+    expect(deleteMock).toHaveBeenCalledWith("users_table");
   });
 
-  it("deletes in order: records, then sources, then userSettings", async () => {
-    const deleteCalls: string[] = [];
-    mockTransaction.delete.mockImplementation((table: string) => {
-      deleteCalls.push(table);
-      if (table === "records_table") {
-        return { where: recordsWhere };
-      }
-      if (table === "sources_table") {
-        return { where: sourcesWhere };
-      }
-      return { where: userSettingsWhere };
-    });
-
+  it("scopes the delete to the authenticated userId", async () => {
     await handler(buildEvent("user_123"));
-
-    expect(deleteCalls).toEqual([
-      "records_table",
-      "sources_table",
-      "user_settings_table",
-    ]);
-  });
-
-  it("deletes records scoped to the authenticated userId", async () => {
-    await handler(buildEvent("user_123"));
-    expect(recordsWhere).toHaveBeenCalledWith(
-      expect.objectContaining({ value: "user_123" }),
-    );
-  });
-
-  it("deletes sources scoped to the authenticated userId", async () => {
-    await handler(buildEvent("user_123"));
-    expect(sourcesWhere).toHaveBeenCalledWith(
-      expect.objectContaining({ value: "user_123" }),
-    );
-  });
-
-  it("deletes userSettings scoped to the authenticated userId", async () => {
-    await handler(buildEvent("user_123"));
-    expect(userSettingsWhere).toHaveBeenCalledWith(
+    expect(usersWhere).toHaveBeenCalledWith(
       expect.objectContaining({ value: "user_123" }),
     );
   });
 
   it("returns { meta: { deleted: true } } on success", async () => {
-    const event = buildEvent("user_123");
-    const result = await handler(event);
+    const result = await handler(buildEvent("user_123"));
     expect(result).toEqual({ meta: { deleted: true } });
   });
 
-  it("propagates errors through apiErrorHandler when the transaction throws", async () => {
-    mockDb.transaction.mockRejectedValueOnce(new Error("db error"));
-    const event = buildEvent("user_123");
-    await expect(handler(event)).rejects.toThrow();
+  it("propagates errors through apiErrorHandler when the delete throws", async () => {
+    usersWhere.mockRejectedValueOnce(new Error("db error"));
+    await expect(handler(buildEvent("user_123"))).rejects.toThrow();
   });
 });

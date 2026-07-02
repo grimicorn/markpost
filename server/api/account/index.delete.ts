@@ -1,18 +1,13 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../../db";
-import { records, sources, userSettings } from "../../db/schema";
+import { users } from "../../db/schema";
 import { requireUser } from "../../utils/auth";
 import { apiErrorHandler } from "../../utils/errors";
 
 async function deleteAllUserData(userId: string): Promise<void> {
-  const database = getDb();
-  await database.transaction(async (transaction) => {
-    await transaction.delete(records).where(eq(records.userId, userId));
-    await transaction.delete(sources).where(eq(sources.userId, userId));
-    await transaction
-      .delete(userSettings)
-      .where(eq(userSettings.userId, userId));
-  });
+  // Deleting the users row cascades to every user-owned table (api_tokens,
+  // sources, records, events, user_settings) via their ON DELETE cascade FKs.
+  await getDb().delete(users).where(eq(users.userId, userId));
 }
 
 export default defineEventHandler(
