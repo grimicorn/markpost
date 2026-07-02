@@ -52,11 +52,11 @@
           <AppIcon :name="navItem.ic" :size="17" />
           {{ navItem.label }}
           <AppBadge
-            v-if="navItem.id === 'inbox'"
+            v-if="navItem.id === 'inbox' && pendingCount"
             tone="accent"
             style="margin-left: auto; font-size: 9.5px; padding: 1px 6px"
           >
-            3
+            {{ pendingCount }}
           </AppBadge>
         </NuxtLink>
 
@@ -92,39 +92,11 @@
       </nav>
 
       <!-- plan card -->
-      <div class="panel" style="padding: 12px; margin-bottom: 12px">
-        <div class="row between">
-          <AppBadge tone="accent" dot>pro trial</AppBadge>
-          <span class="mono faint" style="font-size: 11px">9d left</span>
-        </div>
-        <div
-          style="
-            height: 5px;
-            border-radius: 99px;
-            background: var(--bg-2);
-            margin-top: 10px;
-            overflow: hidden;
-          "
-        >
-          <div style="width: 64%; height: 100%; background: var(--accent)" />
-        </div>
-        <NuxtLink
-          to="/pricing"
-          class="mono"
-          style="
-            font-size: 11.5px;
-            color: var(--accent-700);
-            margin-top: 10px;
-            display: block;
-            background: none;
-            border: 0;
-            cursor: pointer;
-            padding: 0;
-          "
-        >
-          upgrade plan →
-        </NuxtLink>
-      </div>
+      <AppPlanCard
+        :badge="planBadge"
+        :trial-days-left="trialDaysLeft"
+        :trial-percent-elapsed="trialPercentElapsed"
+      />
 
       <!-- user -->
       <NuxtLink
@@ -218,15 +190,7 @@
           </h1>
         </div>
         <div class="row gap-3">
-          <div class="input-wrap" style="display: flex">
-            <span class="lead-addon"><AppIcon name="search" :size="15" /></span>
-            <input
-              class="input has-lead"
-              placeholder="search records…"
-              style="height: 36px; width: 190px; font-size: 13px"
-            />
-            <span class="addon"><AppKbd>⌘K</AppKbd></span>
-          </div>
+          <AppRecordSearch ref="recordSearchRef" @select="selectRecord" />
           <slot name="actions" />
           <button
             class="icon-btn"
@@ -253,6 +217,8 @@
               justify-content: center;
               color: var(--ink-2);
             "
+            title="view activity"
+            @click="goToActivity"
           >
             <AppIcon name="bell" :size="17" />
           </button>
@@ -266,6 +232,16 @@
 </template>
 
 <script setup lang="ts">
+import {
+  fetchRecordStats,
+  type RecordResource,
+} from "~/composables/useRecords";
+import {
+  fetchBillingUsage,
+  derivePlanBadge,
+  type BillingUsage,
+} from "~/composables/useBillingUsage";
+
 defineProps<{
   active: string;
   title: string;
@@ -304,4 +280,67 @@ const navItems = [
   { id: "activity", ic: "activity", label: "Activity", path: "/activity" },
   { id: "settings", ic: "sliders", label: "Settings", path: "/settings" },
 ];
+
+// ── Inbox nav badge: pending/unsynced record count ──────────────────────────
+const pendingCount = ref<number | null>(null);
+
+async function loadPendingCount(): Promise<void> {
+  const stats = await fetchRecordStats();
+  pendingCount.value = stats?.pending ?? null;
+}
+
+// ── Plan card: billing usage & trial status ─────────────────────────────────
+const billingUsage = ref<BillingUsage | null>(null);
+
+async function loadBillingUsage(): Promise<void> {
+  billingUsage.value = await fetchBillingUsage();
+}
+
+const planBadge = computed(() =>
+  derivePlanBadge(
+    billingUsage.value?.plan ?? "hobby",
+    billingUsage.value?.status ?? "active",
+  ),
+);
+
+const trialDaysLeft = computed(() => billingUsage.value?.trialDaysLeft ?? null);
+const trialPercentElapsed = computed(
+  () => billingUsage.value?.trialPercentElapsed ?? null,
+);
+
+onMounted(() => {
+  void loadPendingCount();
+  void loadBillingUsage();
+});
+
+// ── Header search: focus on ⌘K, navigate to the selected record ────────────
+type RecordSearchHandle = { focus: () => void };
+const recordSearchRef = ref<RecordSearchHandle | null>(null);
+
+function selectRecord(record: RecordResource): void {
+  navigateTo(`/inbox?record=${record.attributes.uuid}`);
+}
+
+function handleGlobalKeydown(event: KeyboardEvent): void {
+  const isSearchShortcut =
+    (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k";
+  if (!isSearchShortcut) {
+    return;
+  }
+  event.preventDefault();
+  recordSearchRef.value?.focus();
+}
+
+onMounted(() => {
+  window.addEventListener("keydown", handleGlobalKeydown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("keydown", handleGlobalKeydown);
+});
+
+// ── Notifications bell: link to the activity feed ───────────────────────────
+function goToActivity(): void {
+  navigateTo("/activity");
+}
 </script>

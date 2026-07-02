@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { TRIAL_PERIOD_DAYS } from "../utils/billing";
 
 const STRIPE_SECRET_KEY_ENV = "STRIPE_SECRET_KEY";
 
@@ -43,7 +44,7 @@ export async function createCheckoutSession(
     };
 
   if (!options.isReturningCustomer) {
-    subscriptionData.trial_period_days = 14;
+    subscriptionData.trial_period_days = TRIAL_PERIOD_DAYS;
   }
 
   const sessionParams: Stripe.Checkout.SessionCreateParams = {

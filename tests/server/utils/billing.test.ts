@@ -25,6 +25,8 @@ const {
   resolvePlanFromPriceId,
   resolveStatusFromStripe,
   isValidPlan,
+  calculateTrialProgress,
+  TRIAL_PERIOD_DAYS,
 } = await import("../../../server/utils/billing");
 
 const SAMPLE_SUBSCRIPTION = {
@@ -245,5 +247,56 @@ describe("isValidPlan", () => {
   it("returns false for an unknown plan", () => {
     expect(isValidPlan("enterprise")).toBe(false);
     expect(isValidPlan("")).toBe(false);
+  });
+});
+
+describe("calculateTrialProgress", () => {
+  it("matches the trial length used by Stripe checkout sessions", () => {
+    expect(TRIAL_PERIOD_DAYS).toBe(14);
+  });
+
+  it("reports 0 days left and 100% elapsed the instant the trial ends", () => {
+    const now = new Date("2026-06-27T00:00:00Z");
+    const result = calculateTrialProgress(now, now);
+
+    expect(result).toEqual({ daysLeft: 0, percentElapsed: 100 });
+  });
+
+  it("reports the full trial length remaining and 0% elapsed at the start", () => {
+    const now = new Date("2026-06-13T00:00:00Z");
+    const trialEndsAt = new Date("2026-06-27T00:00:00Z");
+
+    const result = calculateTrialProgress(trialEndsAt, now);
+
+    expect(result).toEqual({ daysLeft: 14, percentElapsed: 0 });
+  });
+
+  it("computes partial progress midway through the trial", () => {
+    const now = new Date("2026-06-27T00:00:00Z");
+    const trialEndsAt = new Date("2026-07-01T00:00:00Z");
+
+    const result = calculateTrialProgress(trialEndsAt, now);
+
+    expect(result).toEqual({ daysLeft: 4, percentElapsed: 71 });
+  });
+
+  it("clamps daysLeft to 0 and percentElapsed to 100 for an already-expired trial", () => {
+    const now = new Date("2026-07-10T00:00:00Z");
+    const trialEndsAt = new Date("2026-07-01T00:00:00Z");
+
+    const result = calculateTrialProgress(trialEndsAt, now);
+
+    expect(result).toEqual({ daysLeft: 0, percentElapsed: 100 });
+  });
+
+  it("defaults `now` to the current time when omitted", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-27T00:00:00Z"));
+
+    const result = calculateTrialProgress(new Date("2026-07-01T00:00:00Z"));
+
+    expect(result).toEqual({ daysLeft: 4, percentElapsed: 71 });
+
+    vi.useRealTimers();
   });
 });
