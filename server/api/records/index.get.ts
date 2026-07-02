@@ -1,4 +1,4 @@
-import { and, count, desc, eq, like, lt, or, SQL } from "drizzle-orm";
+import { and, count, desc, eq, ilike, like, lt, or, SQL } from "drizzle-orm";
 import { getDb } from "../../db";
 import { records, RECORD_STATUSES } from "../../db/schema";
 import { ApiError, apiErrorHandler } from "../../utils/errors";
@@ -18,7 +18,14 @@ type CursorPosition = {
 type RecordFilters = {
   source?: AllowedSourceType;
   status?: string;
+  query?: string;
 };
+
+// Escapes the wildcard characters `%`, `_`, and `\` so user-supplied search
+// text is matched literally rather than as a LIKE/ILIKE pattern.
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
 
 async function findCursorPosition(
   db: Database,
@@ -75,6 +82,12 @@ function buildFilterConditions(
     conditions.push(eq(records.status, filters.status));
   }
 
+  if (filters.query) {
+    conditions.push(
+      ilike(records.title, `%${escapeLikePattern(filters.query)}%`),
+    );
+  }
+
   if (cursor) {
     const beforeCursor = or(
       lt(records.createdAt, cursor.createdAt),
@@ -128,6 +141,7 @@ export default defineEventHandler(
       const afterUuid = query["page[after]"] as string | undefined;
       const filterSource = query["filter[source]"] as string | undefined;
       const filterStatus = query["filter[status]"] as string | undefined;
+      const filterQuery = query["filter[q]"] as string | undefined;
 
       const validatedSource = ALLOWED_SOURCE_TYPES.includes(
         filterSource as AllowedSourceType,
@@ -141,9 +155,12 @@ export default defineEventHandler(
         ? filterStatus
         : undefined;
 
+      const trimmedQuery = filterQuery?.trim();
+
       const filters: RecordFilters = {
         source: validatedSource,
         status: validatedStatus,
+        query: trimmedQuery ? trimmedQuery : undefined,
       };
 
       const cursor = await resolveCursor(db, userId, afterUuid);

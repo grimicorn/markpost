@@ -1,0 +1,19 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`AppPlanCard > matches snapshot for an active plan with no trial 1`] = `
+"<div class="panel" style="padding: 12px; margin-bottom: 12px;">
+  <div class="row between"><span class="badge ok"><i class="dot"></i>pro</span>
+    <!--v-if-->
+  </div>
+  <!--v-if--><a href="/pricing" class="mono" style="font-size: 11.5px; color: var(--accent-700); margin-top: 10px; display: block; background: none none; border: 0px; cursor: pointer; padding: 0px;"> upgrade plan → </a>
+</div>"
+`;
+
+exports[`AppPlanCard > matches snapshot while trialing 1`] = `
+"<div class="panel" style="padding: 12px; margin-bottom: 12px;">
+  <div class="row between"><span class="badge accent"><i class="dot"></i>pro trial</span><span class="mono faint" style="font-size: 11px;">9d left </span></div>
+  <div style="height: 5px; border-radius: 99px; background: var(--bg-2); margin-top: 10px; overflow: hidden;">
+    <div style="width: 64%; height: 100%; background: var(--accent);"></div>
+  </div><a href="/pricing" class="mono" style="font-size: 11.5px; color: var(--accent-700); margin-top: 10px; display: block; background: none none; border: 0px; cursor: pointer; padding: 0px;"> upgrade plan → </a>
+</div>"
+`;

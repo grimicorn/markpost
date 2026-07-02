@@ -12,6 +12,9 @@ vi.mock("drizzle-orm", () => ({
   count: () => ({ count: true }),
   desc: (column: unknown) => ({ desc: column }),
   eq: (column: unknown, value: unknown) => ({ eq: { column, value } }),
+  ilike: (column: unknown, pattern: unknown) => ({
+    ilike: { column, pattern },
+  }),
   like: (column: unknown, pattern: unknown) => ({ like: { column, pattern } }),
   lt: (column: unknown, value: unknown) => ({ lt: { column, value } }),
   or: (...conditions: unknown[]) => ({ or: conditions }),
@@ -162,5 +165,70 @@ describe("GET /api/records", () => {
         (condition as { eq: { value: unknown } }).eq.value === "error",
     );
     expect(hasStatusCondition).toBe(true);
+  });
+
+  it("applies an ILIKE filter on title when filter[q] is set", async () => {
+    queryParams = { "filter[q]": "invoice" };
+    const { countWhere } = stubSelectResults({ value: 0 }, []);
+
+    await handler(buildEvent(userId));
+
+    const whereArg = countWhere.mock.calls[0]?.[0] as { and: unknown[] };
+    const conditions = whereArg.and;
+    const hasQueryCondition = conditions.some(
+      (condition) =>
+        typeof condition === "object" &&
+        condition !== null &&
+        "ilike" in condition &&
+        (condition as { ilike: { pattern: unknown } }).ilike.pattern ===
+          "%invoice%",
+    );
+    expect(hasQueryCondition).toBe(true);
+  });
+
+  it("trims whitespace from filter[q] before searching", async () => {
+    queryParams = { "filter[q]": "  invoice  " };
+    const { countWhere } = stubSelectResults({ value: 0 }, []);
+
+    await handler(buildEvent(userId));
+
+    const whereArg = countWhere.mock.calls[0]?.[0] as { and: unknown[] };
+    const conditions = whereArg.and;
+    const hasQueryCondition = conditions.some(
+      (condition) =>
+        typeof condition === "object" &&
+        condition !== null &&
+        "ilike" in condition &&
+        (condition as { ilike: { pattern: unknown } }).ilike.pattern ===
+          "%invoice%",
+    );
+    expect(hasQueryCondition).toBe(true);
+  });
+
+  it("escapes LIKE wildcard characters in filter[q]", async () => {
+    queryParams = { "filter[q]": "100%_off\\" };
+    const { countWhere } = stubSelectResults({ value: 0 }, []);
+
+    await handler(buildEvent(userId));
+
+    const whereArg = countWhere.mock.calls[0]?.[0] as { and: unknown[] };
+    const conditions = whereArg.and;
+    const queryCondition = conditions.find(
+      (condition) =>
+        typeof condition === "object" &&
+        condition !== null &&
+        "ilike" in condition,
+    ) as { ilike: { pattern: unknown } } | undefined;
+    expect(queryCondition?.ilike.pattern).toBe("%100\\%\\_off\\\\%");
+  });
+
+  it("ignores an empty or whitespace-only filter[q] and does not add an ILIKE condition", async () => {
+    queryParams = { "filter[q]": "   " };
+    const { countWhere } = stubSelectResults({ value: 0 }, []);
+
+    await handler(buildEvent(userId));
+
+    const whereArg = countWhere.mock.calls[0]?.[0] as { and: unknown[] };
+    expect(whereArg.and).toHaveLength(1);
   });
 });
