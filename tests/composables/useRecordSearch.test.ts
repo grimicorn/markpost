@@ -151,4 +151,30 @@ describe("useRecordSearch", () => {
 
     expect(results.value).toEqual([secondRecord]);
   });
+
+  it("resets isSearching even when a stale response is discarded", async () => {
+    let resolveFirstFetch: (value: { data: unknown[] }) => void = () => {};
+    const firstFetch = new Promise<{ data: unknown[] }>((resolve) => {
+      resolveFirstFetch = resolve;
+    });
+    mockFetch.mockReturnValueOnce(firstFetch);
+
+    const { query, isSearching } = useRecordSearch();
+    query.value = "first";
+    await vi.advanceTimersByTimeAsync(250);
+    expect(isSearching.value).toBe(true);
+
+    // The next query is too short to search, so its own run bails out via
+    // the min-length guard before ever touching isSearching.
+    query.value = "a";
+    await vi.advanceTimersByTimeAsync(250);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    // The stale first request finally resolves; isSearching must still be
+    // reset even though its result is discarded as stale.
+    resolveFirstFetch({ data: [makeRecord({ uuid: "first" })] });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(isSearching.value).toBe(false);
+  });
 });

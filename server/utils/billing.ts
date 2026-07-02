@@ -188,6 +188,14 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+// `daysLeft` is exact (derived from the real trialEndsAt), but `percentElapsed`
+// back-computes the trial start by assuming every trial is TRIAL_PERIOD_DAYS
+// long. The subscriptions table doesn't persist the actual trial start date,
+// so if a trial is ever extended (a Stripe coupon, manual override, etc.) the
+// progress bar will be inaccurate even though the days-left label stays
+// correct. Fixing this properly requires storing Stripe's trial_start on the
+// subscription row — out of scope here since every trial created today goes
+// through createCheckoutSession with a fixed TRIAL_PERIOD_DAYS length.
 export function calculateTrialProgress(
   trialEndsAt: Date,
   now: Date = new Date(),

@@ -46,17 +46,20 @@ export function useRecordSearch() {
     }
 
     isSearching.value = true;
-    const found = await searchRecords(searchedQuery);
+    try {
+      const found = await searchRecords(searchedQuery);
 
-    // The query may have changed while this request was in flight. Drop the
-    // response if it no longer matches the current query so a slow, stale
-    // request can't overwrite newer results.
-    if (query.value !== searchedQuery) {
-      return;
+      // The query may have changed while this request was in flight. Drop
+      // the response if it no longer matches the current query so a slow,
+      // stale request can't overwrite newer results.
+      if (query.value !== searchedQuery) {
+        return;
+      }
+
+      results.value = found;
+    } finally {
+      isSearching.value = false;
     }
-
-    results.value = found;
-    isSearching.value = false;
   }
 
   function queueSearch(): void {
