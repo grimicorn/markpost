@@ -23,6 +23,12 @@ vi.mock("drizzle-orm", () => ({
   eq: (field: unknown, value: unknown) => ({ field, value }),
 }));
 
+const mockDeleteClerkUser = vi.fn();
+
+vi.mock("../../../../server/utils/clerk", () => ({
+  deleteClerkUser: mockDeleteClerkUser,
+}));
+
 // ── H3 globals ────────────────────────────────────────────────────────────
 
 const mockCreateError = createMockCreateError();
@@ -53,6 +59,7 @@ describe("DELETE /api/account", () => {
     });
     usersWhere.mockResolvedValue([]);
     deleteMock.mockImplementation(() => ({ where: usersWhere }));
+    mockDeleteClerkUser.mockResolvedValue(undefined);
   });
 
   it("throws 401 when the request is unauthenticated", async () => {
@@ -75,13 +82,31 @@ describe("DELETE /api/account", () => {
     );
   });
 
+  it("deletes the Clerk user for the authenticated userId", async () => {
+    await handler(buildEvent("user_123"));
+    expect(mockDeleteClerkUser).toHaveBeenCalledWith("user_123");
+  });
+
+  it("wipes app data before deleting the Clerk identity", async () => {
+    await handler(buildEvent("user_123"));
+    expect(usersWhere.mock.invocationCallOrder[0]).toBeLessThan(
+      mockDeleteClerkUser.mock.invocationCallOrder[0],
+    );
+  });
+
   it("returns { meta: { deleted: true } } on success", async () => {
     const result = await handler(buildEvent("user_123"));
     expect(result).toEqual({ meta: { deleted: true } });
   });
 
-  it("propagates errors through apiErrorHandler when the delete throws", async () => {
+  it("propagates errors through apiErrorHandler when the db delete throws", async () => {
     usersWhere.mockRejectedValueOnce(new Error("db error"));
+    await expect(handler(buildEvent("user_123"))).rejects.toThrow();
+    expect(mockDeleteClerkUser).not.toHaveBeenCalled();
+  });
+
+  it("propagates errors through apiErrorHandler when Clerk deletion throws", async () => {
+    mockDeleteClerkUser.mockRejectedValueOnce(new Error("clerk error"));
     await expect(handler(buildEvent("user_123"))).rejects.toThrow();
   });
 });

@@ -1,27 +1,11 @@
-import { createClerkClient } from "@clerk/backend";
 import { and, eq, isNull } from "drizzle-orm";
 import { getDb } from "../db";
 import { apiTokens } from "../db/schema";
 import { hashToken, isApiToken } from "../utils/tokens";
 import { ensureUserRegistered } from "../utils/auth";
+import { getClerkClient } from "../utils/clerk";
 
 const BEARER_PREFIX = /^Bearer\s+/i;
-
-let cachedClerkClient: ReturnType<typeof createClerkClient> | null = null;
-
-function getClerkClient() {
-  if (cachedClerkClient) {
-    return cachedClerkClient;
-  }
-
-  const secretKey = process.env.NUXT_CLERK_SECRET_KEY;
-  if (!secretKey) {
-    throw new Error("NUXT_CLERK_SECRET_KEY is not set");
-  }
-
-  cachedClerkClient = createClerkClient({ secretKey });
-  return cachedClerkClient;
-}
 
 async function updateLastUsedAt(tokenId: string): Promise<void> {
   try {

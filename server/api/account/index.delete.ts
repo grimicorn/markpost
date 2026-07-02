@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "../../db";
 import { users } from "../../db/schema";
 import { requireUser } from "../../utils/auth";
+import { deleteClerkUser } from "../../utils/clerk";
 import { apiErrorHandler } from "../../utils/errors";
 
 async function deleteAllUserData(userId: string): Promise<void> {
@@ -14,7 +15,10 @@ export default defineEventHandler(
   async (event): Promise<{ meta: { deleted: true } }> => {
     try {
       const userId = requireUser(event);
+      // Delete app data before the Clerk identity: the users-row delete is
+      // idempotent, so a retry after a Clerk failure safely no-ops the DB side.
       await deleteAllUserData(userId);
+      await deleteClerkUser(userId);
       return { meta: { deleted: true } };
     } catch (error) {
       return apiErrorHandler(error);
