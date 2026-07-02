@@ -124,4 +124,31 @@ describe("useRecordSearch", () => {
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
+
+  it("discards a slow, stale response once the query has moved on", async () => {
+    let resolveFirstFetch: (value: { data: unknown[] }) => void = () => {};
+    const firstFetch = new Promise<{ data: unknown[] }>((resolve) => {
+      resolveFirstFetch = resolve;
+    });
+    mockFetch.mockReturnValueOnce(firstFetch);
+
+    const { query, results } = useRecordSearch();
+    query.value = "first";
+    await vi.advanceTimersByTimeAsync(250);
+
+    // The first request is still in flight. Typing a new query queues and
+    // resolves a second, faster search before the first one returns.
+    const secondRecord = makeRecord({ uuid: "second" });
+    mockFetch.mockResolvedValueOnce({ data: [secondRecord] });
+    query.value = "second";
+    await vi.advanceTimersByTimeAsync(250);
+    expect(results.value).toEqual([secondRecord]);
+
+    // The stale first request finally resolves; it must not overwrite the
+    // results for the query that superseded it.
+    resolveFirstFetch({ data: [makeRecord({ uuid: "first" })] });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(results.value).toEqual([secondRecord]);
+  });
 });

@@ -39,13 +39,23 @@ export function useRecordSearch() {
   }
 
   async function runSearch(): Promise<void> {
-    if (query.value.trim().length < SEARCH_MIN_QUERY_LENGTH) {
+    const searchedQuery = query.value;
+    if (searchedQuery.trim().length < SEARCH_MIN_QUERY_LENGTH) {
       clearResults();
       return;
     }
 
     isSearching.value = true;
-    results.value = await searchRecords(query.value);
+    const found = await searchRecords(searchedQuery);
+
+    // The query may have changed while this request was in flight. Drop the
+    // response if it no longer matches the current query so a slow, stale
+    // request can't overwrite newer results.
+    if (query.value !== searchedQuery) {
+      return;
+    }
+
+    results.value = found;
     isSearching.value = false;
   }
 
@@ -57,6 +67,12 @@ export function useRecordSearch() {
   }
 
   watch(query, queueSearch);
+
+  onScopeDispose(() => {
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+    }
+  });
 
   return {
     query,
