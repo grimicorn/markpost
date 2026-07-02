@@ -21,7 +21,9 @@ export const apiTokens = pgTable(
   "api_tokens",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    userId: text("user_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.userId, { onDelete: "cascade" }),
     name: text("name").notNull(),
     prefix: text("prefix").notNull(),
     hashedToken: text("hashed_token").notNull(),
@@ -41,7 +43,9 @@ export const sources = pgTable(
   "sources",
   {
     uuid: uuid("uuid").primaryKey().defaultRandom(),
-    userId: text("user_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.userId, { onDelete: "cascade" }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -70,7 +74,9 @@ export const records = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
-    userId: text("user_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.userId, { onDelete: "cascade" }),
     title: text("title").notNull(),
     content: text("content").notNull(),
     sourceId: uuid("source_id").references(() => sources.uuid),
@@ -95,7 +101,9 @@ export const events = pgTable(
   "events",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    userId: text("user_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.userId, { onDelete: "cascade" }),
     ts: timestamp("ts", { withTimezone: true }).defaultNow().notNull(),
     kind: text("kind").notNull(),
     message: text("message").notNull(),
@@ -106,7 +114,9 @@ export const events = pgTable(
 );
 
 export const userSettings = pgTable("user_settings", {
-  userId: text("user_id").primaryKey(),
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.userId, { onDelete: "cascade" }),
   vaultDir: text("vault_dir").notNull().default("~/Documents/Vault"),
   filenameTemplate: text("filename_template")
     .notNull()
