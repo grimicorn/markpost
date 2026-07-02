@@ -1,0 +1,7 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SetLoadErrorAlert > matches snapshot 1`] = `
+"<div style="margin-bottom: 16px;">
+  <div class="app-alert" data-tone="err">DB unavailable. <button style="margin-top: 8px;"> retry </button></div>
+</div>"
+`;

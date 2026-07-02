@@ -1,0 +1,32 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SetBilling > matches snapshot on load error 1`] = `
+"<div>
+  <div class="set-head" data-desc="Unable to load your billing details. Try again below."></div>
+  <div class="load-error-alert" data-message="Failed to load billing details." data-retrying="false"></div>
+  <div class="card card-pad">
+    <p class="mono faint" style="font-size: 13px;">Billing details unavailable.</p>
+  </div>
+  <div class="usage-card"></div>
+</div>"
+`;
+
+exports[`SetBilling > matches snapshot once usage has loaded 1`] = `
+"<div>
+  <div class="set-head" data-desc="You're on the Pro trial. Add a payment method any time before it ends to keep Pro features."></div>
+  <!--v-if-->
+  <div class="plan-card"></div>
+  <div class="usage-card"></div>
+</div>"
+`;
+
+exports[`SetBilling > matches snapshot while loading 1`] = `
+"<div>
+  <div class="set-head" data-desc="Loading your billing details…"></div>
+  <!--v-if-->
+  <div class="card card-pad">
+    <p class="mono faint" style="font-size: 13px;">loading billing details…</p>
+  </div>
+  <div class="usage-card"></div>
+</div>"
+`;
