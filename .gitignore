@@ -3,10 +3,14 @@ node_modules/
 .nuxt/
 .output/
 dist/
-.env
-.env.e2e
 coverage/
 e2e/artifacts/
 e2e/report/
 /.netlify
 /.claude
+
+# Local env (dotenvx). The encrypted .env* files ARE committed; the private
+# keys and any local-only plaintext overrides are NOT.
+.env.keys
+.env.local
+.env.*.local
