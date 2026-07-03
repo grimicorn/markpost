@@ -106,13 +106,13 @@ jobs:
           api_key: ${{ secrets.NEON_API_KEY }}
           branch_name: ci-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.test-file }}
       - run: npm run e2e -- "e2e/$TEST_FILE.spec.ts"
+        # `npm run e2e` is `dotenvx run -f .env.e2e -- playwright test`; .env.e2e
+        # carries the Clerk keys, so only the e2e private key is needed here.
+        # E2E_DATABASE_URL is injected fresh per run and overrides the file value.
         env:
           TEST_FILE: ${{ matrix.test-file }}
+          DOTENV_PRIVATE_KEY_E2E: ${{ secrets.DOTENV_PRIVATE_KEY_E2E }}
           E2E_DATABASE_URL: ${{ steps.neon.outputs.db_url_pooled }}
-          NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
-          NUXT_CLERK_SECRET_KEY: ${{ secrets.NUXT_CLERK_SECRET_KEY }}
-          E2E_CLERK_TEST_EMAIL: ${{ secrets.E2E_CLERK_TEST_EMAIL }}
-          E2E_CLERK_TEST_PASSWORD: ${{ secrets.E2E_CLERK_TEST_PASSWORD }}
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
