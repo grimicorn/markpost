@@ -1,0 +1,25 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SetBillingUsageCard > matches snapshot while usage is null (loading/error) 1`] = `
+"<div>
+  <h3 class="h3" style="margin-top: 28px;">Usage this month</h3>
+  <div class="card" style="margin-top: 14px; padding: 4px 22px;">
+    <div class="divide-y">
+      <div class="set-row" data-label="Records synced"><span class="mono" style="font-size: 13px;">…</span></div>
+      <div class="set-row" data-label="Connected sources"><span class="mono" style="font-size: 13px;">…</span></div>
+    </div>
+  </div>
+</div>"
+`;
+
+exports[`SetBillingUsageCard > matches snapshot with Pro usage loaded 1`] = `
+"<div>
+  <h3 class="h3" style="margin-top: 28px;">Usage this month</h3>
+  <div class="card" style="margin-top: 14px; padding: 4px 22px;">
+    <div class="divide-y">
+      <div class="set-row" data-label="Records synced" data-hint="284 of unlimited on Pro."><span class="mono" style="font-size: 13px;">284</span></div>
+      <div class="set-row" data-label="Connected sources" data-hint="2 of unlimited."><span class="mono" style="font-size: 13px;">2</span></div>
+    </div>
+  </div>
+</div>"
+`;

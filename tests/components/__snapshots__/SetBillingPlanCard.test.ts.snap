@@ -1,0 +1,25 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SetBillingPlanCard > matches snapshot for an active Hobby plan 1`] = `
+"<div class="card card-pad">
+  <div class="row between wrap gap-4">
+    <div><span class="app-badge" data-tone="ok">hobby</span>
+      <!--v-if-->
+    </div>
+    <div class="col gap-2"><button>upgrade to pro</button><a href="/pricing">compare plans →</a></div>
+  </div>
+  <!--v-if-->
+</div>"
+`;
+
+exports[`SetBillingPlanCard > matches snapshot while trialing 1`] = `
+"<div class="card card-pad">
+  <div class="row between wrap gap-4">
+    <div><span class="app-badge" data-tone="accent">pro trial</span>
+      <p class="mono faint" style="font-size: 12px; margin-top: 12px;">trial ends Jun 23, 2026 · 9 days left</p>
+    </div>
+    <div class="col gap-2"><button>add payment method</button><a href="/pricing">compare plans →</a></div>
+  </div>
+  <!--v-if-->
+</div>"
+`;

@@ -6,20 +6,12 @@
       desc="Control how the markpost CLI writes records into your vault. These settings travel with your account and apply on every machine."
     />
 
-    <div v-if="loadError" style="margin-bottom: 16px">
-      <AppAlert tone="err" title="Load error">
-        {{ loadError }}
-        <AppBtn
-          variant="ghost"
-          size="sm"
-          style="margin-top: 8px"
-          :disabled="isLoading"
-          @click="load"
-        >
-          retry
-        </AppBtn>
-      </AppAlert>
-    </div>
+    <SetLoadErrorAlert
+      v-if="loadError"
+      :message="loadError"
+      :retrying="isLoading"
+      @retry="load"
+    />
 
     <div class="card card-pad">
       <div class="col gap-4">
@@ -136,6 +128,7 @@
 <script setup lang="ts">
 import SetHead from "./SetHead.vue";
 import SetRow from "./SetRow.vue";
+import SetLoadErrorAlert from "./SetLoadErrorAlert.vue";
 import type { ConflictStrategy } from "~/composables/useSyncSettings";
 
 const CONFLICT_STRATEGY_OPTIONS: { value: ConflictStrategy; label: string }[] =
