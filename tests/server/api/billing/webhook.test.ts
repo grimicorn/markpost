@@ -93,7 +93,9 @@ describe("POST /api/billing/webhook", () => {
     mockReadRawBody.mockResolvedValue("{}");
     mockGetHeader.mockReturnValue(undefined);
 
-    await expect(handler(buildEvent())).rejects.toThrow();
+    await expect(handler(buildEvent())).rejects.toMatchObject({
+      statusCode: 401,
+    });
     expect(mockCreateError).toHaveBeenCalledWith(
       expect.objectContaining({ statusCode: 401 }),
     );
@@ -104,7 +106,9 @@ describe("POST /api/billing/webhook", () => {
     mockReadRawBody.mockResolvedValue("{}");
     mockGetHeader.mockReturnValue("t=1234,v1=abc");
 
-    await expect(handler(buildEvent())).rejects.toThrow();
+    await expect(handler(buildEvent())).rejects.toMatchObject({
+      statusCode: 503,
+    });
     expect(mockCreateError).toHaveBeenCalledWith(
       expect.objectContaining({ statusCode: 503 }),
     );
@@ -117,7 +121,9 @@ describe("POST /api/billing/webhook", () => {
       throw new Error("No signatures found matching the expected signature");
     });
 
-    await expect(handler(buildEvent())).rejects.toThrow();
+    await expect(handler(buildEvent())).rejects.toMatchObject({
+      statusCode: 400,
+    });
     expect(mockCreateError).toHaveBeenCalledWith(
       expect.objectContaining({ statusCode: 400 }),
     );

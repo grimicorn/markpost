@@ -84,7 +84,9 @@ describe("DELETE /api/records", () => {
 
   describe("validation errors", () => {
     it("throws 401 when the user is not authenticated", async () => {
-      await expect(handler(buildEvent(undefined))).rejects.toThrow();
+      await expect(handler(buildEvent(undefined))).rejects.toMatchObject({
+        statusCode: 401,
+      });
       expect(mockCreateError).toHaveBeenCalledWith({
         statusCode: 401,
         statusMessage: "Unauthorized",
@@ -94,7 +96,9 @@ describe("DELETE /api/records", () => {
     it("throws 422 when uuids is missing from the request body", async () => {
       readBodyMock.mockResolvedValue({ data: { attributes: {} } });
 
-      await expect(handler(buildEvent(userId))).rejects.toThrow();
+      await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+        statusCode: 422,
+      });
       expect(mockCreateError).toHaveBeenCalledWith({
         statusCode: 422,
         data: { errors: expect.any(Array) },
@@ -104,7 +108,9 @@ describe("DELETE /api/records", () => {
     it("throws 422 when uuids is an empty array", async () => {
       readBodyMock.mockResolvedValue(buildBody([]));
 
-      await expect(handler(buildEvent(userId))).rejects.toThrow();
+      await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+        statusCode: 422,
+      });
       expect(mockCreateError).toHaveBeenCalledWith({
         statusCode: 422,
         data: { errors: expect.any(Array) },
@@ -114,7 +120,9 @@ describe("DELETE /api/records", () => {
     it("throws 422 when uuids is not an array", async () => {
       readBodyMock.mockResolvedValue(buildBody("not-an-array"));
 
-      await expect(handler(buildEvent(userId))).rejects.toThrow();
+      await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+        statusCode: 422,
+      });
       expect(mockCreateError).toHaveBeenCalledWith({
         statusCode: 422,
         data: { errors: expect.any(Array) },
@@ -124,7 +132,9 @@ describe("DELETE /api/records", () => {
     it("throws 422 when uuids contains non-string elements", async () => {
       readBodyMock.mockResolvedValue(buildBody([uuidOne, 123, {}]));
 
-      await expect(handler(buildEvent(userId))).rejects.toThrow();
+      await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+        statusCode: 422,
+      });
       expect(mockCreateError).toHaveBeenCalledWith({
         statusCode: 422,
         data: { errors: expect.any(Array) },
@@ -134,7 +144,9 @@ describe("DELETE /api/records", () => {
     it("throws 422 when uuids contains malformed UUID strings", async () => {
       readBodyMock.mockResolvedValue(buildBody([uuidOne, "not-a-uuid"]));
 
-      await expect(handler(buildEvent(userId))).rejects.toThrow();
+      await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+        statusCode: 422,
+      });
       expect(mockCreateError).toHaveBeenCalledWith({
         statusCode: 422,
         data: { errors: expect.any(Array) },
@@ -144,7 +156,9 @@ describe("DELETE /api/records", () => {
     it("throws 422 when data.attributes is missing entirely", async () => {
       readBodyMock.mockResolvedValue({ data: {} });
 
-      await expect(handler(buildEvent(userId))).rejects.toThrow();
+      await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+        statusCode: 422,
+      });
       expect(mockCreateError).toHaveBeenCalledWith({
         statusCode: 422,
         data: { errors: expect.any(Array) },

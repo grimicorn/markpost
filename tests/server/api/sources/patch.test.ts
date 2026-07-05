@@ -132,7 +132,9 @@ describe("PATCH /api/sources/:uuid", () => {
     mockGetRouterParam.mockReturnValue(validUuid);
     mockReadBody.mockResolvedValue(buildBody({}));
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
       data: { errors: expect.any(Array) },
@@ -143,7 +145,9 @@ describe("PATCH /api/sources/:uuid", () => {
     mockGetRouterParam.mockReturnValue(validUuid);
     mockReadBody.mockResolvedValue(buildBody({ routeFolder: 123 }));
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
       data: {
@@ -166,7 +170,9 @@ describe("PATCH /api/sources/:uuid", () => {
     );
     stubUpdateResult([]);
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 404,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 404,
       data: {
@@ -187,7 +193,9 @@ describe("PATCH /api/sources/:uuid", () => {
       buildBody({ routeFolder: "99-incoming/", fieldMapping: null }),
     );
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 400,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 400,
       data: {
@@ -206,7 +214,9 @@ describe("PATCH /api/sources/:uuid", () => {
   it("throws 401 when the user is not authenticated", async () => {
     mockGetRouterParam.mockReturnValue(validUuid);
 
-    await expect(handler(buildEvent(undefined))).rejects.toThrow();
+    await expect(handler(buildEvent(undefined))).rejects.toMatchObject({
+      statusCode: 401,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 401,
       statusMessage: "Unauthorized",

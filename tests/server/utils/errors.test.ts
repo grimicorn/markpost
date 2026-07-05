@@ -94,6 +94,30 @@ describe("apiErrorHandler", () => {
     consoleErrorSpy.mockRestore();
   });
 
+  it("re-throws pre-formed HTTP errors untouched instead of masking them as a 500", () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    const httpError = Object.assign(new Error("Unauthorized"), {
+      statusCode: 401,
+      statusMessage: "Unauthorized",
+    });
+
+    let thrown: unknown;
+    try {
+      apiErrorHandler(httpError);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBe(httpError);
+    expect(mockCreateError).not.toHaveBeenCalled();
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+
+    consoleErrorSpy.mockRestore();
+  });
+
   it("handles non-Error unknown values for the 500 fallback", () => {
     const consoleErrorSpy = vi
       .spyOn(console, "error")

@@ -189,7 +189,9 @@ describe("POST /api/hooks/[slug]", () => {
       stubSourceOnly([]);
       mockReadRawBody.mockResolvedValue(JSON.stringify({ title: "T" }));
 
-      await expect(handler(buildEvent())).rejects.toThrow();
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 404,
+      });
       expect(mockCreateError).toHaveBeenCalledWith({
         statusCode: 404,
         data: {
@@ -208,7 +210,9 @@ describe("POST /api/hooks/[slug]", () => {
       mockGetRouterParam.mockReturnValue(undefined);
       mockReadRawBody.mockResolvedValue("");
 
-      await expect(handler(buildEvent())).rejects.toThrow();
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 404,
+      });
       expect(mockCreateError).toHaveBeenCalledWith(
         expect.objectContaining({ statusCode: 404 }),
       );
@@ -297,7 +301,9 @@ describe("POST /api/hooks/[slug]", () => {
       );
       mockGetHeader.mockReturnValue(undefined);
 
-      await expect(handler(buildEvent())).rejects.toThrow();
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 401,
+      });
       expect(mockCreateError).toHaveBeenCalledWith(
         expect.objectContaining({ statusCode: 401 }),
       );
@@ -313,7 +319,9 @@ describe("POST /api/hooks/[slug]", () => {
         buildValidStripeHeader(rawBody, "wrong_secret"),
       );
 
-      await expect(handler(buildEvent())).rejects.toThrow();
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 401,
+      });
       expect(mockCreateError).toHaveBeenCalledWith(
         expect.objectContaining({ statusCode: 401 }),
       );
@@ -343,7 +351,9 @@ describe("POST /api/hooks/[slug]", () => {
       mockReadRawBody.mockResolvedValue(rawBody);
       mockGetHeader.mockReturnValue("t=1,v1=abc");
 
-      await expect(handler(buildEvent())).rejects.toThrow();
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 401,
+      });
       expect(mockCreateError).toHaveBeenCalledWith(
         expect.objectContaining({ statusCode: 401 }),
       );
@@ -388,7 +398,9 @@ describe("POST /api/hooks/[slug]", () => {
       stubUpdateStats();
       mockReadRawBody.mockResolvedValue(rawBody);
 
-      await expect(handler(buildEvent())).rejects.toThrow();
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 500,
+      });
       expect(mockCreateError).toHaveBeenCalledWith(
         expect.objectContaining({ statusCode: 500 }),
       );

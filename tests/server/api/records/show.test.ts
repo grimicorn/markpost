@@ -121,7 +121,9 @@ describe("GET /api/records/:uuid", () => {
   it("throws a 404 when no record exists for the authenticated user", async () => {
     stubSelectResult([]);
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 404,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 404,
       data: { errors: expect.any(Array) },
@@ -131,7 +133,9 @@ describe("GET /api/records/:uuid", () => {
   it("throws a 404 when the record belongs to a different user", async () => {
     const { where } = stubSelectResult([]);
 
-    await expect(handler(buildEvent("user_other"))).rejects.toThrow();
+    await expect(handler(buildEvent("user_other"))).rejects.toMatchObject({
+      statusCode: 404,
+    });
     expect(where).toHaveBeenCalled();
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 404,
@@ -140,7 +144,9 @@ describe("GET /api/records/:uuid", () => {
   });
 
   it("throws a 401 when the user is not authenticated", async () => {
-    await expect(handler(buildEvent(undefined))).rejects.toThrow();
+    await expect(handler(buildEvent(undefined))).rejects.toMatchObject({
+      statusCode: 401,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 401,
       statusMessage: "Unauthorized",
@@ -153,7 +159,9 @@ describe("GET /api/records/:uuid", () => {
   ])("throws a 400 when the uuid is $label", async ({ value }) => {
     routerParam = value;
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 400,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 400,
       data: { errors: expect.any(Array) },

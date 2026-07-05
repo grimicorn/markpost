@@ -61,7 +61,9 @@ describe("DELETE /api/sources/:uuid", () => {
     mockGetRouterParam.mockReturnValue(validUuid);
     stubDeleteResult([]);
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 404,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 404,
       data: {
@@ -79,7 +81,9 @@ describe("DELETE /api/sources/:uuid", () => {
   it("throws 400 when the uuid is malformed", async () => {
     mockGetRouterParam.mockReturnValue("not-a-valid-uuid");
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 400,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 400,
       data: {
@@ -98,7 +102,9 @@ describe("DELETE /api/sources/:uuid", () => {
   it("throws 401 when the user is not authenticated", async () => {
     mockGetRouterParam.mockReturnValue(validUuid);
 
-    await expect(handler(buildEvent(undefined))).rejects.toThrow();
+    await expect(handler(buildEvent(undefined))).rejects.toMatchObject({
+      statusCode: 401,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 401,
       statusMessage: "Unauthorized",

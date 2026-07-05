@@ -64,7 +64,7 @@ describe("DELETE /api/account", () => {
 
   it("throws 401 when the request is unauthenticated", async () => {
     const event = buildEvent(undefined);
-    await expect(handler(event)).rejects.toThrow();
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 401 });
     expect(mockCreateError).toHaveBeenCalledWith(
       expect.objectContaining({ statusCode: 401 }),
     );

@@ -61,7 +61,9 @@ afterEach(() => {
 
 describe("POST /api/billing/portal", () => {
   it("throws 401 when the user is not authenticated", async () => {
-    await expect(handler(buildEvent(undefined))).rejects.toThrow();
+    await expect(handler(buildEvent(undefined))).rejects.toMatchObject({
+      statusCode: 401,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 401,
       statusMessage: "Unauthorized",
@@ -71,7 +73,9 @@ describe("POST /api/billing/portal", () => {
   it("throws 404 when the user has no subscription", async () => {
     mockFindSubscriptionByUserId.mockResolvedValue(null);
 
-    await expect(handler(buildEvent(USER_ID))).rejects.toThrow();
+    await expect(handler(buildEvent(USER_ID))).rejects.toMatchObject({
+      statusCode: 404,
+    });
     expect(mockCreateError).toHaveBeenCalledWith(
       expect.objectContaining({ statusCode: 404 }),
     );
@@ -82,7 +86,9 @@ describe("POST /api/billing/portal", () => {
       stripeCustomerId: null,
     });
 
-    await expect(handler(buildEvent(USER_ID))).rejects.toThrow();
+    await expect(handler(buildEvent(USER_ID))).rejects.toMatchObject({
+      statusCode: 404,
+    });
     expect(mockCreateError).toHaveBeenCalledWith(
       expect.objectContaining({ statusCode: 404 }),
     );

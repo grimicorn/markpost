@@ -108,7 +108,9 @@ describe("POST /api/sources", () => {
       buildBody({ name: "My Webhook", routeFolder: "99-incoming/" }),
     );
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
       data: {
@@ -129,7 +131,9 @@ describe("POST /api/sources", () => {
       buildBody({ type: "webhook", routeFolder: "99-incoming/" }),
     );
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
       data: {
@@ -150,7 +154,9 @@ describe("POST /api/sources", () => {
       buildBody({ type: "webhook", name: "My Webhook" }),
     );
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
       data: {
@@ -175,7 +181,9 @@ describe("POST /api/sources", () => {
       }),
     );
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
       data: {
@@ -218,7 +226,9 @@ describe("POST /api/sources", () => {
       }),
     );
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
       data: {
@@ -277,7 +287,9 @@ describe("POST /api/sources", () => {
     const values = vi.fn(() => ({ returning }));
     insertMock.mockReturnValue({ values });
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 409,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 409,
       data: { errors: expect.any(Array) },
@@ -313,7 +325,9 @@ describe("POST /api/sources", () => {
       }),
     );
 
-    await expect(handler(buildEvent(undefined))).rejects.toThrow();
+    await expect(handler(buildEvent(undefined))).rejects.toMatchObject({
+      statusCode: 401,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 401,
       statusMessage: "Unauthorized",

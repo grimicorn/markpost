@@ -85,7 +85,9 @@ afterEach(() => {
 
 describe("GET /api/events", () => {
   it("throws 401 when user is not authenticated", async () => {
-    await expect(handler(buildEvent(undefined))).rejects.toThrow();
+    await expect(handler(buildEvent(undefined))).rejects.toMatchObject({
+      statusCode: 401,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 401,
       statusMessage: "Unauthorized",
@@ -175,7 +177,9 @@ describe("GET /api/events", () => {
   it("throws 400 when the after cursor is a non-UUID string", async () => {
     mockGetQuery.mockReturnValue({ "page[after]": "not-a-uuid" });
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 400,
+    });
     expect(mockCreateError).toHaveBeenCalledWith(
       expect.objectContaining({ statusCode: 400 }),
     );
@@ -193,7 +197,9 @@ describe("GET /api/events", () => {
       return { from: fromFn };
     });
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 400,
+    });
     expect(mockCreateError).toHaveBeenCalledWith(
       expect.objectContaining({ statusCode: 400 }),
     );

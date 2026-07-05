@@ -62,7 +62,9 @@ describe("DELETE /api/tokens/:id", () => {
     mockGetRouterParam.mockReturnValue(tokenId);
     stubUpdateResult([]);
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 404,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 404,
       data: {
@@ -77,7 +79,9 @@ describe("DELETE /api/tokens/:id", () => {
     mockGetRouterParam.mockReturnValue(tokenId);
     stubUpdateResult([]);
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 404,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 404,
       data: { errors: [expect.objectContaining({ status: "404" })] },
@@ -87,7 +91,9 @@ describe("DELETE /api/tokens/:id", () => {
   it("throws 401 when the user is not authenticated", async () => {
     mockGetRouterParam.mockReturnValue(tokenId);
 
-    await expect(handler(buildEvent(undefined))).rejects.toThrow();
+    await expect(handler(buildEvent(undefined))).rejects.toMatchObject({
+      statusCode: 401,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 401,
       statusMessage: "Unauthorized",
@@ -97,7 +103,9 @@ describe("DELETE /api/tokens/:id", () => {
   it("throws 400 when the token ID is missing from the route", async () => {
     mockGetRouterParam.mockReturnValue(undefined);
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 400,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 400,
       data: { errors: [expect.objectContaining({ status: "400" })] },
@@ -107,7 +115,9 @@ describe("DELETE /api/tokens/:id", () => {
   it("throws 400 when the token ID is not a valid UUID", async () => {
     mockGetRouterParam.mockReturnValue("not-a-uuid");
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 400,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 400,
       data: {

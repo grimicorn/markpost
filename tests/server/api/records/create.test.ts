@@ -122,7 +122,9 @@ describe("POST /api/records", () => {
   it("throws a 422 with one error when title is missing", async () => {
     mockReadBody.mockResolvedValue(buildBody({ content: "My Content" }));
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
       data: {
@@ -141,7 +143,9 @@ describe("POST /api/records", () => {
   it("throws a 422 with one error when both content and html are missing", async () => {
     mockReadBody.mockResolvedValue(buildBody({ title: "My Title" }));
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
       data: {
@@ -162,7 +166,9 @@ describe("POST /api/records", () => {
       buildBody({ title: {}, content: "My Content" }),
     );
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
       data: {
@@ -183,7 +189,9 @@ describe("POST /api/records", () => {
       buildBody({ title: "My Title", content: 123 }),
     );
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
       data: {
@@ -202,7 +210,9 @@ describe("POST /api/records", () => {
   it("throws a 422 with two errors when both title and content are not strings", async () => {
     mockReadBody.mockResolvedValue(buildBody({ title: {}, content: 123 }));
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
       data: {
@@ -227,7 +237,9 @@ describe("POST /api/records", () => {
   it("throws a 422 with one error when title is missing and neither content nor html is given", async () => {
     mockReadBody.mockResolvedValue(buildBody({}));
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
     // title is still required via apiValidate; content/html check fires only after title passes
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
@@ -249,7 +261,9 @@ describe("POST /api/records", () => {
       buildBody({ title: "My Title", content: "My Content" }),
     );
 
-    await expect(handler(buildEvent(undefined))).rejects.toThrow();
+    await expect(handler(buildEvent(undefined))).rejects.toMatchObject({
+      statusCode: 401,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 401,
       statusMessage: "Unauthorized",
@@ -323,7 +337,9 @@ describe("POST /api/records", () => {
       }),
     );
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
       data: {
@@ -395,7 +411,9 @@ describe("POST /api/records", () => {
       }),
     );
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
       data: {
@@ -420,7 +438,9 @@ describe("POST /api/records", () => {
       }),
     );
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
       data: {
@@ -460,7 +480,9 @@ describe("POST /api/records", () => {
       }),
     );
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
       data: {
@@ -485,7 +507,9 @@ describe("POST /api/records", () => {
       }),
     );
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
       data: {
@@ -526,7 +550,9 @@ describe("POST /api/records", () => {
       }),
     );
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
       data: {
@@ -551,7 +577,9 @@ describe("POST /api/records", () => {
       }),
     );
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
       data: {

@@ -135,7 +135,9 @@ describe("POST /api/tokens", () => {
   it("throws 422 when name is missing", async () => {
     mockReadBody.mockResolvedValue(buildBody({}));
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
       data: {
@@ -152,7 +154,9 @@ describe("POST /api/tokens", () => {
   it("throws 422 when name is not a string", async () => {
     mockReadBody.mockResolvedValue(buildBody({ name: 42 }));
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
       data: {
@@ -169,7 +173,9 @@ describe("POST /api/tokens", () => {
   it("throws 422 when the request body is empty (no body sent)", async () => {
     mockReadBody.mockResolvedValue(undefined);
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
       data: {
@@ -184,7 +190,9 @@ describe("POST /api/tokens", () => {
   });
 
   it("throws 401 when the user is not authenticated", async () => {
-    await expect(handler(buildEvent(undefined))).rejects.toThrow();
+    await expect(handler(buildEvent(undefined))).rejects.toMatchObject({
+      statusCode: 401,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 401,
       statusMessage: "Unauthorized",

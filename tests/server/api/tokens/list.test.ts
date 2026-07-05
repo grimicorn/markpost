@@ -110,7 +110,9 @@ describe("GET /api/tokens", () => {
   });
 
   it("throws 401 when the user is not authenticated", async () => {
-    await expect(handler(buildEvent(undefined))).rejects.toThrow();
+    await expect(handler(buildEvent(undefined))).rejects.toMatchObject({
+      statusCode: 401,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 401,
       statusMessage: "Unauthorized",

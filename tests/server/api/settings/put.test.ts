@@ -183,7 +183,9 @@ describe("PUT /api/settings", () => {
       buildBody({ conflictStrategy: "invalid_value" }),
     );
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
       data: {
@@ -200,7 +202,9 @@ describe("PUT /api/settings", () => {
   it("throws a 422 when theme is not a valid enum value", async () => {
     mockReadBody.mockResolvedValue(buildBody({ theme: "neon" }));
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
       data: {
@@ -217,7 +221,9 @@ describe("PUT /api/settings", () => {
   it("throws a 422 when autoSync is not a boolean", async () => {
     mockReadBody.mockResolvedValue(buildBody({ autoSync: "yes" }));
 
-    await expect(handler(buildEvent(userId))).rejects.toThrow();
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 422,
       data: {
@@ -234,7 +240,9 @@ describe("PUT /api/settings", () => {
   it("throws a 401 when the user is not authenticated", async () => {
     mockReadBody.mockResolvedValue(buildBody({ vaultDir: "~/Notes" }));
 
-    await expect(handler(buildEvent(undefined))).rejects.toThrow();
+    await expect(handler(buildEvent(undefined))).rejects.toMatchObject({
+      statusCode: 401,
+    });
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 401,
       statusMessage: "Unauthorized",
