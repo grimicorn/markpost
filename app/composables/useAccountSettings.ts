@@ -1,4 +1,3 @@
-import { useUser } from "@clerk/nuxt";
 import type {
   UserResource,
   SessionWithActivitiesResource,

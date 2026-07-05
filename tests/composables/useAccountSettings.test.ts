@@ -16,8 +16,9 @@ vi.stubGlobal("navigateTo", vi.fn());
 
 const mockUserRef = ref<ReturnType<typeof makeMockUser> | null>(null);
 
-vi.mock("@clerk/nuxt", () => ({
-  useUser: () => ({ user: mockUserRef, isLoaded: computed(() => true) }),
+vi.stubGlobal("useUser", () => ({
+  user: mockUserRef,
+  isLoaded: computed(() => true),
 }));
 
 function makeMockUser(overrides: Record<string, unknown> = {}) {
