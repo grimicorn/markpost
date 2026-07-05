@@ -1,11 +1,7 @@
 export type BillingPlan = "hobby" | "pro";
 
 export type BillingStatus =
-  | "active"
-  | "trialing"
-  | "past_due"
-  | "canceled"
-  | "incomplete";
+  "active" | "trialing" | "past_due" | "canceled" | "incomplete";
 
 export type BillingUsage = {
   recordsSyncedThisMonth: number;

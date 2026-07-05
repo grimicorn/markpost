@@ -284,8 +284,7 @@ export function useAccountSettings() {
     ];
     return (
       (candidates.find((candidate) => typeof candidate === "string") as
-        | string
-        | undefined) ?? fallback
+        string | undefined) ?? fallback
     );
   }
 
