@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { records, sources } from "../../../server/db/schema";
 
 const selectMock = vi.fn();
 const mockFindSubscriptionByUserId = vi.fn();
@@ -7,11 +8,23 @@ vi.mock("../../../server/db", () => ({
   getDb: () => ({ select: selectMock }),
 }));
 
+// Spy-wrapped (not just pass-through) so tests can assert *which* column each
+// query filters on — this is what actually proves the record cap counts by
+// createdAt rather than syncedAt (see server/utils/planLimits.ts).
+const andMock = vi.fn((...conditions: unknown[]) => ({ and: conditions }));
+const countMock = vi.fn((expr?: unknown) => ({ count: expr }));
+const eqMock = vi.fn((column: unknown, value: unknown) => ({
+  eq: { column, value },
+}));
+const gteMock = vi.fn((column: unknown, value: unknown) => ({
+  gte: { column, value },
+}));
+
 vi.mock("drizzle-orm", () => ({
-  and: (...conditions: unknown[]) => ({ and: conditions }),
-  count: (expr?: unknown) => ({ count: expr }),
-  eq: (column: unknown, value: unknown) => ({ eq: { column, value } }),
-  gte: (column: unknown, value: unknown) => ({ gte: { column, value } }),
+  and: (...args: unknown[]) => andMock(...args),
+  count: (expr?: unknown) => countMock(expr),
+  eq: (column: unknown, value: unknown) => eqMock(column, value),
+  gte: (column: unknown, value: unknown) => gteMock(column, value),
 }));
 
 vi.mock("../../../server/utils/billing", async () => {
@@ -44,10 +57,15 @@ function stubSelectResult(total: number | string | null) {
 beforeEach(() => {
   selectMock.mockReset();
   mockFindSubscriptionByUserId.mockReset();
+  andMock.mockClear();
+  countMock.mockClear();
+  eqMock.mockClear();
+  gteMock.mockClear();
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 describe("assertWithinRecordLimit", () => {
@@ -102,6 +120,22 @@ describe("assertWithinRecordLimit", () => {
       statusCode: 403,
     });
   });
+
+  it("counts by createdAt (not syncedAt), scoped to the given user and the current calendar month", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-18T15:30:00Z"));
+    mockFindSubscriptionByUserId.mockResolvedValue({ plan: "hobby" });
+    stubSelectResult(0);
+
+    await assertWithinRecordLimit(USER_ID);
+
+    expect(eqMock).toHaveBeenCalledWith(records.userId, USER_ID);
+    expect(gteMock).toHaveBeenCalledWith(
+      records.createdAt,
+      new Date(Date.UTC(2026, 6, 1)),
+    );
+    expect(andMock).toHaveBeenCalled();
+  });
 });
 
 describe("assertWithinSourceLimit", () => {
@@ -133,5 +167,15 @@ describe("assertWithinSourceLimit", () => {
 
     await expect(assertWithinSourceLimit(USER_ID)).resolves.toBeUndefined();
     expect(selectMock).not.toHaveBeenCalled();
+  });
+
+  it("scopes the connected source count to the given user, with no month filter", async () => {
+    mockFindSubscriptionByUserId.mockResolvedValue({ plan: "hobby" });
+    stubSelectResult(0);
+
+    await assertWithinSourceLimit(USER_ID);
+
+    expect(eqMock).toHaveBeenCalledWith(sources.userId, USER_ID);
+    expect(gteMock).not.toHaveBeenCalled();
   });
 });

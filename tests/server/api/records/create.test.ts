@@ -604,7 +604,7 @@ describe("POST /api/records", () => {
             status: "403",
             title: "Plan Limit Reached",
             detail:
-              "You've reached the Hobby plan limit of 100 records synced per month. Upgrade to Pro for unlimited usage.",
+              "You've reached the Hobby plan limit of 100 records per month. Upgrade to Pro for unlimited usage.",
           },
         ],
         403,

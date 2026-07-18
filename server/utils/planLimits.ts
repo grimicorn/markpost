@@ -41,6 +41,14 @@ type LimitCheck = {
 // Single reusable gate behind assertWithinRecordLimit / assertWithinSourceLimit
 // below, so the "resolve plan, skip non-Hobby, count, compare, throw" sequence
 // exists in exactly one place rather than once per write path.
+//
+// This is a best-effort, read-then-write check, not an atomic guarantee: two
+// concurrent requests can both read a count under the limit and both insert,
+// letting a Hobby user land one row over the advertised cap in a race. A hard
+// guarantee would need a DB-level constraint (e.g. a partial unique index for
+// the 1-source case); that's a schema change and out of scope here, so this
+// intentionally accepts a small, self-correcting overshoot in exchange for
+// keeping the enforcement isolated to a single read + compare.
 async function assertWithinLimit(check: LimitCheck): Promise<void> {
   const plan = await resolveUserPlan(check.userId);
 
@@ -63,6 +71,13 @@ function startOfMonthUtc(now: Date = new Date()): Date {
 // ingestion (server/api/hooks/[slug].post.ts) inserts records without ever
 // setting syncedAt, so gating on syncedAt (as the usage.get.ts display metric
 // does) would let that write path bypass the cap entirely.
+//
+// This counts current rows, so a deleted record frees up quota within the
+// same month (the cap tracks "records currently attributed to this month",
+// not a strictly monotonic creation counter). Records have no delete-tracking
+// column to distinguish "never existed" from "created and later removed", so
+// a stricter monotonic counter would need a separate ledger — out of scope
+// here; this still closes the unlimited-creation bug the issue reports.
 async function countRecordsCreatedThisMonth(userId: string): Promise<number> {
   const db = getDb();
   const monthStart = startOfMonthUtc();
@@ -92,7 +107,10 @@ export async function assertWithinRecordLimit(userId: string): Promise<void> {
   await assertWithinLimit({
     userId,
     limit: HOBBY_MONTHLY_RECORD_LIMIT,
-    limitDescription: `${HOBBY_MONTHLY_RECORD_LIMIT} records synced per month`,
+    // "records per month" (not "records synced per month"): the count below
+    // includes not-yet-synced records too, so the wording must not imply the
+    // narrower syncedAt-based metric shown on the billing usage dashboard.
+    limitDescription: `${HOBBY_MONTHLY_RECORD_LIMIT} records per month`,
     countCurrent: countRecordsCreatedThisMonth,
   });
 }
