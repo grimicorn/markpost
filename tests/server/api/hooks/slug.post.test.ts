@@ -32,6 +32,12 @@ vi.mock("../../../../server/utils/eventWriter", () => ({
   writeEvent: (...args: unknown[]) => mockWriteEvent(...args),
 }));
 
+const mockRecordWebhookHit = vi.fn();
+
+vi.mock("../../../../server/utils/webhookThrottle", () => ({
+  recordWebhookHit: (...args: unknown[]) => mockRecordWebhookHit(...args),
+}));
+
 const mockCreateError = vi.fn((options: object) => {
   const error = new Error("createError");
   Object.assign(error, options);
@@ -42,6 +48,7 @@ const mockReadRawBody = vi.fn();
 const mockGetHeader = vi.fn();
 const mockGetRouterParam = vi.fn();
 const mockSetResponseStatus = vi.fn();
+const mockSetHeader = vi.fn();
 
 vi.stubGlobal("defineEventHandler", (fn: unknown) => fn);
 
@@ -161,17 +168,21 @@ beforeEach(() => {
   vi.stubGlobal("getHeader", mockGetHeader);
   vi.stubGlobal("getRouterParam", mockGetRouterParam);
   vi.stubGlobal("setResponseStatus", mockSetResponseStatus);
+  vi.stubGlobal("setHeader", mockSetHeader);
 
   mockCreateError.mockClear();
   mockReadRawBody.mockClear();
   mockGetHeader.mockClear();
   mockGetRouterParam.mockClear();
   mockSetResponseStatus.mockClear();
+  mockSetHeader.mockClear();
 
   selectMock.mockReset();
   insertMock.mockReset();
   updateMock.mockReset();
   mockWriteEvent.mockResolvedValue(undefined);
+  mockRecordWebhookHit.mockReset();
+  mockRecordWebhookHit.mockResolvedValue({ allowed: true });
 
   mockGetRouterParam.mockReturnValue("wh_abc12345");
   mockGetHeader.mockReturnValue(undefined);
@@ -443,6 +454,97 @@ describe("POST /api/hooks/[slug]", () => {
         stubUpdateStats();
         mockWriteEvent.mockRejectedValue(new Error("event write error"));
       });
+    });
+  });
+
+  describe("throttling", () => {
+    it("returns 429 with a Retry-After header when the source is over its limit", async () => {
+      stubSourceOnly([sampleSource]);
+      mockRecordWebhookHit.mockResolvedValue({
+        allowed: false,
+        retryAfterSeconds: 42,
+      });
+      mockReadRawBody.mockResolvedValue(JSON.stringify({ title: "T" }));
+
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 429,
+      });
+      expect(mockCreateError).toHaveBeenCalledWith({
+        statusCode: 429,
+        data: {
+          errors: [expect.objectContaining({ status: "429" })],
+        },
+      });
+      expect(mockSetHeader).toHaveBeenCalledWith(
+        expect.anything(),
+        "Retry-After",
+        "42",
+      );
+    });
+
+    it("does not insert a record when throttled", async () => {
+      stubSourceOnly([sampleSource]);
+      mockRecordWebhookHit.mockResolvedValue({
+        allowed: false,
+        retryAfterSeconds: 10,
+      });
+      mockReadRawBody.mockResolvedValue(JSON.stringify({ title: "T" }));
+
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 429,
+      });
+      expect(insertMock).not.toHaveBeenCalled();
+    });
+
+    it("proceeds to ingest when the source is within its limit", async () => {
+      stubSourceAndSettings([sampleSource]);
+      stubInsertRecord(sampleRecord);
+      stubUpdateStats();
+      mockRecordWebhookHit.mockResolvedValue({ allowed: true });
+      mockReadRawBody.mockResolvedValue(
+        JSON.stringify({ title: "T", content: "C" }),
+      );
+
+      const response = await handler(buildEvent());
+
+      expect202Success(response, mockSetResponseStatus, sampleRecord.uuid);
+      expect(mockRecordWebhookHit).toHaveBeenCalledWith(SOURCE_UUID);
+    });
+
+    it("verifies the signature before spending throttle budget on a provider source", async () => {
+      // HMAC verification is cheap and stateless, so it runs before the throttle
+      // check: an attacker who only knows the slug (not the provider secret)
+      // must not be able to burn a signed source's shared window with junk
+      // requests. A missing signature should 401 without ever recording a hit.
+      const stripeSource = { ...sampleSource, provider: "stripe" };
+      stubSourceOnly([stripeSource]);
+      mockRecordWebhookHit.mockResolvedValue({
+        allowed: false,
+        retryAfterSeconds: 5,
+      });
+      mockReadRawBody.mockResolvedValue(
+        JSON.stringify({ type: "charge.succeeded" }),
+      );
+      mockGetHeader.mockReturnValue(undefined);
+
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 401,
+      });
+      expect(mockRecordWebhookHit).not.toHaveBeenCalled();
+    });
+
+    it("still throttles a no-provider source, whose signature check is a no-op", async () => {
+      stubSourceOnly([sampleSource]);
+      mockRecordWebhookHit.mockResolvedValue({
+        allowed: false,
+        retryAfterSeconds: 5,
+      });
+      mockReadRawBody.mockResolvedValue(JSON.stringify({ title: "T" }));
+
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 429,
+      });
+      expect(mockRecordWebhookHit).toHaveBeenCalledWith(SOURCE_UUID);
     });
   });
 });

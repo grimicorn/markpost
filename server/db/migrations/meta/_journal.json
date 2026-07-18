@@ -64,6 +64,13 @@
       "when": 1783000000000,
       "tag": "0008_add_subscriptions_table",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784417364656,
+      "tag": "0009_add_source_throttle_columns",
+      "breakpoints": true
     }
   ]
 }
