@@ -8,10 +8,17 @@ import {
 import { findSubscriptionByUserId } from "./billing";
 import { ApiError } from "./errors";
 
-const HOBBY_PLAN: SubscriptionPlan = "hobby";
 // A user with no subscription row is treated the same as an explicit Hobby
 // subscription everywhere else in the app (see usage.get.ts DEFAULT_PLAN).
 const DEFAULT_PLAN: SubscriptionPlan = "hobby";
+
+// Explicit allowlist of plans exempt from the cap, checked with .includes()
+// rather than "plan !== HOBBY_PLAN". A negative check is fail-open: any
+// unexpected value in the `plan` column (a legacy tier, a bad backfill — the
+// column is plain `text`, not a DB-enforced enum) would silently disable
+// enforcement. This allowlist fails closed instead: only a plan explicitly
+// known to be unlimited skips the cap.
+const UNLIMITED_PLANS: readonly SubscriptionPlan[] = ["pro"];
 
 async function resolveUserPlan(userId: string): Promise<SubscriptionPlan> {
   const subscription = await findSubscriptionByUserId(userId);
@@ -52,7 +59,7 @@ type LimitCheck = {
 async function assertWithinLimit(check: LimitCheck): Promise<void> {
   const plan = await resolveUserPlan(check.userId);
 
-  if (plan !== HOBBY_PLAN) {
+  if (UNLIMITED_PLANS.includes(plan)) {
     return;
   }
 

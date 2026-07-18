@@ -136,6 +136,18 @@ describe("assertWithinRecordLimit", () => {
     );
     expect(andMock).toHaveBeenCalled();
   });
+
+  it("fails closed (still enforces the cap) for an unexpected plan value, not just 'hobby'", async () => {
+    // The `plan` column is plain text, not a DB-enforced enum, so a legacy or
+    // bad value must not silently disable enforcement (only the explicit
+    // "pro" allowlist entry should).
+    mockFindSubscriptionByUserId.mockResolvedValue({ plan: "legacy-tier" });
+    stubSelectResult(HOBBY_MONTHLY_RECORD_LIMIT);
+
+    await expect(assertWithinRecordLimit(USER_ID)).rejects.toMatchObject({
+      statusCode: 403,
+    });
+  });
 });
 
 describe("assertWithinSourceLimit", () => {
