@@ -1,3 +1,8 @@
+import {
+  HOBBY_MONTHLY_RECORD_LIMIT,
+  HOBBY_CONNECTED_SOURCE_LIMIT,
+} from "../../shared/utils/planLimits";
+
 export type BillingPlan = "hobby" | "pro";
 
 export type BillingStatus =
@@ -112,11 +117,11 @@ export function deriveBillingCtaLabel(
   return deriveProBillingCtaLabel(status);
 }
 
-// These limits mirror the Hobby plan copy on the /pricing page
-// (app/pages/pricing.vue: hobbyFeatures / comparisonRows). Pro has no cap.
-// Keep in sync if the plan limits ever change.
-const HOBBY_MONTHLY_RECORD_LIMIT = 100;
-const HOBBY_CONNECTED_SOURCE_LIMIT = 1;
+// HOBBY_MONTHLY_RECORD_LIMIT / HOBBY_CONNECTED_SOURCE_LIMIT mirror the Hobby
+// plan copy on the /pricing page (app/pages/pricing.vue: hobbyFeatures /
+// comparisonRows) and are enforced server-side (server/utils/planLimits.ts).
+// Pro has no cap. Both live in shared/utils/planLimits.ts so there is exactly
+// one copy of the numbers.
 
 export function describeRecordsSyncedHint(
   plan: BillingPlan,

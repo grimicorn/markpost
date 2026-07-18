@@ -5,6 +5,7 @@ import {
   stubFailingUpdate,
   spyConsoleError,
 } from "../../helpers";
+import { ApiError } from "../../../../server/utils/errors";
 
 const selectMock = vi.fn();
 const insertMock = vi.fn();
@@ -30,6 +31,16 @@ const mockWriteEvent = vi.fn();
 
 vi.mock("../../../../server/utils/eventWriter", () => ({
   writeEvent: (...args: unknown[]) => mockWriteEvent(...args),
+}));
+
+// The Hobby plan cap check is a separate concern with its own test coverage
+// (tests/server/utils/planLimits.test.ts); mock it here so these tests focus
+// on request handling and default to "within limit".
+const mockAssertWithinRecordLimit = vi.fn();
+
+vi.mock("../../../../server/utils/planLimits", () => ({
+  assertWithinRecordLimit: (...args: unknown[]) =>
+    mockAssertWithinRecordLimit(...args),
 }));
 
 const mockCreateError = vi.fn((options: object) => {
@@ -172,6 +183,8 @@ beforeEach(() => {
   insertMock.mockReset();
   updateMock.mockReset();
   mockWriteEvent.mockResolvedValue(undefined);
+  mockAssertWithinRecordLimit.mockReset();
+  mockAssertWithinRecordLimit.mockResolvedValue(undefined);
 
   mockGetRouterParam.mockReturnValue("wh_abc12345");
   mockGetHeader.mockReturnValue(undefined);
@@ -382,6 +395,47 @@ describe("POST /api/hooks/[slug]", () => {
       )[0];
       expect(insertedValues.title).toBe("Deployment done");
       expect(insertedValues.content).toBe("All green");
+    });
+  });
+
+  describe("Hobby plan record cap", () => {
+    it("checks the cap for the source's owner before inserting", async () => {
+      const rawBody = JSON.stringify({ title: "T", content: "C" });
+
+      stubSourceAndSettings([sampleSource]);
+      stubInsertRecord(sampleRecord);
+      stubUpdateStats();
+      mockReadRawBody.mockResolvedValue(rawBody);
+
+      await handler(buildEvent());
+
+      expect(mockAssertWithinRecordLimit).toHaveBeenCalledWith(USER_ID);
+      expect(insertMock).toHaveBeenCalled();
+    });
+
+    it("blocks ingest with whatever error assertWithinRecordLimit throws when the Hobby cap is reached", async () => {
+      const rawBody = JSON.stringify({ title: "T", content: "C" });
+
+      stubSourceOnly([sampleSource]);
+      mockReadRawBody.mockResolvedValue(rawBody);
+      mockAssertWithinRecordLimit.mockRejectedValue(
+        new ApiError(
+          [
+            {
+              status: "403",
+              title: "Plan Limit Reached",
+              detail:
+                "You've reached the Hobby plan limit of 100 records synced per month. Upgrade to Pro for unlimited usage.",
+            },
+          ],
+          403,
+        ),
+      );
+
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 403,
+      });
+      expect(insertMock).not.toHaveBeenCalled();
     });
   });
 

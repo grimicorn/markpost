@@ -5,6 +5,7 @@ import { records, sources, userSettings } from "../../db/schema";
 import { apiErrorHandler, ApiError } from "../../utils/errors";
 import { applyFieldMapping } from "../../utils/fieldMapper";
 import { parseWebhookPayload, type UserSettings } from "../../utils/markdown";
+import { assertWithinRecordLimit } from "../../utils/planLimits";
 import { verifyProviderSignature } from "../../utils/signatureVerifier";
 import { writeEvent } from "../../utils/eventWriter";
 
@@ -257,6 +258,8 @@ export default defineEventHandler(async (event) => {
 
     const providerHeaders = buildProviderHeaders(event);
     checkSignature(source, providerHeaders, rawBody);
+
+    await assertWithinRecordLimit(source.userId);
 
     const record = await buildAndInsertRecord(source, rawBody);
     await writeBestEffortSideEffects(source, record);
