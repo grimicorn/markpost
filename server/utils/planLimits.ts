@@ -72,6 +72,15 @@ function startOfMonthUtc(now: Date = new Date()): Date {
 // setting syncedAt, so gating on syncedAt (as the usage.get.ts display metric
 // does) would let that write path bypass the cap entirely.
 //
+// @todo this createdAt-based count is intentionally a different (stricter,
+// harder to bypass) metric than the syncedAt-based "recordsSyncedThisMonth"
+// shown on the billing usage dashboard (server/api/billing/usage.get.ts). A
+// Hobby user can therefore be blocked here while the dashboard still shows
+// them under 100 synced. Reconciling that — e.g. surfacing a
+// recordsCreatedThisMonth stat on BillingUsage so the UI matches what's
+// enforced — is a dashboard/API contract change beyond this issue's scope
+// (server-side write-path enforcement); track it as a follow-up.
+//
 // This counts current rows, so a deleted record frees up quota within the
 // same month (the cap tracks "records currently attributed to this month",
 // not a strictly monotonic creation counter). Records have no delete-tracking
