@@ -180,6 +180,7 @@ beforeEach(() => {
   selectMock.mockReset();
   insertMock.mockReset();
   updateMock.mockReset();
+  mockWriteEvent.mockReset();
   mockWriteEvent.mockResolvedValue(undefined);
   mockRecordWebhookHit.mockReset();
   mockRecordWebhookHit.mockResolvedValue({ allowed: true });
@@ -435,7 +436,7 @@ describe("POST /api/hooks/[slug]", () => {
 
       stubSourceAndSettings([sampleSource]);
       stubInsertRecord({ ...sampleRecord, title: "Deploy done" });
-      stubUpdateStats();
+      const { set: updateSet } = stubUpdateStats();
       mockReadRawBody.mockResolvedValue(rawBody);
 
       await handler(buildEvent());
@@ -447,6 +448,12 @@ describe("POST /api/hooks/[slug]", () => {
         recordUuid: sampleRecord.uuid,
         sourceId: SOURCE_UUID,
       });
+      // The success path writes only the "ok" event: no "err" event, and the
+      // record is never marked "error" alongside it.
+      expect(mockWriteEvent).toHaveBeenCalledTimes(1);
+      expect(updateSet).not.toHaveBeenCalledWith(
+        expect.objectContaining({ status: "error" }),
+      );
     });
 
     it("does not throw when writeEvent fails", async () => {
@@ -454,6 +461,74 @@ describe("POST /api/hooks/[slug]", () => {
         stubUpdateStats();
         mockWriteEvent.mockRejectedValue(new Error("event write error"));
       });
+    });
+
+    it("writes an err event and marks the record error when the ok event write fails", async () => {
+      const rawBody = JSON.stringify({ title: "T", content: "C" });
+      const writeError = new Error("event write error");
+
+      stubSourceAndSettings([sampleSource]);
+      stubInsertRecord(sampleRecord);
+      const { set: updateSet } = stubUpdateStats();
+      mockReadRawBody.mockResolvedValue(rawBody);
+      mockWriteEvent.mockImplementation((input: { kind: string }) =>
+        input.kind === "ok" ? Promise.reject(writeError) : Promise.resolve(),
+      );
+      const consoleErrorSpy = spyConsoleError();
+
+      const response = await handler(buildEvent());
+
+      expect202Success(response, mockSetResponseStatus, sampleRecord.uuid);
+      expect(mockWriteEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: USER_ID,
+          kind: "err",
+          message: expect.stringContaining("event write error"),
+          recordUuid: sampleRecord.uuid,
+          sourceId: SOURCE_UUID,
+        }),
+      );
+      expect(updateSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "error",
+          errorMessage: "event write error",
+        }),
+      );
+
+      consoleErrorSpy.mockRestore();
+    });
+
+    it("does not throw when both the ok event write and the record-error mark fail", async () => {
+      const rawBody = JSON.stringify({ title: "T", content: "C" });
+
+      stubSourceAndSettings([sampleSource]);
+      stubInsertRecord(sampleRecord);
+      stubFailingUpdate(updateMock);
+      mockReadRawBody.mockResolvedValue(rawBody);
+      mockWriteEvent.mockRejectedValue(new Error("event write error"));
+      const consoleErrorSpy = spyConsoleError();
+
+      const response = await handler(buildEvent());
+
+      expect202Success(response, mockSetResponseStatus, sampleRecord.uuid);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining("[hooks/ingest] failed to mark record error:"),
+        expect.any(Error),
+      );
+
+      consoleErrorSpy.mockRestore();
+    });
+
+    it("does not fabricate a record or write an err event when the failure happens before a record exists", async () => {
+      stubSourceOnly([]);
+      mockReadRawBody.mockResolvedValue(JSON.stringify({ title: "T" }));
+
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 404,
+      });
+
+      expect(mockWriteEvent).not.toHaveBeenCalled();
+      expect(updateMock).not.toHaveBeenCalled();
     });
   });
 
