@@ -39,12 +39,13 @@ jobs:
     # migrates prod. Never runs on PRs or feature branches.
     #
     # Required repository secret (Settings → Secrets → Actions):
-    #   DOTENV_PRIVATE_KEY_PRODUCTION — decrypts .env.production, which holds the
-    #                                   production DATABASE_URL that drizzle.config
-    #                                   reads. Same key already set in Netlify.
+    #   DOTENV_PRIVATE_KEY_PRODUCTION — decrypts .env.production, which holds
+    #                                   DATABASE_URL_UNPOOLED, the direct Neon
+    #                                   connection drizzle.config prefers. Same
+    #                                   key already set in Netlify.
     #
-    # DATABASE_URL must be a direct (non-pooled) Neon connection string; pooled
-    # PgBouncer connections break DDL.
+    # Migrations must use the direct endpoint; pooled PgBouncer connections break
+    # DDL. The pooled DATABASE_URL stays reserved for the running app.
     needs: [ci]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
