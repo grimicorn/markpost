@@ -243,8 +243,12 @@ async function buildAndInsertRecord(source: SourceRow, rawBody: string) {
 
 // The record already exists at this point (writeBestEffortSideEffects is only ever
 // called after a successful insert), so unlike the outer handler catch, we know
-// there is a real record to mark. Both the record update and the err event write
-// are themselves best-effort: this runs from within a best-effort branch and must
+// there is a real record to mark. The record's own content was parsed and stored
+// fine; what failed is confirming that in the activity log. We still flag the
+// record so the failure is visible in-app rather than only in server logs, but the
+// event/record messages deliberately say "failed to confirm", not "ingestion
+// failed" — the 202 response that follows is telling the sender the truth. Both
+// writes are themselves best-effort (each swallows its own failure) so this must
 // not throw, or it would defeat the "don't roll back the 202 response" guarantee.
 async function recordIngestEventFailure(
   source: SourceRow,
@@ -255,14 +259,14 @@ async function recordIngestEventFailure(
 
   const errorMessage = toErrorMessage(writeError);
 
-  await Promise.allSettled([
+  await Promise.all([
     markRecordError(record.uuid, errorMessage).catch((markError) => {
       console.error("[hooks/ingest] failed to mark record error:", markError);
     }),
     writeEvent({
       userId: source.userId,
       kind: EVENT_KIND_ERR,
-      message: `Webhook ingestion failed: ${errorMessage}`,
+      message: `Failed to confirm webhook ingestion: ${errorMessage}`,
       recordUuid: record.uuid,
       sourceId: source.uuid,
     }).catch((errEventError) => {
