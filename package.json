@@ -20,6 +20,7 @@
     "prepare": "husky",
     "db:generate": "dotenvx run -f .env -- drizzle-kit generate",
     "db:migrate": "dotenvx run -f .env -- drizzle-kit migrate",
+    "db:check:production": "dotenvx run -f .env.production -- node scripts/check-migration-drift.ts",
     "db:migrate:production": "dotenvx run -f .env.production -- drizzle-kit migrate",
     "db:push": "dotenvx run -f .env -- drizzle-kit push",
     "db:studio": "dotenvx run -f .env -- drizzle-kit studio",

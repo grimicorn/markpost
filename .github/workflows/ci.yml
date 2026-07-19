@@ -62,6 +62,15 @@ jobs:
       - run: npm ci
         env:
           HUSKY: 0
+      # drizzle selects migrations by a timestamp watermark and never compares
+      # hashes, so a journal `when` edited after the fact makes it re-run applied
+      # DDL or skip a migration forever. Both have already broken this database.
+      # Fail here, before any DDL is attempted, rather than mid-migration.
+      - name: Check migration bookkeeping for drift
+        run: npm run db:check:production
+        env:
+          DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
+
       - name: Apply Drizzle migrations to production
         run: npm run db:migrate:production
         env:
