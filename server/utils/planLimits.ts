@@ -4,7 +4,7 @@ import { records, sources, type SubscriptionPlan } from "../db/schema";
 import {
   HOBBY_CONNECTED_SOURCE_LIMIT,
   HOBBY_MONTHLY_RECORD_LIMIT,
-} from "../../shared/utils/planLimits";
+} from "#shared/utils/planLimits";
 import { findSubscriptionByUserId } from "./billing";
 import { ApiError } from "./errors";
 

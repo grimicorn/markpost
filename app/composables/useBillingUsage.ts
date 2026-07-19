@@ -1,7 +1,7 @@
 import {
   HOBBY_MONTHLY_RECORD_LIMIT,
   HOBBY_CONNECTED_SOURCE_LIMIT,
-} from "../../shared/utils/planLimits";
+} from "#shared/utils/planLimits";
 
 export type BillingPlan = "hobby" | "pro";
 
