@@ -11,7 +11,9 @@ import { writeEvent } from "../../utils/eventWriter";
 const DEFAULT_FILENAME_TEMPLATE = "{{date}}-{{slug}}.md";
 const STRIPE_WEBHOOK_SECRET_ENV = "STRIPE_WEBHOOK_SECRET";
 const RECORD_STATUS_PENDING = "pending";
+const RECORD_STATUS_ERROR = "error";
 const EVENT_KIND_OK = "ok";
+const EVENT_KIND_ERR = "err";
 
 type SourceRow = {
   uuid: string;
@@ -138,6 +140,24 @@ async function updateSourceStats(sourceId: string): Promise<void> {
     .where(eq(sources.uuid, sourceId));
 }
 
+async function markRecordError(
+  recordUuid: string,
+  errorMessage: string,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(records)
+    .set({
+      status: RECORD_STATUS_ERROR,
+      errorMessage,
+    })
+    .where(eq(records.uuid, recordUuid));
+}
+
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 function buildProviderHeaders(
   event: H3Event,
 ): Record<string, string | undefined> {
@@ -221,6 +241,36 @@ async function buildAndInsertRecord(source: SourceRow, rawBody: string) {
   return insertWebhookRecord(source, parsed);
 }
 
+// The record already exists at this point (writeBestEffortSideEffects is only ever
+// called after a successful insert), so unlike the outer handler catch, we know
+// there is a real record to mark. Both the record update and the err event write
+// are themselves best-effort: this runs from within a best-effort branch and must
+// not throw, or it would defeat the "don't roll back the 202 response" guarantee.
+async function recordIngestEventFailure(
+  source: SourceRow,
+  record: { uuid: string; title: string },
+  writeError: unknown,
+): Promise<void> {
+  console.error("[hooks/ingest] failed to write event:", writeError);
+
+  const errorMessage = toErrorMessage(writeError);
+
+  await Promise.allSettled([
+    markRecordError(record.uuid, errorMessage).catch((markError) => {
+      console.error("[hooks/ingest] failed to mark record error:", markError);
+    }),
+    writeEvent({
+      userId: source.userId,
+      kind: EVENT_KIND_ERR,
+      message: `Webhook ingestion failed: ${errorMessage}`,
+      recordUuid: record.uuid,
+      sourceId: source.uuid,
+    }).catch((errEventError) => {
+      console.error("[hooks/ingest] failed to write err event:", errEventError);
+    }),
+  ]);
+}
+
 async function writeBestEffortSideEffects(
   source: SourceRow,
   record: { uuid: string; title: string },
@@ -241,9 +291,9 @@ async function writeBestEffortSideEffects(
       message: `Webhook received: ${record.title}`,
       recordUuid: record.uuid,
       sourceId: source.uuid,
-    }).catch((writeError) => {
-      console.error("[hooks/ingest] failed to write event:", writeError);
-    }),
+    }).catch((writeError) =>
+      recordIngestEventFailure(source, record, writeError),
+    ),
   ]);
 }
 
