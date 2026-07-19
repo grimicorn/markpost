@@ -98,6 +98,12 @@ export const sources = pgTable(
     fieldMapping: jsonb("field_mapping"),
     lastHitAt: timestamp("last_hit_at", { withTimezone: true }),
     recordCount: integer("record_count").default(0).notNull(),
+    throttleWindowStart: timestamp("throttle_window_start", {
+      withTimezone: true,
+    })
+      .defaultNow()
+      .notNull(),
+    throttleCount: integer("throttle_count").default(0).notNull(),
   },
   (table) => [
     index("sources_user_id_idx").on(table.userId),

@@ -7,6 +7,7 @@ import { applyFieldMapping } from "../../utils/fieldMapper";
 import { parseWebhookPayload, type UserSettings } from "../../utils/markdown";
 import { verifyProviderSignature } from "../../utils/signatureVerifier";
 import { writeEvent } from "../../utils/eventWriter";
+import { recordWebhookHit } from "../../utils/webhookThrottle";
 
 const DEFAULT_FILENAME_TEMPLATE = "{{date}}-{{slug}}.md";
 const STRIPE_WEBHOOK_SECRET_ENV = "STRIPE_WEBHOOK_SECRET";
@@ -49,6 +50,20 @@ function signatureError(reason: string): ApiError {
       },
     ],
     401,
+  );
+}
+
+function throttledError(): ApiError {
+  return new ApiError(
+    [
+      {
+        status: "429",
+        title: "Too Many Requests",
+        detail:
+          "This webhook source is receiving too many requests. Slow down and try again shortly.",
+      },
+    ],
+    429,
   );
 }
 
@@ -204,6 +219,26 @@ function checkSignature(
   }
 }
 
+const RETRY_AFTER_HEADER = "Retry-After";
+
+async function enforceThrottle(
+  event: H3Event,
+  source: SourceRow,
+): Promise<void> {
+  const throttleResult = await recordWebhookHit(source.uuid);
+
+  if (throttleResult.allowed) {
+    return;
+  }
+
+  setHeader(
+    event,
+    RETRY_AFTER_HEADER,
+    String(throttleResult.retryAfterSeconds),
+  );
+  throw throttledError();
+}
+
 async function buildAndInsertRecord(source: SourceRow, rawBody: string) {
   const payload = parseBodyToPayload(rawBody);
   const webhookPayload = applyFieldMapping(
@@ -255,8 +290,17 @@ export default defineEventHandler(async (event) => {
     const rawBodyText = await readRawBody(event);
     const rawBody = rawBodyText ?? "";
 
+    // Verify the signature before spending throttle budget: HMAC verification
+    // is cheap and stateless, so checking it first stops an attacker who only
+    // knows the slug (but not the provider secret) from burning a signed
+    // source's shared window with junk requests and 429-ing legitimate,
+    // correctly-signed deliveries. No-provider sources verify as a no-op, so
+    // this reordering does not weaken protection for the slug-only flood case
+    // the throttle primarily exists for.
     const providerHeaders = buildProviderHeaders(event);
     checkSignature(source, providerHeaders, rawBody);
+
+    await enforceThrottle(event, source);
 
     const record = await buildAndInsertRecord(source, rawBody);
     await writeBestEffortSideEffects(source, record);
