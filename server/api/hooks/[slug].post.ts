@@ -5,6 +5,7 @@ import { records, sources, userSettings } from "../../db/schema";
 import { apiErrorHandler, ApiError } from "../../utils/errors";
 import { applyFieldMapping } from "../../utils/fieldMapper";
 import { parseWebhookPayload, type UserSettings } from "../../utils/markdown";
+import { assertWithinRecordLimit } from "../../utils/planLimits";
 import { verifyProviderSignature } from "../../utils/signatureVerifier";
 import { writeEvent } from "../../utils/eventWriter";
 import { recordWebhookHit } from "../../utils/webhookThrottle";
@@ -354,7 +355,13 @@ export default defineEventHandler(async (event) => {
     const providerHeaders = buildProviderHeaders(event);
     checkSignature(source, providerHeaders, rawBody);
 
+    // Throttle before the plan-limit check: recordWebhookHit must observe every
+    // request that gets this far, or a user sitting at their monthly cap would
+    // throw past the throttle on each delivery and never register in the window.
+    // It is also the cheaper guard, so it sheds load before the subscription
+    // lookup and monthly COUNT that assertWithinRecordLimit runs.
     await enforceThrottle(event, source);
+    await assertWithinRecordLimit(source.userId);
 
     const record = await buildAndInsertRecord(source, rawBody);
     await writeBestEffortSideEffects(source, record);
