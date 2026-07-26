@@ -7,6 +7,7 @@
 // state instead of the true cumulative schema — producing a bogus or
 // incomplete migration.
 import { readdirSync, readFileSync, realpathSync } from "node:fs";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 // Relative to the repo root, matching scripts/check-migration-drift.ts's own
@@ -59,6 +60,27 @@ export function findMissingSnapshotTags(
   });
 }
 
+// The inverse gap: a snapshot file left on disk with no matching journal
+// entry (e.g. a bad merge dropped the journal entry but kept the file).
+// `drizzle-kit generate` picks the highest-numbered snapshot file as its
+// diff base regardless of the journal, so an orphan is just as dangerous as
+// a missing snapshot.
+export function findOrphanSnapshotFiles(
+  journalTags: string[],
+  existingSnapshotFilenames: string[],
+): string[] {
+  const journalPrefixes = new Set(
+    journalTags
+      .map((tag) => tag.match(JOURNAL_TAG_PREFIX_PATTERN)?.[1])
+      .filter((prefix): prefix is string => Boolean(prefix)),
+  );
+
+  return existingSnapshotFilenames.filter((filename) => {
+    const prefix = filename.match(SNAPSHOT_FILENAME_PATTERN)?.[1];
+    return Boolean(prefix) && !journalPrefixes.has(prefix as string);
+  });
+}
+
 // A snapshot file existing is not enough: 0009_snapshot.json existed all
 // along but its `prevId` pointed straight at 0004, silently skipping
 // 0005-0008. This walks the chain in journal order and reports any link
@@ -68,20 +90,20 @@ export function findBrokenChainLinks(
   orderedSnapshots: SnapshotChainLink[],
 ): string[] {
   return orderedSnapshots.flatMap((snapshot, index) => {
-    const expectedPrevId =
-      index === 0 ? ROOT_SNAPSHOT_PREV_ID : orderedSnapshots[index - 1].id;
+    const previousSnapshot =
+      index === 0 ? undefined : orderedSnapshots[index - 1];
+    const expectedPrevId = previousSnapshot?.id ?? ROOT_SNAPSHOT_PREV_ID;
 
     if (snapshot.prevId === expectedPrevId) {
       return [];
     }
 
-    if (index === 0) {
+    if (!previousSnapshot) {
       return [
         `${snapshot.tag}: prevId "${snapshot.prevId}" is not the root sentinel "${ROOT_SNAPSHOT_PREV_ID}"`,
       ];
     }
 
-    const previousSnapshot = orderedSnapshots[index - 1];
     return [
       `${snapshot.tag}: prevId "${snapshot.prevId}" does not match ` +
         `"${previousSnapshot.tag}"'s id "${previousSnapshot.id}"`,
@@ -97,11 +119,13 @@ function readJournal(journalFile: string): Journal {
     throw new Error(`${journalFile} has no "entries" array`);
   }
 
-  const hasNonStringTag = journal.entries.some(
-    (entry) => typeof entry?.tag !== "string",
+  const hasInvalidEntry = journal.entries.some(
+    (entry) => typeof entry?.tag !== "string" || !Number.isInteger(entry?.idx),
   );
-  if (hasNonStringTag) {
-    throw new Error(`${journalFile} has an entry with a non-string "tag"`);
+  if (hasInvalidEntry) {
+    throw new Error(
+      `${journalFile} has an entry with a non-string "tag" or non-integer "idx"`,
+    );
   }
 
   return journal as Journal;
@@ -122,7 +146,12 @@ export function loadSnapshotChain(
   metaFolder: string,
 ): SnapshotChainLink[] {
   return journalTags.map((tag) => {
-    const filePath = `${metaFolder}/${snapshotFilenameForTag(tag)}`;
+    const filename = snapshotFilenameForTag(tag);
+    if (!filename) {
+      throw new Error(`journal tag "${tag}" has no NNNN_ prefix`);
+    }
+
+    const filePath = join(metaFolder, filename);
     const raw = readFileSync(filePath, "utf8");
     const snapshot = JSON.parse(raw) as Partial<SnapshotChainLink>;
 
@@ -153,8 +182,8 @@ function reportProblems(title: string, problems: string[]): void {
 
 async function main(): Promise<void> {
   const migrationsFolder = process.argv[2] ?? DEFAULT_MIGRATIONS_FOLDER;
-  const metaFolder = `${migrationsFolder}/meta`;
-  const journalFile = `${metaFolder}/_journal.json`;
+  const metaFolder = join(migrationsFolder, "meta");
+  const journalFile = join(metaFolder, "_journal.json");
 
   const journal = readJournal(journalFile);
   const journalTags = orderedJournalTags(journal);
@@ -174,6 +203,24 @@ async function main(): Promise<void> {
       `\nEach entry in ${journalFile} must have a matching <NNNN>_snapshot.json ` +
         `in ${metaFolder}/, or the next \`drizzle-kit generate\` will diff ` +
         "against a stale base schema.",
+    );
+    return;
+  }
+
+  const orphanFilenames = findOrphanSnapshotFiles(
+    journalTags,
+    existingSnapshotFilenames,
+  );
+
+  if (orphanFilenames.length > 0) {
+    reportProblems(
+      "Snapshot file(s) with no matching journal entry:",
+      orphanFilenames,
+    );
+    console.error(
+      `\nEach <NNNN>_snapshot.json in ${metaFolder}/ must have a matching ` +
+        `entry in ${journalFile}, or \`drizzle-kit generate\` will diff ` +
+        "against an orphaned, unreferenced snapshot.",
     );
     return;
   }
@@ -202,7 +249,13 @@ function isInvokedDirectly(): boolean {
     return false;
   }
 
-  return import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+  try {
+    return (
+      import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href
+    );
+  } catch {
+    return false;
+  }
 }
 
 async function run(): Promise<void> {

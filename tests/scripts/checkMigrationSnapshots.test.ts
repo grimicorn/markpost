@@ -13,6 +13,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   findBrokenChainLinks,
   findMissingSnapshotTags,
+  findOrphanSnapshotFiles,
   loadSnapshotChain,
 } from "../../scripts/check-migration-snapshots";
 
@@ -100,6 +101,53 @@ describe("findMissingSnapshotTags", () => {
 
     expect(
       findMissingSnapshotTags(journalTags, existingSnapshotFilenames),
+    ).toEqual([]);
+  });
+});
+
+describe("findOrphanSnapshotFiles", () => {
+  it("reports nothing when every snapshot file has a matching journal tag", () => {
+    const existingSnapshotFilenames = [
+      "0000_snapshot.json",
+      "0001_snapshot.json",
+      "0002_snapshot.json",
+      "_journal.json",
+    ];
+
+    expect(
+      findOrphanSnapshotFiles(journalTags, existingSnapshotFilenames),
+    ).toEqual([]);
+  });
+
+  // The inverse of the production gap: a snapshot file survives (e.g. a bad
+  // merge/rebase) after its journal entry was dropped. drizzle-kit generate
+  // picks the highest-numbered snapshot file regardless of the journal, so
+  // this is just as dangerous as a missing snapshot.
+  it("catches a snapshot file with no matching journal entry", () => {
+    const existingSnapshotFilenames = [
+      "0000_snapshot.json",
+      "0001_snapshot.json",
+      "0002_snapshot.json",
+      "0003_snapshot.json",
+      "_journal.json",
+    ];
+
+    expect(
+      findOrphanSnapshotFiles(journalTags, existingSnapshotFilenames),
+    ).toEqual(["0003_snapshot.json"]);
+  });
+
+  it("ignores non-snapshot files present in the meta directory", () => {
+    const existingSnapshotFilenames = [
+      "0000_snapshot.json",
+      "0001_snapshot.json",
+      "0002_snapshot.json",
+      "_journal.json",
+      ".DS_Store",
+    ];
+
+    expect(
+      findOrphanSnapshotFiles(journalTags, existingSnapshotFilenames),
     ).toEqual([]);
   });
 });
@@ -258,6 +306,14 @@ describe("server/db/migrations snapshot completeness (repo state)", () => {
 
     expect(findBrokenChainLinks(chain)).toEqual([]);
   });
+
+  it("has no snapshot file left over with no matching journal entry", () => {
+    const existingSnapshotFilenames = readdirSync(META_FOLDER);
+
+    expect(
+      findOrphanSnapshotFiles(readRepoJournalTags(), existingSnapshotFilenames),
+    ).toEqual([]);
+  });
 });
 
 // Exercises the actual CLI entry point (main(), the direct-invocation guard,
@@ -357,5 +413,62 @@ describe("check-migration-snapshots CLI", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("Broken migration snapshot chain link(s)");
     expect(result.stderr).toContain("0001_b");
+  });
+
+  it("exits 1 and reports the orphan when a snapshot file has no journal entry", () => {
+    const { migrationsFolder, metaFolder } = makeFixtureMigrationsFolder();
+    writeFileSync(
+      join(metaFolder, "_journal.json"),
+      JSON.stringify({ entries: [{ idx: 0, tag: "0000_a" }] }),
+    );
+    writeFileSync(
+      join(metaFolder, "0000_snapshot.json"),
+      JSON.stringify({ id: "id-0", prevId: ROOT_SNAPSHOT_PREV_ID }),
+    );
+    // 0001_snapshot.json survives with no matching journal entry.
+    writeFileSync(
+      join(metaFolder, "0001_snapshot.json"),
+      JSON.stringify({ id: "id-1", prevId: "id-0" }),
+    );
+
+    const result = runCli(migrationsFolder);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      "Snapshot file(s) with no matching journal entry",
+    );
+    expect(result.stderr).toContain("0001_snapshot.json");
+  });
+
+  it("exits 1 with a readable error when the journal has no entries array", () => {
+    const { migrationsFolder, metaFolder } = makeFixtureMigrationsFolder();
+    writeFileSync(
+      join(metaFolder, "_journal.json"),
+      JSON.stringify({ entries: {} }),
+    );
+
+    const result = runCli(migrationsFolder);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('has no "entries" array');
+  });
+
+  it("exits 1 with a readable error when a journal entry has no idx", () => {
+    const { migrationsFolder, metaFolder } = makeFixtureMigrationsFolder();
+    writeFileSync(
+      join(metaFolder, "_journal.json"),
+      JSON.stringify({ entries: [{ tag: "0000_a" }] }),
+    );
+
+    const result = runCli(migrationsFolder);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('non-string "tag" or non-integer "idx"');
+  });
+
+  it("exits 1 rather than crashing when the migrations folder doesn't exist", () => {
+    const result = runCli("does/not/exist");
+
+    expect(result.status).toBe(1);
   });
 });
