@@ -598,7 +598,11 @@ describe("POST /api/sources", () => {
       expect(insertedValues.providerSecret).not.toBe(revealedSecret);
     });
 
-    it("reveals the user-supplied providerSecret verbatim for stripe", async () => {
+    it("never echoes the user-supplied stripe providerSecret back in the response", async () => {
+      // Unlike github/zapier/shortcuts (server-generated, revealed once since
+      // the user has no other way to see it), the user already has their own
+      // Stripe secret — echoing it back would only add it to the response
+      // body/logs/devtools for no benefit.
       mockReadBody.mockResolvedValue(
         buildBody({
           type: "stripe",
@@ -607,17 +611,64 @@ describe("POST /api/sources", () => {
           providerSecret: "whsec_user_supplied_secret",
         }),
       );
-      stubInsertResult([
+      const { values } = stubInsertResult([
         { ...sampleSource, type: "stripe", provider: "stripe" },
       ]);
 
       const response = await handler(buildEvent(userId));
 
+      const insertedValues = (
+        values.mock.calls[0] as [Record<string, unknown>]
+      )[0];
+      expect(insertedValues.providerSecret).toBe("whsec_user_supplied_secret");
       expect(response).toMatchObject({
+        data: { attributes: { providerSecret: null } },
+      });
+    });
+
+    it("throws 422 when providerSecret is supplied for a provider that generates its own (github)", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "github",
+          name: "My GitHub Source",
+          routeFolder: "99-incoming/",
+          providerSecret: "my_existing_repo_secret",
+        }),
+      );
+
+      await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+        statusCode: 422,
+      });
+      expect(mockCreateError).toHaveBeenCalledWith({
+        statusCode: 422,
         data: {
-          attributes: { providerSecret: "whsec_user_supplied_secret" },
+          errors: [
+            {
+              status: "422",
+              title: "Invalid Attribute",
+              detail: expect.stringContaining("only accepted"),
+              source: { pointer: "/data/attributes/providerSecret" },
+            },
+          ],
         },
       });
+      expect(insertMock).not.toHaveBeenCalled();
+    });
+
+    it("throws 422 when providerSecret is supplied without a secret-capable provider", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "webhook",
+          name: "My Webhook",
+          routeFolder: "99-incoming/",
+          providerSecret: "should-not-be-accepted",
+        }),
+      );
+
+      await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+        statusCode: 422,
+      });
+      expect(insertMock).not.toHaveBeenCalled();
     });
 
     it("does not reveal a providerSecret for a plain webhook source (none generated)", async () => {

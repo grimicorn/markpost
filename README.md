@@ -73,6 +73,8 @@ A generated secret (GitHub/Zapier/Shortcuts) is revealed exactly once, in the re
 
 Sources created before this verification model existed (`provider` left `null`) keep working unauthenticated rather than being retroactively broken — enabling verification is opt-in for new sources, not a forced migration for old ones.
 
+**No secret rotation yet.** There is no endpoint to regenerate a lost or leaked GitHub/Zapier/Shortcuts secret, or to update a Stripe source's secret if it's rotated on Stripe's side — `PATCH /api/sources/:uuid` deliberately ignores `provider`/`providerSecret`. The only recovery today is deleting and recreating the source, which also changes its `endpointSlug` (the provider's webhook URL has to be reconfigured too). A rotate endpoint is a reasonable follow-up if this becomes a real pain point.
+
 RSS/Atom is listed as a preset but marked unavailable in the UI: there is no polling infrastructure (scheduler, dedup, fetch cadence) to back it yet.
 
 ## Billing and subscriptions

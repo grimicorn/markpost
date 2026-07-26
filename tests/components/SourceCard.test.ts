@@ -208,6 +208,43 @@ describe("SourceCard", () => {
     expect(wrapper.text()).not.toContain("copy secret");
   });
 
+  it.each(["zapier", "shortcuts"])(
+    "shows an ongoing header-name hint for %s (shared-secret providers)",
+    (provider) => {
+      const wrapper = mount(SourceCard, {
+        ...globalConfig,
+        props: { source: makeSource({ type: provider, provider }) },
+      });
+      expect(wrapper.text()).toContain("x-markpost-secret");
+    },
+  );
+
+  it("does not show the ongoing hint for github (its instructions reference a value that can't be shown again)", () => {
+    const wrapper = mount(SourceCard, {
+      ...globalConfig,
+      props: {
+        source: makeSource({ type: "github", provider: "github" }),
+      },
+    });
+    expect(wrapper.text()).not.toContain("Paste this into");
+  });
+
+  it("does not show the ongoing hint for stripe or plain webhook sources", () => {
+    const stripeWrapper = mount(SourceCard, {
+      ...globalConfig,
+      props: {
+        source: makeSource({ type: "stripe", provider: "stripe" }),
+      },
+    });
+    const webhookWrapper = mount(SourceCard, {
+      ...globalConfig,
+      props: { source: makeSource() },
+    });
+
+    expect(stripeWrapper.text()).not.toContain("x-markpost-secret");
+    expect(webhookWrapper.text()).not.toContain("x-markpost-secret");
+  });
+
   it("does not duplicate the slug — endpointSlug appears exactly once in code body", () => {
     const wrapper = mount(SourceCard, {
       ...globalConfig,

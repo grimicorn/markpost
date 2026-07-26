@@ -327,4 +327,57 @@ describe("AddSourceModal", () => {
       expect(wrapper.emitted("add")?.[0]).toEqual(["99-incoming/", undefined]);
     });
   });
+
+  describe("submitting guard (prevents a double-click firing two creates)", () => {
+    function githubConfigProps(submitting: boolean) {
+      return {
+        modalState: {
+          step: "config" as const,
+          choice: { id: "github", name: "GitHub", via: "webhook" },
+          folder: "99-incoming/",
+        },
+        submitting,
+      };
+    }
+
+    it("disables 'add source' while submitting is true", () => {
+      const wrapper = mount(AddSourceModal, {
+        ...globalConfig,
+        props: githubConfigProps(true),
+      });
+      const addButton = wrapper
+        .findAll("button")
+        .find((button) => button.text() === "add source");
+
+      expect(addButton?.attributes("disabled")).toBeDefined();
+    });
+
+    it("does not emit add when clicked while submitting is true", async () => {
+      const wrapper = mount(AddSourceModal, {
+        ...globalConfig,
+        props: githubConfigProps(true),
+      });
+      const addButton = wrapper
+        .findAll("button")
+        .find((button) => button.text() === "add source");
+      await addButton?.trigger("click");
+
+      expect(wrapper.emitted("add")).toBeUndefined();
+    });
+
+    it("allows submitting again once submitting resets to false", async () => {
+      const wrapper = mount(AddSourceModal, {
+        ...globalConfig,
+        props: githubConfigProps(false),
+      });
+      const addButton = wrapper
+        .findAll("button")
+        .find((button) => button.text() === "add source");
+
+      expect(addButton?.attributes("disabled")).toBeUndefined();
+      await addButton?.trigger("click");
+
+      expect(wrapper.emitted("add")).toHaveLength(1);
+    });
+  });
 });

@@ -85,6 +85,14 @@
     </div>
 
     <div
+      v-if="verificationHint"
+      class="muted"
+      style="font-size: 11px; margin-top: 10px"
+    >
+      {{ verificationHint }}
+    </div>
+
+    <div
       class="row wrap mono gap-6"
       style="font-size: 11.5px; color: var(--ink-3); margin-top: 14px"
     >
@@ -96,6 +104,8 @@
 <script setup lang="ts">
 import { buildEndpointUrl, buildSourceMeta } from "~/composables/useSources";
 import type { SourceResource } from "~/composables/useSources";
+import { PROVIDER_SECRET_HINT } from "../utils/providerSecretCopy";
+import { SHARED_SECRET_PROVIDER_IDS } from "#shared/utils/webhookSecrets";
 
 const ICON_BY_TYPE: Record<string, string> = {
   webhook: "zap",
@@ -173,6 +183,19 @@ const subLabel = computed(() => {
   }
 
   return "";
+});
+
+// Only Zapier/Shortcuts get an ongoing hint: their instructions ("add it as a
+// header named...") describe the integration's shape, not a specific value,
+// so they stay true after the one-time reveal step (AddSourceModal.vue) has
+// closed. GitHub's hint ("paste this into...") refers to a value nothing on
+// this card can show again, so surfacing it here would just be confusing.
+const verificationHint = computed(() => {
+  const provider = props.source.attributes.provider ?? "";
+  if (!(SHARED_SECRET_PROVIDER_IDS as readonly string[]).includes(provider)) {
+    return "";
+  }
+  return PROVIDER_SECRET_HINT[provider] ?? "";
 });
 
 const endpointLabel = computed(

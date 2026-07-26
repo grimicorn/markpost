@@ -128,6 +128,7 @@
     <AddSourceModal
       v-if="modalState"
       :modal-state="modalState"
+      :submitting="isAddingSource"
       @close="modalState = null"
       @pick="pickSource"
       @add="addSource"
@@ -185,6 +186,9 @@ const pendingRemoveUuid = ref<string | null>(null);
 const loadError = ref<string | null>(null);
 const addError = ref<string | null>(null);
 const removeError = ref<string | null>(null);
+// Guards against a double-click on "add source" firing two create requests
+// (see AddSourceModal's `submitting` prop).
+const isAddingSource = ref(false);
 
 onMounted(fetchInitialSources);
 
@@ -214,12 +218,13 @@ const pickSource = (choice: SourceChoice) => {
 };
 
 const addSource = async (folder: string, providerSecret?: string) => {
-  if (!modalState.value?.choice) {
+  if (!modalState.value?.choice || isAddingSource.value) {
     return;
   }
 
   const choice = modalState.value.choice;
   addError.value = null;
+  isAddingSource.value = true;
 
   try {
     const created = await addSourceToList({
@@ -232,6 +237,8 @@ const addSource = async (folder: string, providerSecret?: string) => {
   } catch (createError) {
     console.error("[sources] addSource error:", createError);
     addError.value = "Failed to add source. Please try again.";
+  } finally {
+    isAddingSource.value = false;
   }
 };
 

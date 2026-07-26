@@ -34,13 +34,12 @@ const VALID_SOURCE_TYPES = [
 // Types that double as a provider identity: creating a source with one of
 // these types implies signature verification against that provider, even
 // when the caller doesn't pass `provider` explicitly (this is how the preset
-// flow in AddSourceModal.vue creates sources today).
-const PROVIDER_TYPES = new Set<string>([
-  "stripe",
-  "github",
-  "zapier",
-  "shortcuts",
-]);
+// flow in AddSourceModal.vue creates sources today). Derived from
+// KNOWN_PROVIDERS rather than hand-listed again — every known provider IS a
+// same-named source type, and letting the two lists drift apart means a new
+// provider added to signatureVerifier.ts but forgotten here would silently
+// get `provider: null` (no verification) instead of failing to create at all.
+const PROVIDER_TYPES = new Set<string>(KNOWN_PROVIDERS);
 
 const MAX_SLUG_ATTEMPTS = 5;
 
@@ -231,6 +230,21 @@ function missingProviderSecretError(provider: string): ApiError {
   );
 }
 
+function unexpectedProviderSecretError(): ApiError {
+  return new ApiError(
+    [
+      {
+        status: "422",
+        title: "Invalid Attribute",
+        detail:
+          "providerSecret is only accepted for a provider that issues its own secret (stripe); markpost generates one for github/zapier/shortcuts.",
+        source: { pointer: "/data/attributes/providerSecret" },
+      },
+    ],
+    422,
+  );
+}
+
 function isProviderWrongType(attributes: CreateSourceAttributes): boolean {
   return (
     attributes.provider !== undefined &&
@@ -266,16 +280,25 @@ function validateAttributesOrThrow(
 // Manual-secret providers (Stripe) issue their own secret; the caller must
 // supply it, or the source would be created "verified" with nothing to
 // verify against and 401 every real delivery forever.
-function validateProviderSecretPresenceOrThrow(
+// Manual-secret providers (Stripe) issue their own secret, so the caller must
+// supply it. Every other provider (including no provider at all) generates
+// its own — a caller-supplied value there would otherwise be silently
+// discarded (e.g. a user pasting in their existing GitHub webhook secret,
+// expecting it to be used, getting a different generated one instead and a
+// permanently-401ing source with no explanation). Reject it instead.
+function validateProviderSecretOrThrow(
   provider: string | null,
   providerSecret: string | undefined,
 ): void {
-  if (!provider || !isManualSecretProvider(provider)) {
+  if (provider && isManualSecretProvider(provider)) {
+    if (!providerSecret?.trim()) {
+      throw missingProviderSecretError(provider);
+    }
     return;
   }
 
-  if (!providerSecret?.trim()) {
-    throw missingProviderSecretError(provider);
+  if (providerSecret !== undefined) {
+    throw unexpectedProviderSecretError();
   }
 }
 
@@ -284,8 +307,11 @@ function computeProviderSecretPlan(
   suppliedSecret: string | undefined,
 ): ProviderSecretPlan {
   if (provider && isManualSecretProvider(provider)) {
+    // Never echoed back: the user already has this value (they just typed
+    // it in), so revealing it in the response would only add a live signing
+    // secret to response bodies, proxy logs, and devtools for no benefit.
     const trimmed = suppliedSecret?.trim() ?? null;
-    return { storedSecret: trimmed, revealSecret: trimmed };
+    return { storedSecret: trimmed, revealSecret: null };
   }
 
   if (provider && isSecretBackedProvider(provider)) {
@@ -325,7 +351,7 @@ export default defineEventHandler(async (event): Promise<SourceApiResponse> => {
     validateAttributesOrThrow(attributes);
 
     const provider = deriveProvider(attributes);
-    validateProviderSecretPresenceOrThrow(provider, attributes.providerSecret);
+    validateProviderSecretOrThrow(provider, attributes.providerSecret);
 
     await assertWithinSourceLimit(userId);
 

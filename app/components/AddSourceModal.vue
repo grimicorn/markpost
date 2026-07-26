@@ -370,9 +370,17 @@ const MANUAL_SECRET_HINT_BY_ID: Record<string, string> = {
     "From your Stripe Dashboard -> Webhooks -> your endpoint -> Signing secret.",
 };
 
-const props = defineProps<{
-  modalState: ModalState;
-}>();
+const props = withDefaults(
+  defineProps<{
+    modalState: ModalState;
+    // True while the parent's create request is in flight. A double-click on
+    // "add source" would otherwise fire two requests — both would succeed,
+    // both would consume a plan source slot, and the second response would
+    // overwrite the first in the reveal step before the user ever saw it.
+    submitting?: boolean;
+  }>(),
+  { submitting: false },
+);
 
 const emit = defineEmits<{
   close: [];
@@ -489,10 +497,14 @@ const manualSecretHint = computed(
   () => MANUAL_SECRET_HINT_BY_ID[props.modalState.choice?.id ?? ""] ?? "",
 );
 
-const canSubmit = computed(
-  () =>
-    !requiresManualSecret.value || providerSecretInput.value.trim().length > 0,
-);
+const canSubmit = computed(() => {
+  if (props.submitting) {
+    return false;
+  }
+  return (
+    !requiresManualSecret.value || providerSecretInput.value.trim().length > 0
+  );
+});
 
 function handleSubmit(): void {
   if (!canSubmit.value) {
