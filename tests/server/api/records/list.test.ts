@@ -179,6 +179,8 @@ describe("GET /api/records", () => {
         typeof condition === "object" &&
         condition !== null &&
         "or" in condition &&
+        Array.isArray((condition as { or: unknown[] }).or) &&
+        (condition as { or: unknown[] }).or.length > 0 &&
         (condition as { or: unknown[] }).or.every(
           (branch) =>
             typeof branch === "object" && branch !== null && "ilike" in branch,
@@ -271,5 +273,6 @@ describe("GET /api/records", () => {
 
     const whereArg = countWhere.mock.calls[0]?.[0] as { and: unknown[] };
     expect(whereArg.and).toHaveLength(1);
+    expect(findQueryCondition(whereArg.and)).toBeUndefined();
   });
 });
