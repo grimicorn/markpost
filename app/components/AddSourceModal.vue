@@ -9,7 +9,7 @@
       z-index: 50;
       padding: 24px;
     "
-    @click="emit('close')"
+    @click="handleBackdropClick"
   >
     <div
       class="card"
@@ -55,7 +55,7 @@
             </h3>
           </div>
         </div>
-        <button class="icon-btn" @click="emit('close')">
+        <button v-if="showCloseButton" class="icon-btn" @click="emit('close')">
           <AppIcon name="x" :size="18" />
         </button>
       </div>
@@ -223,9 +223,28 @@
           </div>
         </div>
 
-        <div style="margin-top: 18px">
+        <div v-if="requiresManualSecret" style="margin-top: 16px">
           <AppField
             num="01"
+            :label="manualSecretLabel"
+            :msg="manualSecretHint"
+            req
+          >
+            <div class="input-wrap">
+              <span class="lead-addon"><AppIcon name="key" :size="16" /></span>
+              <input
+                v-model="providerSecretInput"
+                class="input has-lead mono"
+                style="font-size: 13.5px"
+                type="password"
+              />
+            </div>
+          </AppField>
+        </div>
+
+        <div style="margin-top: 18px">
+          <AppField
+            :num="requiresManualSecret ? '02' : '01'"
             label="Route records to"
             msg="folder inside your vault"
           >
@@ -250,7 +269,8 @@
           <AppBtn
             variant="accent"
             icon="check"
-            @click="emit('add', folderInput)"
+            :disabled="!canSubmit"
+            @click="handleSubmit"
             >add source</AppBtn
           >
         </div>
@@ -320,6 +340,10 @@ interface SourceChoice {
   tag?: string;
   authKind?: AuthKind;
   disabled?: boolean;
+  // Stripe issues its own signing secret when the user creates their Stripe
+  // webhook endpoint, so — unlike GitHub/Zapier/Shortcuts, whose secret we
+  // generate and reveal after creation — the user must paste it in up front.
+  secretEntry?: "manual";
 }
 
 interface ModalState {
@@ -337,6 +361,15 @@ const STEP_LABEL_BY_STEP: Record<ModalState["step"], string> = {
   reveal: "step 2 / 2",
 };
 
+const MANUAL_SECRET_LABEL_BY_ID: Record<string, string> = {
+  stripe: "Stripe webhook signing secret",
+};
+
+const MANUAL_SECRET_HINT_BY_ID: Record<string, string> = {
+  stripe:
+    "From your Stripe Dashboard -> Webhooks -> your endpoint -> Signing secret.",
+};
+
 const props = defineProps<{
   modalState: ModalState;
 }>();
@@ -344,10 +377,11 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: [];
   pick: [choice: SourceChoice];
-  add: [folder: string];
+  add: [folder: string, providerSecret?: string];
 }>();
 
 const folderInput = ref(props.modalState.folder);
+const providerSecretInput = ref("");
 const hoveredPrim = ref<string | null>(null);
 const hoveredPreset = ref<string | null>(null);
 
@@ -376,6 +410,7 @@ const SOURCE_PRESETS: SourceChoice[] = [
     map: "amount · customer · status",
     via: "webhook",
     authKind: "signature",
+    secretEntry: "manual",
   },
   {
     id: "github",
@@ -440,6 +475,47 @@ const revealSecretLabel = computed(
 const revealSecretHint = computed(
   () => PROVIDER_SECRET_HINT[props.modalState.choice?.id ?? ""] ?? "",
 );
+
+const requiresManualSecret = computed(
+  () => props.modalState.choice?.secretEntry === "manual",
+);
+
+const manualSecretLabel = computed(
+  () =>
+    MANUAL_SECRET_LABEL_BY_ID[props.modalState.choice?.id ?? ""] ?? "secret",
+);
+
+const manualSecretHint = computed(
+  () => MANUAL_SECRET_HINT_BY_ID[props.modalState.choice?.id ?? ""] ?? "",
+);
+
+const canSubmit = computed(
+  () =>
+    !requiresManualSecret.value || providerSecretInput.value.trim().length > 0,
+);
+
+function handleSubmit(): void {
+  if (!canSubmit.value) {
+    return;
+  }
+
+  const secret = requiresManualSecret.value
+    ? providerSecretInput.value.trim()
+    : undefined;
+  emit("add", folderInput.value, secret);
+}
+
+// Losing the one-time secret reveal to an accidental backdrop/header-X click
+// would leave the user with no way to recover it — "done" is the only
+// intended way out of the reveal step, so both are suppressed there.
+const showCloseButton = computed(() => props.modalState.step !== "reveal");
+
+function handleBackdropClick(): void {
+  if (!showCloseButton.value) {
+    return;
+  }
+  emit("close");
+}
 
 // A disabled preset (RSS/Atom — see SOURCE_PRESETS) can't be picked yet: skip
 // the emit entirely rather than branching inside the template.

@@ -99,11 +99,13 @@ export async function fetchRecordStats(): Promise<RecordStats | null> {
 }
 
 export function formatRelativeTime(isoString: string): string {
-  const { seconds, minutes, hours, days } = computeElapsedBuckets(isoString);
+  const buckets = computeElapsedBuckets(isoString);
 
-  if (Number.isNaN(seconds)) {
+  if (!buckets) {
     return "—";
   }
+
+  const { seconds, minutes, hours, days } = buckets;
 
   if (seconds < 60) {
     return "just now";

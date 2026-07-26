@@ -7,6 +7,7 @@ import {
   spyConsoleError,
 } from "../../helpers";
 import { ApiError } from "../../../../server/utils/errors";
+import { hashSharedSecret } from "../../../../server/utils/signatureVerifier";
 import { SHARED_SECRET_HEADER } from "#shared/utils/webhookSecrets";
 
 const selectMock = vi.fn();
@@ -317,11 +318,19 @@ describe("POST /api/hooks/[slug]", () => {
   });
 
   describe("stripe signature verification", () => {
-    const stripeSource = { ...sampleSource, provider: "stripe" };
+    // Stripe issues the signing secret when the user creates their own Stripe
+    // webhook endpoint, so — unlike the app's own billing webhook
+    // (server/api/billing/webhook.post.ts), which verifies against the
+    // app-wide STRIPE_WEBHOOK_SECRET env var — a user-created Stripe SOURCE
+    // verifies against the secret they supplied at creation, stored on the
+    // row itself (see server/api/sources/index.post.ts).
+    const stripeSource = {
+      ...sampleSource,
+      provider: "stripe",
+      providerSecret: STRIPE_SECRET,
+    };
 
     it("returns 401 when Stripe-Signature header is missing", async () => {
-      process.env.STRIPE_WEBHOOK_SECRET = STRIPE_SECRET;
-
       stubSourceOnly([stripeSource]);
       mockReadRawBody.mockResolvedValue(
         JSON.stringify({ type: "charge.succeeded" }),
@@ -337,7 +346,6 @@ describe("POST /api/hooks/[slug]", () => {
     });
 
     it("returns 401 when Stripe-Signature does not match", async () => {
-      process.env.STRIPE_WEBHOOK_SECRET = STRIPE_SECRET;
       const rawBody = JSON.stringify({ type: "charge.succeeded" });
 
       stubSourceOnly([stripeSource]);
@@ -355,7 +363,6 @@ describe("POST /api/hooks/[slug]", () => {
     });
 
     it("returns 202 when Stripe-Signature is valid", async () => {
-      process.env.STRIPE_WEBHOOK_SECRET = STRIPE_SECRET;
       const rawBody = JSON.stringify({ type: "charge.succeeded" });
       const validHeader = buildValidStripeHeader(rawBody, STRIPE_SECRET);
 
@@ -370,13 +377,14 @@ describe("POST /api/hooks/[slug]", () => {
       expect202Success(response, mockSetResponseStatus, sampleRecord.uuid);
     });
 
-    it("returns 401 when STRIPE_WEBHOOK_SECRET is not configured", async () => {
-      delete process.env.STRIPE_WEBHOOK_SECRET;
+    it("returns 401 when the source has no providerSecret configured", async () => {
       const rawBody = JSON.stringify({ type: "charge.succeeded" });
 
-      stubSourceOnly([stripeSource]);
+      stubSourceOnly([{ ...stripeSource, providerSecret: null }]);
       mockReadRawBody.mockResolvedValue(rawBody);
-      mockGetHeader.mockReturnValue("t=1,v1=abc");
+      mockGetHeader.mockReturnValue(
+        buildValidStripeHeader(rawBody, STRIPE_SECRET),
+      );
 
       await expect(handler(buildEvent())).rejects.toMatchObject({
         statusCode: 401,
@@ -386,28 +394,26 @@ describe("POST /api/hooks/[slug]", () => {
       );
     });
 
-    it("verifies against STRIPE_WEBHOOK_SECRET, ignoring any providerSecret stored on the row", async () => {
-      // Stripe verification is deliberately env-based, not per-source (see
-      // resolveProviderSecret in [slug].post.ts) — a stray providerSecret value
-      // on a stripe-typed row (there should never be one, since only
-      // secret-backed providers get one generated) must not be used instead.
-      process.env.STRIPE_WEBHOOK_SECRET = STRIPE_SECRET;
+    it("does not fall back to STRIPE_WEBHOOK_SECRET when the source's own providerSecret doesn't match", async () => {
+      // The app's own billing webhook uses STRIPE_WEBHOOK_SECRET; a user's
+      // Stripe SOURCE must never accept a signature made with that env var
+      // instead of the secret the user actually configured.
+      process.env.STRIPE_WEBHOOK_SECRET = "app-billing-secret-not-this-sources";
       const rawBody = JSON.stringify({ type: "charge.succeeded" });
-      const validHeader = buildValidStripeHeader(rawBody, STRIPE_SECRET);
-      const stripeSourceWithDecoySecret = {
-        ...stripeSource,
-        providerSecret: "decoy-value-should-be-ignored",
-      };
+      const headerSignedWithEnvSecret = buildValidStripeHeader(
+        rawBody,
+        process.env.STRIPE_WEBHOOK_SECRET,
+      );
 
-      stubSourceAndSettings([stripeSourceWithDecoySecret]);
-      stubInsertRecord(sampleRecord);
-      stubUpdateStats();
+      stubSourceOnly([stripeSource]);
       mockReadRawBody.mockResolvedValue(rawBody);
-      mockGetHeader.mockReturnValue(validHeader);
+      mockGetHeader.mockReturnValue(headerSignedWithEnvSecret);
 
-      const response = await handler(buildEvent());
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 401,
+      });
 
-      expect202Success(response, mockSetResponseStatus, sampleRecord.uuid);
+      delete process.env.STRIPE_WEBHOOK_SECRET;
     });
   });
 
@@ -475,6 +481,9 @@ describe("POST /api/hooks/[slug]", () => {
 
   describe("zapier / shortcuts shared-secret verification", () => {
     const SHARED_SECRET = "shared_test_secret";
+    // Only the hash is ever stored (see hashSharedSecret / isHashedStorageProvider);
+    // the plaintext is what the sender actually presents via the header.
+    const STORED_SECRET_HASH = hashSharedSecret(SHARED_SECRET);
 
     function stubSharedSecretHeader(value: string | undefined): void {
       mockGetHeader.mockImplementation((_event: unknown, name: string) =>
@@ -488,7 +497,7 @@ describe("POST /api/hooks/[slug]", () => {
         const source = {
           ...sampleSource,
           provider,
-          providerSecret: SHARED_SECRET,
+          providerSecret: STORED_SECRET_HASH,
         };
         stubSourceOnly([source]);
         mockReadRawBody.mockResolvedValue(JSON.stringify({ title: "T" }));
@@ -506,7 +515,7 @@ describe("POST /api/hooks/[slug]", () => {
         const source = {
           ...sampleSource,
           provider,
-          providerSecret: SHARED_SECRET,
+          providerSecret: STORED_SECRET_HASH,
         };
         stubSourceOnly([source]);
         mockReadRawBody.mockResolvedValue(JSON.stringify({ title: "T" }));
@@ -519,12 +528,12 @@ describe("POST /api/hooks/[slug]", () => {
     );
 
     it.each(["zapier", "shortcuts"])(
-      "returns 202 for %s when the shared secret matches",
+      "returns 202 for %s when the provided secret hashes to the stored hash",
       async (provider) => {
         const source = {
           ...sampleSource,
           provider,
-          providerSecret: SHARED_SECRET,
+          providerSecret: STORED_SECRET_HASH,
         };
         stubSourceAndSettings([source]);
         stubInsertRecord(sampleRecord);

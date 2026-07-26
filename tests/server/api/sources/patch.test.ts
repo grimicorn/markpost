@@ -135,6 +135,34 @@ describe("PATCH /api/sources/:uuid", () => {
     expect(set).toHaveBeenCalledWith({ routeFolder: "05-stripe/" });
   });
 
+  it("ignores provider and providerSecret in the request body — PATCH cannot change either", async () => {
+    // There is no rotate/re-verify flow yet: provider identity and its secret
+    // are fixed at creation. If PATCH ever needs to accept these, it must
+    // validate them the same way index.post.ts does, not silently pass them
+    // through a payload[key] = value loop.
+    mockGetRouterParam.mockReturnValue(validUuid);
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        routeFolder: "05-stripe/",
+        provider: "github",
+        providerSecret: "attacker-supplied-secret",
+      }),
+    );
+    const { set } = stubUpdateResult([
+      { ...sampleSource, routeFolder: "05-stripe/" },
+    ]);
+
+    await handler(buildEvent(userId));
+
+    expect(set).toHaveBeenCalledWith({ routeFolder: "05-stripe/" });
+    expect(set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ provider: expect.anything() }),
+    );
+    expect(set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ providerSecret: expect.anything() }),
+    );
+  });
+
   it("updates only fieldMapping without touching routeFolder", async () => {
     mockGetRouterParam.mockReturnValue(validUuid);
     mockReadBody.mockResolvedValue(

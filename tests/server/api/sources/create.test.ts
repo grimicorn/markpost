@@ -291,8 +291,31 @@ describe("POST /api/sources", () => {
   });
 
   describe("provider derivation and secret generation", () => {
-    it.each(["github", "zapier", "shortcuts"])(
-      "derives provider from type and generates a providerSecret for %s",
+    it("derives provider from type and generates a plaintext providerSecret for github", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "github",
+          name: "My Source",
+          routeFolder: "99-incoming/",
+        }),
+      );
+      const { values } = stubInsertResult([
+        { ...sampleSource, type: "github", provider: "github" },
+      ]);
+
+      await handler(buildEvent(userId));
+
+      const insertedValues = (
+        values.mock.calls[0] as [Record<string, unknown>]
+      )[0];
+      expect(insertedValues.provider).toBe("github");
+      // GitHub verifies via HMAC, which needs the raw secret at verify time,
+      // so it is stored in plaintext (unlike zapier/shortcuts — see below).
+      expect(insertedValues.providerSecret).toMatch(/^[0-9a-f]{48}$/);
+    });
+
+    it.each(["zapier", "shortcuts"])(
+      "derives provider from type and stores only a hash of the generated secret for %s",
       async (type) => {
         mockReadBody.mockResolvedValue(
           buildBody({ type, name: "My Source", routeFolder: "99-incoming/" }),
@@ -307,16 +330,63 @@ describe("POST /api/sources", () => {
           values.mock.calls[0] as [Record<string, unknown>]
         )[0];
         expect(insertedValues.provider).toBe(type);
-        expect(insertedValues.providerSecret).toMatch(/^[0-9a-f]{48}$/);
+        // Compared by equality only (never HMAC'd), so only a SHA-256 hash is
+        // stored — 64 hex chars, not the 48-char generated plaintext.
+        expect(insertedValues.providerSecret).toMatch(/^[0-9a-f]{64}$/);
       },
     );
 
-    it("derives provider 'stripe' from type but does not generate a providerSecret", async () => {
+    it("throws 422 when creating a stripe source without a providerSecret", async () => {
       mockReadBody.mockResolvedValue(
         buildBody({
           type: "stripe",
           name: "My Stripe Source",
           routeFolder: "99-incoming/",
+        }),
+      );
+
+      await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+        statusCode: 422,
+      });
+      expect(mockCreateError).toHaveBeenCalledWith({
+        statusCode: 422,
+        data: {
+          errors: [
+            {
+              status: "422",
+              title: "Invalid Attribute",
+              detail: expect.stringContaining("providerSecret is required"),
+              source: { pointer: "/data/attributes/providerSecret" },
+            },
+          ],
+        },
+      });
+      expect(insertMock).not.toHaveBeenCalled();
+    });
+
+    it("throws 422 when creating a stripe source with a whitespace-only providerSecret", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "stripe",
+          name: "My Stripe Source",
+          routeFolder: "99-incoming/",
+          providerSecret: "   ",
+        }),
+      );
+
+      await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+        statusCode: 422,
+      });
+      expect(insertMock).not.toHaveBeenCalled();
+    });
+
+    it("stores the user-supplied providerSecret verbatim for stripe (not generated)", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "stripe",
+          name: "My Stripe Source",
+          routeFolder: "99-incoming/",
+          providerSecret: "whsec_user_supplied_secret",
         }),
       );
       const { values } = stubInsertResult([
@@ -329,7 +399,36 @@ describe("POST /api/sources", () => {
         values.mock.calls[0] as [Record<string, unknown>]
       )[0];
       expect(insertedValues.provider).toBe("stripe");
-      expect(insertedValues.providerSecret).toBeNull();
+      expect(insertedValues.providerSecret).toBe("whsec_user_supplied_secret");
+    });
+
+    it("throws 422 when providerSecret is not a string", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "stripe",
+          name: "My Stripe Source",
+          routeFolder: "99-incoming/",
+          providerSecret: 12345,
+        }),
+      );
+
+      await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+        statusCode: 422,
+      });
+      expect(mockCreateError).toHaveBeenCalledWith({
+        statusCode: 422,
+        data: {
+          errors: [
+            {
+              status: "422",
+              title: "Invalid Attribute",
+              detail: "ProviderSecret must be a string",
+              source: { pointer: "/data/attributes/providerSecret" },
+            },
+          ],
+        },
+      });
+      expect(insertMock).not.toHaveBeenCalled();
     });
 
     it("does not derive a provider for the generic webhook type", async () => {
@@ -350,6 +449,30 @@ describe("POST /api/sources", () => {
       expect(insertedValues.provider).toBeNull();
       expect(insertedValues.providerSecret).toBeNull();
     });
+
+    it.each(["", "   "])(
+      "treats an empty/whitespace-only explicit provider (%j) as absent and falls back to type derivation",
+      async (provider) => {
+        mockReadBody.mockResolvedValue(
+          buildBody({
+            type: "github",
+            name: "My Source",
+            routeFolder: "99-incoming/",
+            provider,
+          }),
+        );
+        const { values } = stubInsertResult([
+          { ...sampleSource, type: "github", provider: "github" },
+        ]);
+
+        await handler(buildEvent(userId));
+
+        const insertedValues = (
+          values.mock.calls[0] as [Record<string, unknown>]
+        )[0];
+        expect(insertedValues.provider).toBe("github");
+      },
+    );
 
     it("an explicit provider wins over the type-derived one and still generates a secret", async () => {
       mockReadBody.mockResolvedValue(
@@ -424,7 +547,7 @@ describe("POST /api/sources", () => {
       expect(insertMock).not.toHaveBeenCalled();
     });
 
-    it("reveals the generated providerSecret in the create response", async () => {
+    it("reveals the generated providerSecret in the create response for github", async () => {
       mockReadBody.mockResolvedValue(
         buildBody({
           type: "github",
@@ -437,18 +560,67 @@ describe("POST /api/sources", () => {
           ...sampleSource,
           type: "github",
           provider: "github",
-          providerSecret: "a".repeat(48),
         },
       ]);
 
       const response = await handler(buildEvent(userId));
 
+      expect(
+        (response as { data: { attributes: { providerSecret: string } } }).data
+          .attributes.providerSecret,
+      ).toMatch(/^[0-9a-f]{48}$/);
+    });
+
+    it("reveals the plaintext providerSecret for zapier even though only a hash is stored", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "zapier",
+          name: "My Zapier Source",
+          routeFolder: "99-incoming/",
+        }),
+      );
+      const { values } = stubInsertResult([
+        { ...sampleSource, type: "zapier", provider: "zapier" },
+      ]);
+
+      const response = await handler(buildEvent(userId));
+
+      const insertedValues = (
+        values.mock.calls[0] as [Record<string, unknown>]
+      )[0];
+      const revealedSecret = (
+        response as { data: { attributes: { providerSecret: string } } }
+      ).data.attributes.providerSecret;
+
+      expect(revealedSecret).toMatch(/^[0-9a-f]{48}$/);
+      // What's stored is a 64-char hash, never equal to the 48-char plaintext.
+      expect(insertedValues.providerSecret).toMatch(/^[0-9a-f]{64}$/);
+      expect(insertedValues.providerSecret).not.toBe(revealedSecret);
+    });
+
+    it("reveals the user-supplied providerSecret verbatim for stripe", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "stripe",
+          name: "My Stripe Source",
+          routeFolder: "99-incoming/",
+          providerSecret: "whsec_user_supplied_secret",
+        }),
+      );
+      stubInsertResult([
+        { ...sampleSource, type: "stripe", provider: "stripe" },
+      ]);
+
+      const response = await handler(buildEvent(userId));
+
       expect(response).toMatchObject({
-        data: { attributes: { providerSecret: "a".repeat(48) } },
+        data: {
+          attributes: { providerSecret: "whsec_user_supplied_secret" },
+        },
       });
     });
 
-    it("does not reveal a providerSecret for a stripe/webhook source (none generated)", async () => {
+    it("does not reveal a providerSecret for a plain webhook source (none generated)", async () => {
       mockReadBody.mockResolvedValue(
         buildBody({
           type: "webhook",

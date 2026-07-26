@@ -193,5 +193,138 @@ describe("AddSourceModal", () => {
 
       expect(wrapper.emitted("close")).toHaveLength(1);
     });
+
+    it("does not render the header close (X) button", () => {
+      const wrapper = mount(AddSourceModal, {
+        ...globalConfig,
+        props: revealStepProps("github", "GitHub"),
+      });
+      // Only "copy secret" and "done" should remain — losing the one-time
+      // secret to a stray click on a header close button has no recovery path.
+      const buttonLabels = wrapper
+        .findAll("button")
+        .map((button) => button.text());
+      expect(buttonLabels).toEqual(["copy secret", "done"]);
+    });
+
+    it("does not emit close when the backdrop is clicked during the reveal step", async () => {
+      const wrapper = mount(AddSourceModal, {
+        ...globalConfig,
+        props: revealStepProps("github", "GitHub"),
+      });
+
+      await wrapper.trigger("click");
+
+      expect(wrapper.emitted("close")).toBeUndefined();
+    });
+  });
+
+  describe("stripe manual secret entry", () => {
+    function stripeConfigProps() {
+      return {
+        modalState: {
+          step: "config" as const,
+          choice: {
+            id: "stripe",
+            name: "Stripe",
+            desc: "Payments, invoices & subscription events.",
+            map: "amount · customer · status",
+            via: "webhook",
+            authKind: "signature" as const,
+            secretEntry: "manual" as const,
+          },
+          folder: "99-incoming/",
+        },
+      };
+    }
+
+    it("matches snapshot for the config step (stripe preset)", () => {
+      const wrapper = mount(AddSourceModal, {
+        ...globalConfig,
+        props: stripeConfigProps(),
+      });
+      expect(wrapper.html()).toMatchSnapshot();
+    });
+
+    it("shows a required secret input for stripe", () => {
+      const wrapper = mount(AddSourceModal, {
+        ...globalConfig,
+        props: stripeConfigProps(),
+      });
+      expect(wrapper.text()).toContain("Stripe webhook signing secret");
+      expect(wrapper.find("input[type='password']").exists()).toBe(true);
+    });
+
+    it("does not show a secret input for github (secret is generated, not entered)", () => {
+      const wrapper = mount(AddSourceModal, {
+        ...globalConfig,
+        props: {
+          modalState: {
+            step: "config" as const,
+            choice: {
+              id: "github",
+              name: "GitHub",
+              via: "webhook",
+              authKind: "signature" as const,
+            },
+            folder: "99-incoming/",
+          },
+        },
+      });
+      expect(wrapper.find("input[type='password']").exists()).toBe(false);
+    });
+
+    it("disables 'add source' until a secret is entered", async () => {
+      const wrapper = mount(AddSourceModal, {
+        ...globalConfig,
+        props: stripeConfigProps(),
+      });
+      const addButton = wrapper
+        .findAll("button")
+        .find((button) => button.text() === "add source");
+
+      expect(addButton?.attributes("disabled")).toBeDefined();
+
+      await wrapper.find("input[type='password']").setValue("whsec_test");
+
+      expect(addButton?.attributes("disabled")).toBeUndefined();
+    });
+
+    it("emits add with the trimmed secret when 'add source' is clicked", async () => {
+      const wrapper = mount(AddSourceModal, {
+        ...globalConfig,
+        props: stripeConfigProps(),
+      });
+
+      await wrapper.find("input[type='password']").setValue("  whsec_test  ");
+      const addButton = wrapper
+        .findAll("button")
+        .find((button) => button.text() === "add source");
+      await addButton?.trigger("click");
+
+      expect(wrapper.emitted("add")?.[0]).toEqual([
+        "99-incoming/",
+        "whsec_test",
+      ]);
+    });
+
+    it("emits add with an undefined secret for a preset that doesn't require manual entry", async () => {
+      const wrapper = mount(AddSourceModal, {
+        ...globalConfig,
+        props: {
+          modalState: {
+            step: "config" as const,
+            choice: { id: "github", name: "GitHub", via: "webhook" },
+            folder: "99-incoming/",
+          },
+        },
+      });
+      const addButton = wrapper
+        .findAll("button")
+        .find((button) => button.text() === "add source");
+      await addButton?.trigger("click");
+
+      expect(wrapper.emitted("add")?.[0]).toEqual(["99-incoming/", undefined]);
+    });
   });
 });

@@ -5,10 +5,14 @@ import {
   verifyStripeSignature,
   verifyGithubSignature,
   verifySharedSecret,
+  hashSharedSecret,
   verifyProviderSignature,
   generateProviderSecret,
   isSecretBackedProvider,
+  isManualSecretProvider,
+  isHashedStorageProvider,
   SECRET_BACKED_PROVIDERS,
+  MANUAL_SECRET_PROVIDERS,
   type VerificationResult,
 } from "../../../server/utils/signatureVerifier";
 import { SHARED_SECRET_HEADER } from "#shared/utils/webhookSecrets";
@@ -272,13 +276,13 @@ describe("verifyProviderSignature", () => {
     );
 
     it.each(["zapier", "shortcuts"])(
-      "returns ok: true for %s when the shared secret matches",
+      "returns ok: true for %s when the provided secret hashes to the stored hash",
       (provider) => {
         const result = verifyProviderSignature({
           provider,
           headers: { [SHARED_SECRET_HEADER]: secret },
           rawBody,
-          secret,
+          secret: hashSharedSecret(secret),
         });
         expect(result).toEqual({ ok: true });
       },
@@ -291,7 +295,7 @@ describe("verifyProviderSignature", () => {
           provider,
           headers: { [SHARED_SECRET_HEADER]: "wrong" },
           rawBody,
-          secret,
+          secret: hashSharedSecret(secret),
         });
         expectFailureWithReason(result, /mismatch/i);
       },
@@ -323,14 +327,17 @@ describe("verifyGithubSignature", () => {
 });
 
 describe("verifySharedSecret", () => {
+  // The second argument is the STORED value, which is a SHA-256 hash of the
+  // secret (see hashSharedSecret) — not the plaintext.
   const secret = "shared_test_secret";
+  const storedHash = hashSharedSecret(secret);
 
-  it("returns ok: true when the provided secret matches", () => {
-    expect(verifySharedSecret(secret, secret)).toEqual({ ok: true });
+  it("returns ok: true when the provided secret hashes to the stored hash", () => {
+    expect(verifySharedSecret(secret, storedHash)).toEqual({ ok: true });
   });
 
   it("returns ok: false when the provided secret is undefined", () => {
-    const result = verifySharedSecret(undefined, secret);
+    const result = verifySharedSecret(undefined, storedHash);
     expectFailureWithReason(
       result,
       new RegExp(`Missing ${SHARED_SECRET_HEADER}`, "i"),
@@ -338,13 +345,27 @@ describe("verifySharedSecret", () => {
   });
 
   it("returns ok: false when the provided secret does not match", () => {
-    const result = verifySharedSecret("nope", secret);
+    const result = verifySharedSecret("nope", storedHash);
     expectFailureWithReason(result, /mismatch/i);
   });
 
-  it("returns ok: false when lengths differ (no timing leak via early return)", () => {
-    const result = verifySharedSecret("short", "a much longer secret value");
+  it("returns ok: false when the stored hash is malformed (no timingSafeEqual crash)", () => {
+    const result = verifySharedSecret(secret, "not-a-valid-hash");
     expectFailureWithReason(result, /mismatch/i);
+  });
+});
+
+describe("hashSharedSecret", () => {
+  it("returns a 64-char hex SHA-256 digest", () => {
+    expect(hashSharedSecret("anything")).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("is deterministic for the same input", () => {
+    expect(hashSharedSecret("same-value")).toBe(hashSharedSecret("same-value"));
+  });
+
+  it("produces different hashes for different inputs", () => {
+    expect(hashSharedSecret("value-a")).not.toBe(hashSharedSecret("value-b"));
   });
 });
 
@@ -368,6 +389,32 @@ describe("isSecretBackedProvider", () => {
     "returns false for %s",
     (provider) => {
       expect(isSecretBackedProvider(provider)).toBe(false);
+    },
+  );
+});
+
+describe("isManualSecretProvider", () => {
+  it.each(MANUAL_SECRET_PROVIDERS)("returns true for %s", (provider) => {
+    expect(isManualSecretProvider(provider)).toBe(true);
+  });
+
+  it.each(["github", "zapier", "shortcuts", "webhook", "email", ""])(
+    "returns false for %s",
+    (provider) => {
+      expect(isManualSecretProvider(provider)).toBe(false);
+    },
+  );
+});
+
+describe("isHashedStorageProvider", () => {
+  it.each(["zapier", "shortcuts"])("returns true for %s", (provider) => {
+    expect(isHashedStorageProvider(provider)).toBe(true);
+  });
+
+  it.each(["github", "stripe", "webhook", "email", ""])(
+    "returns false for %s (verified via HMAC, needs the raw secret)",
+    (provider) => {
+      expect(isHashedStorageProvider(provider)).toBe(false);
     },
   );
 });

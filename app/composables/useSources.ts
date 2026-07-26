@@ -38,6 +38,10 @@ export type CreateSourcePayload = {
   name: string;
   routeFolder: string;
   provider?: string;
+  // Only sent for manual-secret presets (Stripe — see AddSourceModal's
+  // `secretEntry: "manual"`); the server generates its own for GitHub/Zapier/
+  // Shortcuts instead.
+  providerSecret?: string;
   fieldMapping?: unknown;
 };
 
@@ -57,7 +61,13 @@ export function formatLastHit(lastHitAt: string | null): string {
     return "never hit";
   }
 
-  const { seconds, minutes, hours, days } = computeElapsedBuckets(lastHitAt);
+  const buckets = computeElapsedBuckets(lastHitAt);
+
+  if (!buckets) {
+    return "last hit —";
+  }
+
+  const { seconds, minutes, hours, days } = buckets;
 
   if (seconds < 60) {
     return "last hit just now";
@@ -134,7 +144,18 @@ export function useSources() {
     payload: CreateSourcePayload,
   ): Promise<SourceResource> {
     const created = await createSource(payload);
-    sources.value = [...sources.value, created];
+    // The create response reveals providerSecret exactly once (see
+    // server/utils/response.ts's revealProviderSecret option) so the caller
+    // can show it — but `sources` backs the persistent list UI (SourceCard),
+    // which must never hold onto it: GET/PATCH always null it out, and the
+    // reactive list should match that for the rest of the session too.
+    sources.value = [
+      ...sources.value,
+      {
+        ...created,
+        attributes: { ...created.attributes, providerSecret: null },
+      },
+    ];
     return created;
   }
 
