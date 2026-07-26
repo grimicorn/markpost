@@ -23,6 +23,7 @@ export default defineConfig({
   outputDir: "./e2e/artifacts",
   reporter: [["html", { outputFolder: "e2e/report" }]],
   globalSetup: "./e2e/global-setup.ts",
+  retries: process.env.CI ? 2 : 0,
   use: {
     baseURL: "http://localhost:3002",
   },
