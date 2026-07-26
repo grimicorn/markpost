@@ -5,13 +5,17 @@ import { records, sources, userSettings } from "../../db/schema";
 import { apiErrorHandler, ApiError } from "../../utils/errors";
 import { applyFieldMapping } from "../../utils/fieldMapper";
 import { parseWebhookPayload, type UserSettings } from "../../utils/markdown";
+import { assertWithinRecordLimit } from "../../utils/planLimits";
 import { verifyProviderSignature } from "../../utils/signatureVerifier";
 import { writeEvent } from "../../utils/eventWriter";
+import { recordWebhookHit } from "../../utils/webhookThrottle";
 
 const DEFAULT_FILENAME_TEMPLATE = "{{date}}-{{slug}}.md";
 const STRIPE_WEBHOOK_SECRET_ENV = "STRIPE_WEBHOOK_SECRET";
 const RECORD_STATUS_PENDING = "pending";
+const RECORD_STATUS_ERROR = "error";
 const EVENT_KIND_OK = "ok";
+const EVENT_KIND_ERR = "err";
 
 type SourceRow = {
   uuid: string;
@@ -49,6 +53,20 @@ function signatureError(reason: string): ApiError {
       },
     ],
     401,
+  );
+}
+
+function throttledError(): ApiError {
+  return new ApiError(
+    [
+      {
+        status: "429",
+        title: "Too Many Requests",
+        detail:
+          "This webhook source is receiving too many requests. Slow down and try again shortly.",
+      },
+    ],
+    429,
   );
 }
 
@@ -138,6 +156,24 @@ async function updateSourceStats(sourceId: string): Promise<void> {
     .where(eq(sources.uuid, sourceId));
 }
 
+async function markRecordError(
+  recordUuid: string,
+  errorMessage: string,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(records)
+    .set({
+      status: RECORD_STATUS_ERROR,
+      errorMessage,
+    })
+    .where(eq(records.uuid, recordUuid));
+}
+
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 function buildProviderHeaders(
   event: H3Event,
 ): Record<string, string | undefined> {
@@ -204,6 +240,26 @@ function checkSignature(
   }
 }
 
+const RETRY_AFTER_HEADER = "Retry-After";
+
+async function enforceThrottle(
+  event: H3Event,
+  source: SourceRow,
+): Promise<void> {
+  const throttleResult = await recordWebhookHit(source.uuid);
+
+  if (throttleResult.allowed) {
+    return;
+  }
+
+  setHeader(
+    event,
+    RETRY_AFTER_HEADER,
+    String(throttleResult.retryAfterSeconds),
+  );
+  throw throttledError();
+}
+
 async function buildAndInsertRecord(source: SourceRow, rawBody: string) {
   const payload = parseBodyToPayload(rawBody);
   const webhookPayload = applyFieldMapping(
@@ -219,6 +275,40 @@ async function buildAndInsertRecord(source: SourceRow, rawBody: string) {
 
   const parsed = parseWebhookPayload(webhookPayload, userSettingsValues);
   return insertWebhookRecord(source, parsed);
+}
+
+// The record already exists at this point (writeBestEffortSideEffects is only ever
+// called after a successful insert), so unlike the outer handler catch, we know
+// there is a real record to mark. The record's own content was parsed and stored
+// fine; what failed is confirming that in the activity log. We still flag the
+// record so the failure is visible in-app rather than only in server logs, but the
+// event/record messages deliberately say "failed to confirm", not "ingestion
+// failed" — the 202 response that follows is telling the sender the truth. Both
+// writes are themselves best-effort (each swallows its own failure) so this must
+// not throw, or it would defeat the "don't roll back the 202 response" guarantee.
+async function recordIngestEventFailure(
+  source: SourceRow,
+  record: { uuid: string; title: string },
+  writeError: unknown,
+): Promise<void> {
+  console.error("[hooks/ingest] failed to write event:", writeError);
+
+  const errorMessage = toErrorMessage(writeError);
+
+  await Promise.all([
+    markRecordError(record.uuid, errorMessage).catch((markError) => {
+      console.error("[hooks/ingest] failed to mark record error:", markError);
+    }),
+    writeEvent({
+      userId: source.userId,
+      kind: EVENT_KIND_ERR,
+      message: `Failed to confirm webhook ingestion: ${errorMessage}`,
+      recordUuid: record.uuid,
+      sourceId: source.uuid,
+    }).catch((errEventError) => {
+      console.error("[hooks/ingest] failed to write err event:", errEventError);
+    }),
+  ]);
 }
 
 async function writeBestEffortSideEffects(
@@ -241,9 +331,9 @@ async function writeBestEffortSideEffects(
       message: `Webhook received: ${record.title}`,
       recordUuid: record.uuid,
       sourceId: source.uuid,
-    }).catch((writeError) => {
-      console.error("[hooks/ingest] failed to write event:", writeError);
-    }),
+    }).catch((writeError) =>
+      recordIngestEventFailure(source, record, writeError),
+    ),
   ]);
 }
 
@@ -255,8 +345,23 @@ export default defineEventHandler(async (event) => {
     const rawBodyText = await readRawBody(event);
     const rawBody = rawBodyText ?? "";
 
+    // Verify the signature before spending throttle budget: HMAC verification
+    // is cheap and stateless, so checking it first stops an attacker who only
+    // knows the slug (but not the provider secret) from burning a signed
+    // source's shared window with junk requests and 429-ing legitimate,
+    // correctly-signed deliveries. No-provider sources verify as a no-op, so
+    // this reordering does not weaken protection for the slug-only flood case
+    // the throttle primarily exists for.
     const providerHeaders = buildProviderHeaders(event);
     checkSignature(source, providerHeaders, rawBody);
+
+    // Throttle before the plan-limit check: recordWebhookHit must observe every
+    // request that gets this far, or a user sitting at their monthly cap would
+    // throw past the throttle on each delivery and never register in the window.
+    // It is also the cheaper guard, so it sheds load before the subscription
+    // lookup and monthly COUNT that assertWithinRecordLimit runs.
+    await enforceThrottle(event, source);
+    await assertWithinRecordLimit(source.userId);
 
     const record = await buildAndInsertRecord(source, rawBody);
     await writeBestEffortSideEffects(source, record);

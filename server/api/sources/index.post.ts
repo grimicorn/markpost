@@ -4,6 +4,7 @@ import type { ApiRequest } from "../../types/api.types";
 import { requireUser } from "../../utils/auth";
 import { ApiError, apiErrorHandler } from "../../utils/errors";
 import { generateEndpointSlug } from "../../utils/endpointSlug";
+import { assertWithinSourceLimit } from "../../utils/planLimits";
 import { sourceSerializer, type SourceApiResponse } from "../../utils/response";
 import { apiValidate, type AttributeRule } from "../../utils/validate";
 
@@ -148,6 +149,8 @@ export default defineEventHandler(async (event): Promise<SourceApiResponse> => {
     ) {
       throw invalidProviderError();
     }
+
+    await assertWithinSourceLimit(userId);
 
     const source = await insertSource(userId, {
       type: attributes.type,

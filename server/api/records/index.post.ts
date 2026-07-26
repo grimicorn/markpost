@@ -23,6 +23,7 @@ import {
   type AttributeRule,
 } from "../../utils/validate";
 import { writeEvent } from "../../utils/eventWriter";
+import { assertWithinRecordLimit } from "../../utils/planLimits";
 
 const DEFAULT_FILENAME_TEMPLATE = "{{date}}-{{slug}}.md";
 
@@ -374,6 +375,8 @@ export default defineEventHandler(async (event): Promise<RecordApiResponse> => {
     if (attributes.sourceId) {
       await validateSourceOwnership(db, attributes.sourceId, userId);
     }
+
+    await assertWithinRecordLimit(userId);
 
     const insertValues = buildInsertValues(userId, attributes);
     const record = await insertRecord(db, insertValues);

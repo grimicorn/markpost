@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { H3Event } from "h3";
+import { ApiError } from "../../../../server/utils/errors";
 
 const insertMock = vi.fn();
 const selectMock = vi.fn();
@@ -12,6 +13,16 @@ vi.mock("../../../../server/db", () => ({
 vi.mock("drizzle-orm", () => ({
   eq: (column: unknown, value: unknown) => ({ column, value }),
   and: (...conditions: unknown[]) => ({ conditions }),
+}));
+
+// The Hobby plan cap check is a separate concern with its own test coverage
+// (tests/server/utils/planLimits.test.ts); mock it here so these tests focus
+// on request handling and default to "within limit".
+const mockAssertWithinRecordLimit = vi.fn();
+
+vi.mock("../../../../server/utils/planLimits", () => ({
+  assertWithinRecordLimit: (...args: unknown[]) =>
+    mockAssertWithinRecordLimit(...args),
 }));
 
 const mockCreateError = vi.fn((options: object) => {
@@ -78,6 +89,8 @@ beforeEach(() => {
   mockSetResponseStatus.mockClear();
   insertMock.mockReset();
   selectMock.mockReset();
+  mockAssertWithinRecordLimit.mockReset();
+  mockAssertWithinRecordLimit.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -566,6 +579,42 @@ describe("POST /api/records", () => {
         ],
       },
     });
+  });
+
+  it("checks the Hobby record cap for the authenticated user before inserting", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({ title: "My Title", content: "My Content" }),
+    );
+    stubInsertResult([sampleRecord]);
+
+    await handler(buildEvent(userId));
+
+    expect(mockAssertWithinRecordLimit).toHaveBeenCalledWith(userId);
+    expect(insertMock).toHaveBeenCalled();
+  });
+
+  it("blocks the write with whatever error assertWithinRecordLimit throws when the Hobby cap is reached", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({ title: "My Title", content: "My Content" }),
+    );
+    mockAssertWithinRecordLimit.mockRejectedValue(
+      new ApiError(
+        [
+          {
+            status: "403",
+            title: "Plan Limit Reached",
+            detail:
+              "You've reached the Hobby plan limit of 100 records per month. Upgrade to Pro for unlimited usage.",
+          },
+        ],
+        403,
+      ),
+    );
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    expect(insertMock).not.toHaveBeenCalled();
   });
 
   it("throws a 422 when sourceId is a malformed (non-UUID) string", async () => {

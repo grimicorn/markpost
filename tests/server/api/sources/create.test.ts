@@ -1,10 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { H3Event } from "h3";
+import { ApiError } from "../../../../server/utils/errors";
 
 const insertMock = vi.fn();
 
 vi.mock("../../../../server/db", () => ({
   getDb: () => ({ insert: insertMock }),
+}));
+
+// The Hobby plan cap check is a separate concern with its own test coverage
+// (tests/server/utils/planLimits.test.ts); mock it here so these tests focus
+// on request handling and default to "within limit".
+const mockAssertWithinSourceLimit = vi.fn();
+
+vi.mock("../../../../server/utils/planLimits", () => ({
+  assertWithinSourceLimit: (...args: unknown[]) =>
+    mockAssertWithinSourceLimit(...args),
 }));
 
 const mockCreateError = vi.fn((options: object) => {
@@ -60,6 +71,8 @@ beforeEach(() => {
   mockReadBody.mockClear();
   mockSetResponseStatus.mockClear();
   insertMock.mockReset();
+  mockAssertWithinSourceLimit.mockReset();
+  mockAssertWithinSourceLimit.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -314,6 +327,50 @@ describe("POST /api/sources", () => {
 
     await expect(handler(buildEvent(userId))).rejects.toThrow();
     expect(values).toHaveBeenCalledTimes(1);
+  });
+
+  it("checks the Hobby source cap for the authenticated user before inserting", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        type: "webhook",
+        name: "My Webhook",
+        routeFolder: "99-incoming/",
+      }),
+    );
+    stubInsertResult([sampleSource]);
+
+    await handler(buildEvent(userId));
+
+    expect(mockAssertWithinSourceLimit).toHaveBeenCalledWith(userId);
+    expect(insertMock).toHaveBeenCalled();
+  });
+
+  it("blocks the write with whatever error assertWithinSourceLimit throws when the Hobby cap is reached", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        type: "webhook",
+        name: "My Webhook",
+        routeFolder: "99-incoming/",
+      }),
+    );
+    mockAssertWithinSourceLimit.mockRejectedValue(
+      new ApiError(
+        [
+          {
+            status: "403",
+            title: "Plan Limit Reached",
+            detail:
+              "You've reached the Hobby plan limit of 1 connected source. Upgrade to Pro for unlimited usage.",
+          },
+        ],
+        403,
+      ),
+    );
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    expect(insertMock).not.toHaveBeenCalled();
   });
 
   it("throws 401 when the user is not authenticated", async () => {
