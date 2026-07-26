@@ -86,9 +86,24 @@ function invalidSourceFilterError(): ApiError {
   );
 }
 
+// h3's getQuery() returns a string[] when a query key is repeated (e.g.
+// ?filter[source]=webhook&filter[source]=email). filter[status] and
+// filter[q] silently ignore that shape today (same as any other unrecognized
+// value), but filter[source] now throws on an unrecognized value, so an
+// unnormalized array would produce a misleading "must be one of" error even
+// though every value the caller sent was valid. Take the first value, the
+// same "duplicate key" convention most query-string parsers use.
+function firstQueryValue(
+  value: string | string[] | undefined,
+): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 function validateSourceFilter(
-  filterSource: string | undefined,
+  rawFilterSource: string | string[] | undefined,
 ): SourceType | undefined {
+  const filterSource = firstQueryValue(rawFilterSource);
+
   if (!filterSource) {
     return undefined;
   }
@@ -172,7 +187,8 @@ export default defineEventHandler(
       const query = getQuery(event);
       const size = parsePageSize(query["page[size]"] as string | undefined);
       const afterUuid = query["page[after]"] as string | undefined;
-      const filterSource = query["filter[source]"] as string | undefined;
+      const filterSource = query["filter[source]"] as
+        string | string[] | undefined;
       const filterStatus = query["filter[status]"] as string | undefined;
       const filterQuery = query["filter[q]"] as string | undefined;
 

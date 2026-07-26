@@ -28,7 +28,7 @@ const mockCreateError = vi.fn((options: object) => {
   return error;
 });
 
-let queryParams: Record<string, string> = {};
+let queryParams: Record<string, string | string[]> = {};
 const mockGetQuery = vi.fn(() => queryParams);
 
 vi.stubGlobal("defineEventHandler", (fn: unknown) => fn);
@@ -132,8 +132,10 @@ describe("GET /api/records", () => {
 
   // Pinned literal (not derived from SOURCE_TYPES) so dropping a type from the
   // shared constant fails this test, rather than silently shrinking the
-  // it.each below along with it.
-  it("recognizes exactly the seven source types the sources API accepts", () => {
+  // it.each below along with it. (The coupling with what POST /api/sources
+  // accepts is covered separately in tests/server/api/sources/create.test.ts,
+  // which imports this same constant.)
+  it("pins the shared SOURCE_TYPES contract to the seven known source types", () => {
     expect(SOURCE_TYPES).toEqual([
       "webhook",
       "email",
@@ -143,6 +145,25 @@ describe("GET /api/records", () => {
       "rss",
       "shortcuts",
     ]);
+  });
+
+  it("uses the first value when filter[source] is repeated in the query string", async () => {
+    queryParams = { "filter[source]": ["webhook", "email"] };
+    const { countWhere } = stubSelectResults({ value: 0 }, []);
+
+    await handler(buildEvent(userId));
+
+    const whereArg = countWhere.mock.calls[0]?.[0] as { and: unknown[] };
+    const conditions = whereArg.and;
+    const hasWebhookLikeCondition = conditions.some(
+      (condition) =>
+        typeof condition === "object" &&
+        condition !== null &&
+        "like" in condition &&
+        (condition as { like: { pattern: unknown } }).like.pattern ===
+          "webhook/%",
+    );
+    expect(hasWebhookLikeCondition).toBe(true);
   });
 
   it.each(SOURCE_TYPES)(
