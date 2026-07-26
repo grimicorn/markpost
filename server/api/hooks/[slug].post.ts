@@ -6,16 +6,19 @@ import { apiErrorHandler, ApiError } from "../../utils/errors";
 import { applyFieldMapping } from "../../utils/fieldMapper";
 import { parseWebhookPayload, type UserSettings } from "../../utils/markdown";
 import { assertWithinRecordLimit } from "../../utils/planLimits";
-import { verifyProviderSignature } from "../../utils/signatureVerifier";
+import {
+  GITHUB_SIGNATURE_HEADER,
+  normalizeProvider,
+  STRIPE_PROVIDER,
+  STRIPE_SIGNATURE_HEADER,
+  verifyProviderSignature,
+} from "../../utils/signatureVerifier";
 import { writeEvent } from "../../utils/eventWriter";
 import { recordWebhookHit } from "../../utils/webhookThrottle";
 import { SHARED_SECRET_HEADER } from "#shared/utils/webhookSecrets";
 
 const DEFAULT_FILENAME_TEMPLATE = "{{date}}-{{slug}}.md";
 const STRIPE_WEBHOOK_SECRET_ENV = "STRIPE_WEBHOOK_SECRET";
-const STRIPE_SIGNATURE_HEADER = "stripe-signature";
-const GITHUB_SIGNATURE_HEADER = "x-hub-signature-256";
-const STRIPE_PROVIDER = "stripe";
 const RECORD_STATUS_PENDING = "pending";
 const RECORD_STATUS_ERROR = "error";
 const EVENT_KIND_OK = "ok";
@@ -237,7 +240,7 @@ async function resolveAndValidateSource(
 // creation time, since each user's GitHub/Zapier/Shortcuts integration is
 // configured independently.
 function resolveProviderSecret(source: SourceRow): string | null {
-  if (source.provider?.toLowerCase().trim() === STRIPE_PROVIDER) {
+  if (normalizeProvider(source.provider) === STRIPE_PROVIDER) {
     return process.env[STRIPE_WEBHOOK_SECRET_ENV] ?? null;
   }
 

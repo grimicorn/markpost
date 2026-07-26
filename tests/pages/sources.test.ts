@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { mount, flushPromises } from "@vue/test-utils";
+import { mount, flushPromises, type VueWrapper } from "@vue/test-utils";
 import { ref } from "vue";
 
 vi.stubGlobal("definePageMeta", vi.fn());
@@ -77,6 +77,7 @@ function makeSource(id = "uuid-1") {
       type: "webhook",
       name: "Webhook endpoint",
       provider: null,
+      providerSecret: null as string | null,
       endpointSlug: "wh_abc12345",
       routeFolder: "99-incoming/",
       fieldMapping: null,
@@ -196,5 +197,43 @@ describe("sources page", () => {
     await wrapper.find(".cancel-btn").trigger("click");
     expect(mockRemoveSource).not.toHaveBeenCalled();
     expect(wrapper.find(".confirm-dialog").exists()).toBe(false);
+  });
+
+  describe("addSource reveal step", () => {
+    async function openModalAndPickGithub(wrapper: VueWrapper) {
+      await wrapper.find("button").trigger("click");
+      const modal = wrapper.findComponent(".add-source-modal");
+      await modal.vm.$emit("pick", { id: "github", name: "GitHub" });
+    }
+
+    it("closes the modal when the created source has no providerSecret", async () => {
+      mockAddSource.mockResolvedValue(makeSource("uuid-new"));
+      const wrapper = mount(SourcesPage, globalConfig);
+
+      await openModalAndPickGithub(wrapper);
+      const modal = wrapper.findComponent(".add-source-modal");
+      await modal.vm.$emit("add", "99-incoming/");
+      await flushPromises();
+
+      expect(wrapper.find(".add-source-modal").exists()).toBe(false);
+    });
+
+    it("keeps the modal open in the reveal step when the created source has a providerSecret", async () => {
+      const created = makeSource("uuid-new");
+      created.attributes.providerSecret = "generated-secret-value";
+      mockAddSource.mockResolvedValue(created);
+      const wrapper = mount(SourcesPage, globalConfig);
+
+      await openModalAndPickGithub(wrapper);
+      const modal = wrapper.findComponent(".add-source-modal");
+      await modal.vm.$emit("add", "99-incoming/");
+      await flushPromises();
+
+      expect(wrapper.find(".add-source-modal").exists()).toBe(true);
+      expect(modal.props("modalState")).toMatchObject({
+        step: "reveal",
+        revealSecret: "generated-secret-value",
+      });
+    });
   });
 });

@@ -188,67 +188,24 @@ describe("SourceCard", () => {
     expect(wrapper.emitted("remove")?.[0]).toEqual(["attributes-uuid"]);
   });
 
-  it("does not render a secret block when providerSecret is absent", () => {
+  it("never renders a providerSecret, even if the API response happened to include one", () => {
+    // The server only ever reveals providerSecret once, in the create response
+    // (server/utils/response.ts's revealProviderSecret option); SourceCard reads
+    // from the list/patch responses, which always null it out. This pins that
+    // SourceCard has no code path that would display it if that ever changed.
     const wrapper = mount(SourceCard, {
       ...globalConfig,
       props: {
         source: makeSource({
-          type: "stripe",
-          name: "Stripe",
-          provider: "stripe",
+          type: "github",
+          name: "GitHub",
+          provider: "github",
+          providerSecret: "abc123secret",
         }),
       },
     });
+    expect(wrapper.text()).not.toContain("abc123secret");
     expect(wrapper.text()).not.toContain("copy secret");
-  });
-
-  it("renders the GitHub webhook secret with setup instructions", () => {
-    const wrapper = mount(SourceCard, {
-      ...globalConfig,
-      props: {
-        source: makeSource({
-          type: "github",
-          name: "GitHub",
-          provider: "github",
-          providerSecret: "abc123secret",
-        }),
-      },
-    });
-    expect(wrapper.text()).toContain("abc123secret");
-    expect(wrapper.text()).toContain("webhook secret");
-    expect(wrapper.text()).toContain("GitHub repo's Settings");
-  });
-
-  it("renders the Zapier shared secret with the header name to configure", () => {
-    const wrapper = mount(SourceCard, {
-      ...globalConfig,
-      props: {
-        source: makeSource({
-          type: "zapier",
-          name: "Zapier",
-          provider: "zapier",
-          providerSecret: "zap-secret-value",
-        }),
-      },
-    });
-    expect(wrapper.text()).toContain("zap-secret-value");
-    expect(wrapper.text()).toContain("shared secret");
-    expect(wrapper.text()).toContain("x-markpost-secret");
-  });
-
-  it("matches snapshot for a github source with a providerSecret", () => {
-    const wrapper = mount(SourceCard, {
-      ...globalConfig,
-      props: {
-        source: makeSource({
-          type: "github",
-          name: "GitHub",
-          provider: "github",
-          providerSecret: "abc123secret",
-        }),
-      },
-    });
-    expect(wrapper.html()).toMatchSnapshot();
   });
 
   it("does not duplicate the slug — endpointSlug appears exactly once in code body", () => {

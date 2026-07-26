@@ -54,7 +54,8 @@ exports[`AddSourceModal > matches snapshot for the config step (github preset) 1
           </svg>add source
           <!--v-if-->
         </button></div>
-    </div>
+    </div><!-- step: reveal (secret-backed presets only — shown once, right after creation) -->
+    <!--v-if-->
   </div>
 </div>"
 `;
@@ -106,6 +107,56 @@ exports[`AddSourceModal > matches snapshot for the pick step 1`] = `
         </button></div>
     </div><!-- step: config -->
     <!--v-if-->
+    <!-- step: reveal (secret-backed presets only — shown once, right after creation) -->
+    <!--v-if-->
+  </div>
+</div>"
+`;
+
+exports[`AddSourceModal > reveal step > matches snapshot for the reveal step (github preset) 1`] = `
+"<div style="position: fixed; display: grid; place-items: center; z-index: 50; padding: 24px;">
+  <div class="card" style="width: 600px; max-width: 100%; max-height: 90%; overflow: auto; box-shadow: var(--sh-pop);">
+    <!-- head -->
+    <div class="row between" style="padding: 18px 24px; border-bottom-width: var(--line); border-bottom-style: var(--line); border-bottom-color: var(--line);">
+      <div class="row gap-3" style="align-items: center;">
+        <!--v-if-->
+        <div class="col" style="gap: 2px;"><span class="mono faint" style="font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase;">step 2 / 2</span>
+          <h3 style="font-size: 17px; font-weight: 600;">Source created</h3>
+        </div>
+      </div><button class="icon-btn"><svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg></button>
+    </div><!-- step: pick -->
+    <!--v-if-->
+    <!-- step: config -->
+    <!--v-if-->
+    <!-- step: reveal (secret-backed presets only — shown once, right after creation) -->
+    <div style="padding: 24px;">
+      <div class="alert ok" role="alert"><svg class="ico a-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21.8 10A10 10 0 1 1 17 3.34"></path>
+          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+        <div class="a-body">
+          <div class="a-title">Source created</div>
+          <div class="a-text"> Your <strong>GitHub</strong> source is ready. Copy the secret below now — for your security it will not be shown again. </div>
+        </div>
+        <!--v-if-->
+      </div>
+      <div class="code" style="margin-top: 16px;">
+        <div class="code-head"><span class="lang">webhook secret</span><button class="icon-btn mono" style="font-size: 11px; gap: 5px; display: inline-flex; align-items: center; color: var(--ink-3);"><svg class="ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg> copy secret</button></div>
+        <div class="code-body mono" style="font-size: 12.5px; word-break: break-all;">generated-secret-value</div>
+      </div>
+      <div class="muted" style="font-size: 11px; margin-top: 8px;">Paste this into the GitHub repo's Settings -&gt; Webhooks -&gt; Secret field.</div>
+      <div class="row gap-3" style="justify-content: flex-end; margin-top: 22px;"><button class="btn btn-accent"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>done
+          <!--v-if-->
+        </button></div>
+    </div>
   </div>
 </div>"
 `;

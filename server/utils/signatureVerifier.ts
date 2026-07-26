@@ -1,7 +1,16 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import {
+  createHash,
+  createHmac,
+  randomBytes,
+  timingSafeEqual,
+} from "node:crypto";
 import { SHARED_SECRET_HEADER } from "#shared/utils/webhookSecrets";
 
-const STRIPE_SIGNATURE_HEADER = "stripe-signature";
+// Exported so every caller that needs to read/forward these headers (the hooks
+// endpoint's buildProviderHeaders) imports the same constant instead of
+// re-declaring it — a renamed header here must not be able to silently stop
+// being forwarded there.
+export const STRIPE_SIGNATURE_HEADER = "stripe-signature";
 const STRIPE_TIMESTAMP_PREFIX = "t=";
 const STRIPE_V1_PREFIX = "v1=";
 const STRIPE_TIMESTAMP_TOLERANCE_SECONDS = 300;
@@ -9,26 +18,60 @@ const STRIPE_TIMESTAMP_TOLERANCE_SECONDS = 300;
 // GitHub signs deliveries with a per-webhook secret the user pastes into their
 // repo's webhook settings, so verification needs that source's own secret
 // rather than a single global one.
-const GITHUB_SIGNATURE_HEADER = "x-hub-signature-256";
+export const GITHUB_SIGNATURE_HEADER = "x-hub-signature-256";
 const GITHUB_SIGNATURE_PREFIX = "sha256=";
 
 // 24 random bytes -> 48 hex chars, ~192 bits of entropy: comfortably beyond
 // brute-force range for a value transmitted over HTTPS only.
 const PROVIDER_SECRET_BYTE_LENGTH = 24;
 
+export const STRIPE_PROVIDER = "stripe";
+export const GITHUB_PROVIDER = "github";
+
+// Zapier and Apple Shortcuts share the same verification method (a static
+// secret compared via the shared-secret header) since neither can compute an
+// HMAC natively — GitHub is secret-backed too, but verified separately via
+// real HMAC, so it is deliberately not in this list.
+export const SHARED_SECRET_PROVIDERS = ["zapier", "shortcuts"] as const;
+
 // Providers verified via a per-source secret generated at source-creation time
 // (as opposed to Stripe, which verifies against the app-wide STRIPE_WEBHOOK_SECRET).
 export const SECRET_BACKED_PROVIDERS = [
-  "github",
-  "zapier",
-  "shortcuts",
+  GITHUB_PROVIDER,
+  ...SHARED_SECRET_PROVIDERS,
 ] as const;
 export type SecretBackedProvider = (typeof SECRET_BACKED_PROVIDERS)[number];
+
+// Every provider identity the backend knows how to verify at all — used to
+// reject an unrecognized `provider` string at source-creation time rather
+// than accepting it and permanently 401ing every delivery afterward.
+export const KNOWN_PROVIDERS = [
+  STRIPE_PROVIDER,
+  ...SECRET_BACKED_PROVIDERS,
+] as const;
 
 export function isSecretBackedProvider(
   provider: string,
 ): provider is SecretBackedProvider {
   return (SECRET_BACKED_PROVIDERS as readonly string[]).includes(provider);
+}
+
+function isSharedSecretProvider(
+  provider: string,
+): provider is (typeof SHARED_SECRET_PROVIDERS)[number] {
+  return (SHARED_SECRET_PROVIDERS as readonly string[]).includes(provider);
+}
+
+export function isKnownProvider(provider: string): boolean {
+  return (KNOWN_PROVIDERS as readonly string[]).includes(provider);
+}
+
+// The single normalization boundary for provider identity: creation-time
+// derivation/validation and verification-time dispatch must agree on what
+// "github" vs "GitHub " means, or a source can be created successfully and
+// then never verify a single delivery.
+export function normalizeProvider(provider: string | null | undefined): string {
+  return provider?.toLowerCase().trim() ?? "";
 }
 
 export function generateProviderSecret(): string {
@@ -163,6 +206,10 @@ export function verifyGithubSignature(
   return { ok: true };
 }
 
+function digest(value: string): Buffer {
+  return createHash("sha256").update(value, "utf8").digest();
+}
+
 export function verifySharedSecret(
   providedSecret: string | undefined,
   secret: string,
@@ -174,11 +221,10 @@ export function verifySharedSecret(
     };
   }
 
-  const providedBuffer = Buffer.from(providedSecret, "utf8");
-  const expectedBuffer = Buffer.from(secret, "utf8");
-  const matches =
-    providedBuffer.length === expectedBuffer.length &&
-    timingSafeEqual(providedBuffer, expectedBuffer);
+  // Hash both sides to a fixed-width digest before comparing: comparing the
+  // raw values directly would let the length check short-circuit before
+  // timingSafeEqual runs, leaking the secret's length via response timing.
+  const matches = timingSafeEqual(digest(providedSecret), digest(secret));
 
   if (!matches) {
     return { ok: false, reason: "Webhook secret mismatch" };
@@ -193,10 +239,6 @@ export type ProviderSignatureInput = {
   rawBody: string;
   secret: string | null;
 };
-
-function normalizeProvider(provider: string | null): string {
-  return provider?.toLowerCase().trim() ?? "";
-}
 
 function verifyStripeProvider(
   input: ProviderSignatureInput,
@@ -253,15 +295,15 @@ export function verifyProviderSignature(
     return { ok: true };
   }
 
-  if (provider === "stripe") {
+  if (provider === STRIPE_PROVIDER) {
     return verifyStripeProvider(input);
   }
 
-  if (provider === "github") {
+  if (provider === GITHUB_PROVIDER) {
     return verifyGithubProvider(input);
   }
 
-  if (provider === "zapier" || provider === "shortcuts") {
+  if (isSharedSecretProvider(provider)) {
     return verifySharedSecretProvider(input);
   }
 

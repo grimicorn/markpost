@@ -105,6 +105,25 @@ describe("PATCH /api/sources/:uuid", () => {
     });
   });
 
+  it("never reveals providerSecret, even when the underlying row has one", async () => {
+    mockGetRouterParam.mockReturnValue(validUuid);
+    mockReadBody.mockResolvedValue(buildBody({ routeFolder: "05-stripe/" }));
+    stubUpdateResult([
+      {
+        ...sampleSource,
+        provider: "github",
+        providerSecret: "leaked-secret",
+        routeFolder: "05-stripe/",
+      },
+    ]);
+
+    const response = await handler(buildEvent(userId));
+
+    expect(response).toMatchObject({
+      data: { attributes: { providerSecret: null } },
+    });
+  });
+
   it("updates only routeFolder without touching fieldMapping", async () => {
     mockGetRouterParam.mockReturnValue(validUuid);
     mockReadBody.mockResolvedValue(buildBody({ routeFolder: "05-stripe/" }));

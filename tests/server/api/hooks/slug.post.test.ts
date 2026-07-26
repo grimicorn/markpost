@@ -385,6 +385,30 @@ describe("POST /api/hooks/[slug]", () => {
         expect.objectContaining({ statusCode: 401 }),
       );
     });
+
+    it("verifies against STRIPE_WEBHOOK_SECRET, ignoring any providerSecret stored on the row", async () => {
+      // Stripe verification is deliberately env-based, not per-source (see
+      // resolveProviderSecret in [slug].post.ts) — a stray providerSecret value
+      // on a stripe-typed row (there should never be one, since only
+      // secret-backed providers get one generated) must not be used instead.
+      process.env.STRIPE_WEBHOOK_SECRET = STRIPE_SECRET;
+      const rawBody = JSON.stringify({ type: "charge.succeeded" });
+      const validHeader = buildValidStripeHeader(rawBody, STRIPE_SECRET);
+      const stripeSourceWithDecoySecret = {
+        ...stripeSource,
+        providerSecret: "decoy-value-should-be-ignored",
+      };
+
+      stubSourceAndSettings([stripeSourceWithDecoySecret]);
+      stubInsertRecord(sampleRecord);
+      stubUpdateStats();
+      mockReadRawBody.mockResolvedValue(rawBody);
+      mockGetHeader.mockReturnValue(validHeader);
+
+      const response = await handler(buildEvent());
+
+      expect202Success(response, mockSetResponseStatus, sampleRecord.uuid);
+    });
   });
 
   describe("github signature verification", () => {

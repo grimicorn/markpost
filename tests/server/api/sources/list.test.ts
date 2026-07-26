@@ -95,6 +95,16 @@ describe("GET /api/sources", () => {
     expect(response).toEqual({ data: [] });
   });
 
+  it("never reveals providerSecret, even when the underlying row has one", async () => {
+    stubSelectResult([
+      { ...sampleSource, provider: "github", providerSecret: "leaked-secret" },
+    ]);
+
+    const response = await handler(buildEvent(userId));
+
+    expect(response.data[0]?.attributes.providerSecret).toBeNull();
+  });
+
   it("throws a 401 when the user is not authenticated", async () => {
     await expect(handler(buildEvent(undefined))).rejects.toMatchObject({
       statusCode: 401,

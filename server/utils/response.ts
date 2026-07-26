@@ -206,8 +206,18 @@ type SourceResource = ApiResourceObject & {
 export type SourceApiResponse = ApiResponse<SourceResource | null>;
 export type SourceListApiResponse = ApiResponse<SourceResource[]>;
 
+export type SourceSerializerOptions = {
+  // The generated provider secret (GitHub/Zapier/Shortcuts HMAC/shared-secret
+  // key) is revealed exactly once, in the response to the request that
+  // created it — never on GET/list or PATCH, where it would otherwise sit in
+  // every future response body, proxy log, and browser devtools capture for
+  // as long as the source exists.
+  revealProviderSecret?: boolean;
+};
+
 export function sourceSerializer(
   source: SourceInput | null | undefined,
+  options: SourceSerializerOptions = {},
 ): SourceResource | null {
   if (!source) {
     return null;
@@ -223,7 +233,9 @@ export function sourceSerializer(
       type: source.type,
       name: source.name,
       provider: source.provider,
-      providerSecret: source.providerSecret ?? null,
+      providerSecret: options.revealProviderSecret
+        ? (source.providerSecret ?? null)
+        : null,
       endpointSlug: source.endpointSlug,
       routeFolder: source.routeFolder,
       fieldMapping: source.fieldMapping,

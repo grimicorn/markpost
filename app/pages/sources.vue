@@ -165,9 +165,10 @@ interface SourceChoice {
 }
 
 interface ModalState {
-  step: "pick" | "config";
+  step: "pick" | "config" | "reveal";
   choice: SourceChoice | null;
   folder: string;
+  revealSecret?: string | null;
 }
 
 const {
@@ -220,17 +221,39 @@ const addSource = async (folder: string) => {
   addError.value = null;
 
   try {
-    await addSourceToList({
+    const created = await addSourceToList({
       type: choice.id,
       name: choice.name,
       routeFolder: folder,
     });
-    modalState.value = null;
+    showRevealStepIfSecretGenerated(choice, created.attributes.providerSecret);
   } catch (createError) {
     console.error("[sources] addSource error:", createError);
     addError.value = "Failed to add source. Please try again.";
   }
 };
+
+// GitHub/Zapier/Shortcuts presets get a generated secret the user needs to
+// paste into that provider's own settings; the server reveals it exactly
+// once, in the create response (see server/utils/response.ts), so this is the
+// only chance to show it. Presets with nothing to reveal close the modal as
+// before.
+function showRevealStepIfSecretGenerated(
+  choice: SourceChoice,
+  providerSecret: string | null | undefined,
+): void {
+  if (!providerSecret) {
+    modalState.value = null;
+    return;
+  }
+
+  modalState.value = {
+    step: "reveal",
+    choice,
+    folder: DEFAULT_ROUTE_FOLDER,
+    revealSecret: providerSecret,
+  };
+}
 
 const onRemoveRequested = (uuid: string) => {
   pendingRemoveUuid.value = uuid;

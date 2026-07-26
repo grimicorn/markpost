@@ -48,14 +48,10 @@
                 text-transform: uppercase;
               "
             >
-              {{ modalState.step === "pick" ? "step 1 / 2" : "step 2 / 2" }}
+              {{ stepLabel }}
             </span>
             <h3 style="font-size: 17px; font-weight: 600">
-              {{
-                modalState.step === "pick"
-                  ? "Add a source"
-                  : `Configure ${modalState.choice?.name}`
-              }}
+              {{ stepTitle }}
             </h3>
           </div>
         </div>
@@ -259,11 +255,56 @@
           >
         </div>
       </div>
+
+      <!-- step: reveal (secret-backed presets only — shown once, right after creation) -->
+      <div
+        v-if="modalState.step === 'reveal' && modalState.choice"
+        style="padding: 24px"
+      >
+        <AppAlert tone="ok" title="Source created">
+          Your <strong>{{ modalState.choice.name }}</strong> source is ready.
+          Copy the secret below now — for your security it will not be shown
+          again.
+        </AppAlert>
+
+        <div class="code" style="margin-top: 16px">
+          <div class="code-head">
+            <span class="lang">{{ revealSecretLabel }}</span>
+            <AppCopyBtn
+              :text="modalState.revealSecret ?? ''"
+              label="copy secret"
+            />
+          </div>
+          <div
+            class="code-body mono"
+            style="font-size: 12.5px; word-break: break-all"
+          >
+            {{ modalState.revealSecret }}
+          </div>
+        </div>
+        <div class="muted" style="font-size: 11px; margin-top: 8px">
+          {{ revealSecretHint }}
+        </div>
+
+        <div
+          class="row gap-3"
+          style="justify-content: flex-end; margin-top: 22px"
+        >
+          <AppBtn variant="accent" icon="check" @click="emit('close')"
+            >done</AppBtn
+          >
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import {
+  PROVIDER_SECRET_HINT,
+  PROVIDER_SECRET_LABEL,
+} from "../utils/providerSecretCopy";
+
 // "signature" presets verify a cryptographic HMAC (Stripe, GitHub); "sharedSecret"
 // presets verify a static secret sent back in a header, since Zapier and Apple
 // Shortcuts have no native signing capability of their own.
@@ -282,10 +323,19 @@ interface SourceChoice {
 }
 
 interface ModalState {
-  step: "pick" | "config";
+  step: "pick" | "config" | "reveal";
   choice: SourceChoice | null;
   folder: string;
+  // Set by the parent once creation succeeds for a secret-backed preset
+  // (github/zapier/shortcuts); drives the one-time "reveal" step below.
+  revealSecret?: string | null;
 }
+
+const STEP_LABEL_BY_STEP: Record<ModalState["step"], string> = {
+  pick: "step 1 / 2",
+  config: "step 2 / 2",
+  reveal: "step 2 / 2",
+};
 
 const props = defineProps<{
   modalState: ModalState;
@@ -370,6 +420,26 @@ const authClause = computed(() => {
   const authKind = props.modalState.choice?.authKind;
   return authKind ? AUTH_CLAUSE_BY_KIND[authKind] : "";
 });
+
+const stepLabel = computed(() => STEP_LABEL_BY_STEP[props.modalState.step]);
+
+const stepTitle = computed(() => {
+  if (props.modalState.step === "pick") {
+    return "Add a source";
+  }
+  if (props.modalState.step === "reveal") {
+    return "Source created";
+  }
+  return `Configure ${props.modalState.choice?.name}`;
+});
+
+const revealSecretLabel = computed(
+  () => PROVIDER_SECRET_LABEL[props.modalState.choice?.id ?? ""] ?? "secret",
+);
+
+const revealSecretHint = computed(
+  () => PROVIDER_SECRET_HINT[props.modalState.choice?.id ?? ""] ?? "",
+);
 
 // A disabled preset (RSS/Atom — see SOURCE_PRESETS) can't be picked yet: skip
 // the emit entirely rather than branching inside the template.

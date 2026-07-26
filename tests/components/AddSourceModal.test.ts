@@ -6,10 +6,11 @@ import AppAlert from "../../app/components/AppAlert.vue";
 import AppField from "../../app/components/AppField.vue";
 import AppChip from "../../app/components/AppChip.vue";
 import AppBtn from "../../app/components/AppBtn.vue";
+import AppCopyBtn from "../../app/components/AppCopyBtn.vue";
 
 const globalConfig = {
   global: {
-    components: { AppIcon, AppAlert, AppField, AppChip, AppBtn },
+    components: { AppIcon, AppAlert, AppField, AppChip, AppBtn, AppCopyBtn },
   },
 };
 
@@ -130,5 +131,67 @@ describe("AddSourceModal", () => {
     });
     expect(wrapper.text()).toContain("shared secret");
     expect(wrapper.text()).not.toContain("signature verification");
+  });
+
+  describe("reveal step", () => {
+    function revealStepProps(choiceId: string, choiceName: string) {
+      return {
+        modalState: {
+          step: "reveal" as const,
+          choice: { id: choiceId, name: choiceName },
+          folder: "99-incoming/",
+          revealSecret: "generated-secret-value",
+        },
+      };
+    }
+
+    it("matches snapshot for the reveal step (github preset)", () => {
+      const wrapper = mount(AddSourceModal, {
+        ...globalConfig,
+        props: revealStepProps("github", "GitHub"),
+      });
+      expect(wrapper.html()).toMatchSnapshot();
+    });
+
+    it("shows the generated secret and a copy button", () => {
+      const wrapper = mount(AddSourceModal, {
+        ...globalConfig,
+        props: revealStepProps("github", "GitHub"),
+      });
+      expect(wrapper.text()).toContain("generated-secret-value");
+      expect(wrapper.text()).toContain("copy secret");
+    });
+
+    it("shows GitHub-specific setup instructions for the github preset", () => {
+      const wrapper = mount(AddSourceModal, {
+        ...globalConfig,
+        props: revealStepProps("github", "GitHub"),
+      });
+      expect(wrapper.text()).toContain("webhook secret");
+      expect(wrapper.text()).toContain("GitHub repo's Settings");
+    });
+
+    it("shows the shared-secret header name for the zapier preset", () => {
+      const wrapper = mount(AddSourceModal, {
+        ...globalConfig,
+        props: revealStepProps("zapier", "Zapier"),
+      });
+      expect(wrapper.text()).toContain("shared secret");
+      expect(wrapper.text()).toContain("x-markpost-secret");
+    });
+
+    it("emits close when 'done' is clicked", async () => {
+      const wrapper = mount(AddSourceModal, {
+        ...globalConfig,
+        props: revealStepProps("github", "GitHub"),
+      });
+      const doneButton = wrapper
+        .findAll("button")
+        .find((button) => button.text() === "done");
+
+      await doneButton?.trigger("click");
+
+      expect(wrapper.emitted("close")).toHaveLength(1);
+    });
   });
 });

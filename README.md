@@ -58,6 +58,21 @@ npm run db:studio
 | `records`       | Content records with uuid, title, content, and created_at           |
 | `subscriptions` | One row per user tracking plan, status, trial dates, and Stripe IDs |
 
+## Sources and webhook signature verification
+
+A source is a unique ingest endpoint (`/api/hooks/:slug`) that turns an incoming webhook into a record. The Add Source modal offers presets (Stripe, GitHub, Zapier, Apple Shortcuts) that are a plain webhook source with a `provider` set, which enables signature verification on every delivery — see `server/utils/signatureVerifier.ts`.
+
+| Provider        | Verification                                              | Secret                                                                                                     |
+| --------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Stripe          | HMAC-SHA256 over the `Stripe-Signature` header            | App-wide `STRIPE_WEBHOOK_SECRET` env var (this is the app's own Stripe account, not a per-user secret).    |
+| GitHub          | HMAC-SHA256 over the `X-Hub-Signature-256` header         | Generated per source at creation time; paste it into the GitHub repo's Settings → Webhooks → Secret field. |
+| Zapier          | Shared secret compared via the `X-Markpost-Secret` header | Generated per source at creation time; add it as a custom header on the Zapier webhook action.             |
+| Apple Shortcuts | Shared secret compared via the `X-Markpost-Secret` header | Generated per source at creation time; add it as a custom header in the "Get Contents of URL" action.      |
+
+Generated secrets are revealed exactly once, in the response to the request that created the source (the Add Source modal shows a one-time "copy this now" step) — the API never returns it again on subsequent `GET`/`PATCH` calls.
+
+RSS/Atom is listed as a preset but marked unavailable in the UI: there is no polling infrastructure (scheduler, dedup, fetch cadence) to back it yet.
+
 ## Billing and subscriptions
 
 Billing is handled via [Stripe](https://stripe.com). The integration consists of three API routes under `/api/billing/`:

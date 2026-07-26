@@ -7,7 +7,10 @@ import { generateEndpointSlug } from "../../utils/endpointSlug";
 import { assertWithinSourceLimit } from "../../utils/planLimits";
 import {
   generateProviderSecret,
+  isKnownProvider,
   isSecretBackedProvider,
+  KNOWN_PROVIDERS,
+  normalizeProvider,
 } from "../../utils/signatureVerifier";
 import { sourceSerializer, type SourceApiResponse } from "../../utils/response";
 import { apiValidate, type AttributeRule } from "../../utils/validate";
@@ -76,13 +79,17 @@ function isValidSourceType(value: string): value is SourceType {
 // type: "github"), never `provider` — so without this fallback their
 // signature verification silently never activates. An explicit `provider`
 // still wins, which keeps the generic "webhook" type able to opt into a
-// provider deliberately.
+// provider deliberately. Both paths go through normalizeProvider so creation
+// and verification (server/utils/signatureVerifier.ts) agree on what
+// "GitHub " and "github" mean — otherwise a source can be created
+// successfully and then never verify a single delivery.
 function deriveProvider(attributes: {
   type: string;
   provider?: string;
 }): string | null {
-  if (attributes.provider) {
-    return attributes.provider;
+  const explicitProvider = normalizeProvider(attributes.provider);
+  if (explicitProvider) {
+    return explicitProvider;
   }
 
   return PROVIDER_TYPES.has(attributes.type) ? attributes.type : null;
@@ -166,6 +173,66 @@ function invalidProviderError(): ApiError {
   );
 }
 
+function unknownProviderError(): ApiError {
+  return new ApiError(
+    [
+      {
+        status: "422",
+        title: "Invalid Attribute",
+        detail: `Provider must be one of: ${KNOWN_PROVIDERS.join(", ")}`,
+        source: { pointer: "/data/attributes/provider" },
+      },
+    ],
+    422,
+  );
+}
+
+function isProviderWrongType(attributes: CreateSourceAttributes): boolean {
+  return (
+    attributes.provider !== undefined &&
+    attributes.provider !== null &&
+    typeof attributes.provider !== "string"
+  );
+}
+
+function validateAttributesOrThrow(
+  attributes: Required<CreateSourceAttributes>,
+): void {
+  if (!isValidSourceType(attributes.type)) {
+    throw invalidTypeError();
+  }
+
+  if (isProviderWrongType(attributes)) {
+    throw invalidProviderError();
+  }
+
+  if (
+    attributes.provider &&
+    !isKnownProvider(normalizeProvider(attributes.provider))
+  ) {
+    throw unknownProviderError();
+  }
+}
+
+function buildInsertInput(
+  attributes: Required<CreateSourceAttributes>,
+): InsertSourceInput {
+  const provider = deriveProvider(attributes);
+  const providerSecret =
+    provider && isSecretBackedProvider(provider)
+      ? generateProviderSecret()
+      : null;
+
+  return {
+    type: attributes.type,
+    name: attributes.name,
+    routeFolder: attributes.routeFolder,
+    provider: provider ?? undefined,
+    providerSecret,
+    fieldMapping: attributes.fieldMapping,
+  };
+}
+
 export default defineEventHandler(async (event): Promise<SourceApiResponse> => {
   try {
     const userId = requireUser(event);
@@ -174,39 +241,17 @@ export default defineEventHandler(async (event): Promise<SourceApiResponse> => {
     apiValidate(body as ApiRequest, VALIDATION_RULES);
 
     const attributes = body.data.attributes as Required<CreateSourceAttributes>;
-
-    if (!isValidSourceType(attributes.type)) {
-      throw invalidTypeError();
-    }
-
-    if (
-      attributes.provider !== undefined &&
-      attributes.provider !== null &&
-      typeof attributes.provider !== "string"
-    ) {
-      throw invalidProviderError();
-    }
+    validateAttributesOrThrow(attributes);
 
     await assertWithinSourceLimit(userId);
 
-    const provider = deriveProvider(attributes);
-    const providerSecret =
-      provider && isSecretBackedProvider(provider)
-        ? generateProviderSecret()
-        : null;
-
-    const source = await insertSource(userId, {
-      type: attributes.type,
-      name: attributes.name,
-      routeFolder: attributes.routeFolder,
-      provider: provider ?? undefined,
-      providerSecret,
-      fieldMapping: attributes.fieldMapping,
-    });
+    const source = await insertSource(userId, buildInsertInput(attributes));
 
     setResponseStatus(event, 201);
 
-    return { data: sourceSerializer(source) };
+    return {
+      data: sourceSerializer(source, { revealProviderSecret: true }),
+    };
   } catch (error) {
     return apiErrorHandler(error);
   }
