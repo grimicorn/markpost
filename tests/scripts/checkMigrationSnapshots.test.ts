@@ -15,6 +15,7 @@ import {
   findMissingSnapshotTags,
   findOrphanSnapshotFiles,
   loadSnapshotChain,
+  orderedJournalTags,
 } from "../../scripts/check-migration-snapshots";
 
 const ROOT_SNAPSHOT_PREV_ID = "00000000-0000-0000-0000-000000000000";
@@ -285,9 +286,7 @@ describe("server/db/migrations snapshot completeness (repo state)", () => {
       readFileSync(`${META_FOLDER}/_journal.json`, "utf8"),
     ) as { entries: { tag: string; idx: number }[] };
 
-    return [...journal.entries]
-      .sort((first, second) => first.idx - second.idx)
-      .map((entry) => entry.tag);
+    return orderedJournalTags(journal);
   }
 
   it("has a snapshot file for every _journal.json entry", () => {
@@ -348,7 +347,17 @@ describe("check-migration-snapshots CLI", () => {
     const result = spawnSync(
       process.execPath,
       ["scripts/check-migration-snapshots.ts", migrationsFolder],
-      { encoding: "utf8", cwd: process.cwd() },
+      {
+        encoding: "utf8",
+        cwd: process.cwd(),
+        // Suppress Node's "Type Stripping is an experimental feature"
+        // warning on some Node minors, which otherwise lands on stderr and
+        // has nothing to do with the behavior under test.
+        env: {
+          ...process.env,
+          NODE_OPTIONS: "--disable-warning=ExperimentalWarning",
+        },
+      },
     );
     expect(result.error).toBeUndefined();
     return result;
@@ -463,12 +472,89 @@ describe("check-migration-snapshots CLI", () => {
     const result = runCli(migrationsFolder);
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain('non-string "tag" or non-integer "idx"');
+    expect(result.stderr).toContain("non-integer");
+  });
+
+  // drizzle keeps idx and the tag's NNNN_ prefix in lockstep; a merge that
+  // reorders entries without renumbering idx must not silently validate
+  // against the wrong migration.
+  it("exits 1 with a readable error when idx doesn't match the tag's NNNN_ prefix", () => {
+    const { migrationsFolder, metaFolder } = makeFixtureMigrationsFolder();
+    writeFileSync(
+      join(metaFolder, "_journal.json"),
+      JSON.stringify({ entries: [{ idx: 5, tag: "0000_a" }] }),
+    );
+
+    const result = runCli(migrationsFolder);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("NNNN_ prefix");
+  });
+
+  it("exits 1 with a readable error when idx values are duplicated", () => {
+    const { migrationsFolder, metaFolder } = makeFixtureMigrationsFolder();
+    writeFileSync(
+      join(metaFolder, "_journal.json"),
+      JSON.stringify({
+        entries: [
+          { idx: 0, tag: "0000_a" },
+          { idx: 0, tag: "0000_a" },
+        ],
+      }),
+    );
+
+    const result = runCli(migrationsFolder);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("duplicate");
+  });
+
+  it("exits 1 with a readable error when the journal has no entries", () => {
+    const { migrationsFolder, metaFolder } = makeFixtureMigrationsFolder();
+    writeFileSync(
+      join(metaFolder, "_journal.json"),
+      JSON.stringify({ entries: [] }),
+    );
+
+    const result = runCli(migrationsFolder);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("has no entries");
   });
 
   it("exits 1 rather than crashing when the migrations folder doesn't exist", () => {
     const result = runCli("does/not/exist");
 
     expect(result.status).toBe(1);
+  });
+
+  // The chain must be walked in idx order, not journal-array order — a
+  // journal whose entries array is physically out of order (but whose idx
+  // values are correct) must still validate a chain that is only valid in
+  // idx order.
+  it("validates the chain in idx order even when the entries array is out of order", () => {
+    const { migrationsFolder, metaFolder } = makeFixtureMigrationsFolder();
+    writeFileSync(
+      join(metaFolder, "_journal.json"),
+      JSON.stringify({
+        entries: [
+          { idx: 1, tag: "0001_b" },
+          { idx: 0, tag: "0000_a" },
+        ],
+      }),
+    );
+    writeFileSync(
+      join(metaFolder, "0000_snapshot.json"),
+      JSON.stringify({ id: "id-0", prevId: ROOT_SNAPSHOT_PREV_ID }),
+    );
+    writeFileSync(
+      join(metaFolder, "0001_snapshot.json"),
+      JSON.stringify({ id: "id-1", prevId: "id-0" }),
+    );
+
+    const result = runCli(migrationsFolder);
+
+    expect(result.stderr).toBe("");
+    expect(result.status).toBe(0);
   });
 });

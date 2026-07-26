@@ -40,10 +40,21 @@ export type SnapshotChainLink = {
   prevId: string;
 };
 
+// Shared by findMissingSnapshotTags, findOrphanSnapshotFiles, and
+// loadSnapshotChain (rule of three): every one of them needs the "NNNN"
+// prefix out of a journal tag like "0005_add_events_table".
+function journalTagPrefix(tag: string): string | undefined {
+  return tag.match(JOURNAL_TAG_PREFIX_PATTERN)?.[1];
+}
+
+function snapshotFilePrefix(filename: string): string | undefined {
+  return filename.match(SNAPSHOT_FILENAME_PATTERN)?.[1];
+}
+
 function extractSnapshotPrefixes(snapshotFilenames: string[]): Set<string> {
   return new Set(
     snapshotFilenames
-      .map((filename) => filename.match(SNAPSHOT_FILENAME_PATTERN)?.[1])
+      .map(snapshotFilePrefix)
       .filter((prefix): prefix is string => Boolean(prefix)),
   );
 }
@@ -55,7 +66,7 @@ export function findMissingSnapshotTags(
   const existingPrefixes = extractSnapshotPrefixes(existingSnapshotFilenames);
 
   return journalTags.filter((tag) => {
-    const prefix = tag.match(JOURNAL_TAG_PREFIX_PATTERN)?.[1];
+    const prefix = journalTagPrefix(tag);
     return !prefix || !existingPrefixes.has(prefix);
   });
 }
@@ -71,12 +82,12 @@ export function findOrphanSnapshotFiles(
 ): string[] {
   const journalPrefixes = new Set(
     journalTags
-      .map((tag) => tag.match(JOURNAL_TAG_PREFIX_PATTERN)?.[1])
+      .map(journalTagPrefix)
       .filter((prefix): prefix is string => Boolean(prefix)),
   );
 
   return existingSnapshotFilenames.filter((filename) => {
-    const prefix = filename.match(SNAPSHOT_FILENAME_PATTERN)?.[1];
+    const prefix = snapshotFilePrefix(filename);
     return Boolean(prefix) && !journalPrefixes.has(prefix as string);
   });
 }
@@ -90,8 +101,8 @@ export function findBrokenChainLinks(
   orderedSnapshots: SnapshotChainLink[],
 ): string[] {
   return orderedSnapshots.flatMap((snapshot, index) => {
-    const previousSnapshot =
-      index === 0 ? undefined : orderedSnapshots[index - 1];
+    // orderedSnapshots[-1] is already undefined for index 0; no ternary needed.
+    const previousSnapshot = orderedSnapshots[index - 1];
     const expectedPrevId = previousSnapshot?.id ?? ROOT_SNAPSHOT_PREV_ID;
 
     if (snapshot.prevId === expectedPrevId) {
@@ -111,6 +122,15 @@ export function findBrokenChainLinks(
   });
 }
 
+// drizzle keeps `idx` and the tag's NNNN_ prefix in lockstep (idx 5 <->
+// "0005_..."); the chain is walked in `idx` order, so if the two ever
+// disagree (a bad merge reordering entries without renumbering idx) the
+// chain check would silently validate against the wrong migration.
+function entryIdxMatchesTagPrefix(entry: JournalEntry): boolean {
+  const prefix = journalTagPrefix(entry.tag);
+  return prefix !== undefined && Number(prefix) === entry.idx;
+}
+
 function readJournal(journalFile: string): Journal {
   const raw = readFileSync(journalFile, "utf8");
   const journal = JSON.parse(raw) as Partial<Journal>;
@@ -120,19 +140,27 @@ function readJournal(journalFile: string): Journal {
   }
 
   const hasInvalidEntry = journal.entries.some(
-    (entry) => typeof entry?.tag !== "string" || !Number.isInteger(entry?.idx),
+    (entry) =>
+      typeof entry?.tag !== "string" ||
+      !Number.isInteger(entry?.idx) ||
+      !entryIdxMatchesTagPrefix(entry),
   );
   if (hasInvalidEntry) {
     throw new Error(
-      `${journalFile} has an entry with a non-string "tag" or non-integer "idx"`,
+      `${journalFile} has an entry with a non-string "tag", a non-integer "idx", or an "idx" that doesn't match its tag's NNNN_ prefix`,
     );
+  }
+
+  const idxValues = journal.entries.map((entry) => entry.idx);
+  if (new Set(idxValues).size !== idxValues.length) {
+    throw new Error(`${journalFile} has duplicate "idx" values`);
   }
 
   return journal as Journal;
 }
 
 function snapshotFilenameForTag(tag: string): string | undefined {
-  const prefix = tag.match(JOURNAL_TAG_PREFIX_PATTERN)?.[1];
+  const prefix = journalTagPrefix(tag);
   return prefix ? `${prefix}_snapshot.json` : undefined;
 }
 
@@ -166,7 +194,7 @@ export function loadSnapshotChain(
   });
 }
 
-function orderedJournalTags(journal: Journal): string[] {
+export function orderedJournalTags(journal: Journal): string[] {
   return [...journal.entries]
     .sort((first, second) => first.idx - second.idx)
     .map((entry) => entry.tag);
@@ -187,6 +215,11 @@ async function main(): Promise<void> {
 
   const journal = readJournal(journalFile);
   const journalTags = orderedJournalTags(journal);
+
+  if (journalTags.length === 0) {
+    throw new Error(`${journalFile} has no entries`);
+  }
+
   const existingSnapshotFilenames = readdirSync(metaFolder);
 
   const missingTags = findMissingSnapshotTags(
