@@ -170,19 +170,25 @@ describe("GET /api/records", () => {
   });
 
   // filter[q] matches records via an `or(ilike(title), ilike(content))`
-  // condition nested inside the top-level `and`; this helper unwraps it.
+  // condition nested inside the top-level `and`. The cursor predicate is
+  // also shaped `{ or: [...] }` under this mock, so narrow to `or` branches
+  // that are themselves ILIKE conditions to avoid matching the cursor.
   function findQueryCondition(conditions: unknown[]) {
     return conditions.find(
       (condition) =>
         typeof condition === "object" &&
         condition !== null &&
-        "or" in condition,
+        "or" in condition &&
+        (condition as { or: unknown[] }).or.every(
+          (branch) =>
+            typeof branch === "object" && branch !== null && "ilike" in branch,
+        ),
     ) as { or: { ilike: { column: unknown; pattern: unknown } }[] } | undefined;
   }
 
   it("applies an ILIKE filter on title OR content when filter[q] is set", async () => {
     queryParams = { "filter[q]": "invoice" };
-    const { countWhere } = stubSelectResults({ value: 0 }, []);
+    const { countWhere, pageWhere } = stubSelectResults({ value: 0 }, []);
 
     await handler(buildEvent(userId));
 
@@ -194,11 +200,17 @@ describe("GET /api/records", () => {
         (condition) => condition.ilike.pattern === "%invoice%",
       ),
     ).toBe(true);
+
+    // The page query builds its own conditions independently of the count
+    // query, so a change that only updates one of them must still fail here.
+    const pageWhereArg = pageWhere.mock.calls[0]?.[0] as { and: unknown[] };
+    const pageQueryCondition = findQueryCondition(pageWhereArg.and);
+    expect(pageQueryCondition?.or).toHaveLength(2);
   });
 
   it("matches on records.content, not just records.title, for filter[q]", async () => {
     queryParams = { "filter[q]": "invoice" };
-    const { countWhere } = stubSelectResults({ value: 0 }, []);
+    const { countWhere, pageWhere } = stubSelectResults({ value: 0 }, []);
 
     await handler(buildEvent(userId));
 
@@ -209,6 +221,14 @@ describe("GET /api/records", () => {
     );
     expect(matchedColumnNames).toContain("title");
     expect(matchedColumnNames).toContain("content");
+
+    const pageWhereArg = pageWhere.mock.calls[0]?.[0] as { and: unknown[] };
+    const pageQueryCondition = findQueryCondition(pageWhereArg.and);
+    const pageMatchedColumnNames = pageQueryCondition?.or.map(
+      (condition) => (condition.ilike.column as { name?: string })?.name,
+    );
+    expect(pageMatchedColumnNames).toContain("title");
+    expect(pageMatchedColumnNames).toContain("content");
   });
 
   it("trims whitespace from filter[q] before searching", async () => {
@@ -219,6 +239,7 @@ describe("GET /api/records", () => {
 
     const whereArg = countWhere.mock.calls[0]?.[0] as { and: unknown[] };
     const queryCondition = findQueryCondition(whereArg.and);
+    expect(queryCondition?.or).toHaveLength(2);
     expect(
       queryCondition?.or.every(
         (condition) => condition.ilike.pattern === "%invoice%",
@@ -234,6 +255,7 @@ describe("GET /api/records", () => {
 
     const whereArg = countWhere.mock.calls[0]?.[0] as { and: unknown[] };
     const queryCondition = findQueryCondition(whereArg.and);
+    expect(queryCondition?.or).toHaveLength(2);
     expect(
       queryCondition?.or.every(
         (condition) => condition.ilike.pattern === "%100\\%\\_off\\\\%",
