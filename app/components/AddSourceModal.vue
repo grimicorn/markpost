@@ -129,19 +129,9 @@
             v-for="preset in SOURCE_PRESETS"
             :key="preset.id"
             class="row gap-3"
-            :style="{
-              width: '100%',
-              textAlign: 'left',
-              cursor: 'pointer',
-              border: '1px solid var(--line)',
-              borderRadius: '9px',
-              padding: '11px 14px',
-              background: 'var(--surface-2)',
-              alignItems: 'center',
-              borderColor:
-                hoveredPreset === preset.id ? 'var(--accent)' : undefined,
-            }"
-            @click="emit('pick', preset)"
+            :disabled="preset.disabled"
+            :style="presetButtonStyle(preset)"
+            @click="handlePresetClick(preset)"
             @mouseenter="hoveredPreset = preset.id"
             @mouseleave="hoveredPreset = null"
           >
@@ -169,7 +159,9 @@
                 preset.desc
               }}</span>
             </div>
-            <AppChip style="font-size: 10px">via {{ preset.via }}</AppChip>
+            <AppChip style="font-size: 10px">{{
+              presetBadgeLabel(preset)
+            }}</AppChip>
           </button>
         </div>
       </div>
@@ -182,12 +174,8 @@
         <div v-if="modalState.choice.via" style="margin-bottom: 16px">
           <AppAlert tone="info" title="This is a webhook preset">
             A <strong>{{ modalState.choice.name }}</strong> source is a webhook
-            endpoint with {{ modalState.choice.name }} field-mapping{{
-              modalState.choice.via === "webhook"
-                ? " and signature verification"
-                : ""
-            }}
-            applied automatically. You can edit the mapping any time.
+            endpoint with {{ modalState.choice.name }} field-mapping applied
+            automatically{{ authClause }}. You can edit the mapping any time.
           </AppAlert>
         </div>
 
@@ -276,6 +264,11 @@
 </template>
 
 <script setup lang="ts">
+// "signature" presets verify a cryptographic HMAC (Stripe, GitHub); "sharedSecret"
+// presets verify a static secret sent back in a header, since Zapier and Apple
+// Shortcuts have no native signing capability of their own.
+type AuthKind = "signature" | "sharedSecret";
+
 interface SourceChoice {
   id: string;
   name: string;
@@ -284,6 +277,8 @@ interface SourceChoice {
   ic?: string;
   desc?: string;
   tag?: string;
+  authKind?: AuthKind;
+  disabled?: boolean;
 }
 
 interface ModalState {
@@ -330,6 +325,7 @@ const SOURCE_PRESETS: SourceChoice[] = [
     desc: "Payments, invoices & subscription events.",
     map: "amount · customer · status",
     via: "webhook",
+    authKind: "signature",
   },
   {
     id: "github",
@@ -337,6 +333,7 @@ const SOURCE_PRESETS: SourceChoice[] = [
     desc: "Pushes, issues, PRs & releases.",
     map: "repo · ref · title · body",
     via: "webhook",
+    authKind: "signature",
   },
   {
     id: "zapier",
@@ -344,13 +341,15 @@ const SOURCE_PRESETS: SourceChoice[] = [
     desc: "Relay anything from 6,000+ apps.",
     map: "passthrough",
     via: "webhook",
+    authKind: "sharedSecret",
   },
   {
     id: "rss",
     name: "RSS / Atom",
-    desc: "Poll a feed and capture new items.",
+    desc: "Poll a feed and capture new items — not available yet.",
     map: "title · link · content",
     via: "poll",
+    disabled: true,
   },
   {
     id: "shortcuts",
@@ -358,8 +357,54 @@ const SOURCE_PRESETS: SourceChoice[] = [
     desc: "Send text from iOS & macOS.",
     map: "title · text",
     via: "webhook",
+    authKind: "sharedSecret",
   },
 ];
+
+const AUTH_CLAUSE_BY_KIND: Record<AuthKind, string> = {
+  signature: ", with signature verification",
+  sharedSecret: ", with a generated shared secret required on every request",
+};
+
+const authClause = computed(() => {
+  const authKind = props.modalState.choice?.authKind;
+  return authKind ? AUTH_CLAUSE_BY_KIND[authKind] : "";
+});
+
+// A disabled preset (RSS/Atom — see SOURCE_PRESETS) can't be picked yet: skip
+// the emit entirely rather than branching inside the template.
+function handlePresetClick(preset: SourceChoice): void {
+  if (preset.disabled) {
+    return;
+  }
+  emit("pick", preset);
+}
+
+function presetBadgeLabel(preset: SourceChoice): string {
+  if (preset.disabled) {
+    return "coming soon";
+  }
+  return `via ${preset.via}`;
+}
+
+function presetButtonStyle(
+  preset: SourceChoice,
+): Record<string, string | number | undefined> {
+  const isHovered = hoveredPreset.value === preset.id && !preset.disabled;
+
+  return {
+    width: "100%",
+    textAlign: "left",
+    cursor: preset.disabled ? "not-allowed" : "pointer",
+    opacity: preset.disabled ? 0.55 : 1,
+    border: "1px solid var(--line)",
+    borderRadius: "9px",
+    padding: "11px 14px",
+    background: "var(--surface-2)",
+    alignItems: "center",
+    borderColor: isHovered ? "var(--accent)" : undefined,
+  };
+}
 
 const configEndpointId = computed(() => {
   const choice = props.modalState.choice;

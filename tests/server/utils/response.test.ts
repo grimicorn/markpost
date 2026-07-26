@@ -247,6 +247,7 @@ describe("sourceSerializer", () => {
         type: baseSource.type,
         name: baseSource.name,
         provider: null,
+        providerSecret: null,
         endpointSlug: baseSource.endpointSlug,
         routeFolder: baseSource.routeFolder,
         fieldMapping: null,
@@ -276,6 +277,23 @@ describe("sourceSerializer", () => {
       new Date("2024-02-01T12:00:00Z"),
     );
     expect(result?.attributes.recordCount).toBe(42);
+  });
+
+  it("defaults providerSecret to null when the source row has none", () => {
+    const result = sourceSerializer(baseSource);
+    expect(result?.attributes.providerSecret).toBeNull();
+  });
+
+  it("includes providerSecret when the source row has one", () => {
+    const sourceWithSecret = {
+      ...baseSource,
+      provider: "github",
+      providerSecret: "a1b2c3",
+    };
+
+    const result = sourceSerializer(sourceWithSecret);
+
+    expect(result?.attributes.providerSecret).toBe("a1b2c3");
   });
 
   it("returns null for null input", () => {

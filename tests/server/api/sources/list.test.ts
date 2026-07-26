@@ -74,6 +74,7 @@ describe("GET /api/sources", () => {
             type: sampleSource.type,
             name: sampleSource.name,
             provider: null,
+            providerSecret: null,
             endpointSlug: sampleSource.endpointSlug,
             routeFolder: sampleSource.routeFolder,
             fieldMapping: null,

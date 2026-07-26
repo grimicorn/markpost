@@ -22,6 +22,16 @@ export function buildValidStripeHeader(
   return `t=${ts},v1=${sig}`;
 }
 
+export function buildValidGithubHeader(
+  rawBody: string,
+  secret: string,
+): string {
+  const sig = createHmac("sha256", secret)
+    .update(rawBody, "utf8")
+    .digest("hex");
+  return `sha256=${sig}`;
+}
+
 export function stubFailingUpdate(updateMock: ReturnType<typeof vi.fn>): void {
   const where = vi.fn(() => Promise.reject(new Error("db error")));
   const set = vi.fn(() => ({ where }));

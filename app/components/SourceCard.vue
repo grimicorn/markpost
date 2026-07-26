@@ -84,6 +84,22 @@
       </div>
     </div>
 
+    <div v-if="providerSecret" class="code" style="margin-top: 10px">
+      <div class="code-head">
+        <span class="lang">{{ secretLabel }}</span>
+        <AppCopyBtn :text="providerSecret" label="copy secret" />
+      </div>
+      <div
+        class="code-body mono"
+        style="font-size: 12.5px; word-break: break-all"
+      >
+        {{ providerSecret }}
+      </div>
+      <div class="muted" style="font-size: 11px; margin-top: 6px">
+        {{ secretHint }}
+      </div>
+    </div>
+
     <div
       class="row wrap mono gap-6"
       style="font-size: 11.5px; color: var(--ink-3); margin-top: 14px"
@@ -96,6 +112,7 @@
 <script setup lang="ts">
 import { buildEndpointUrl, buildSourceMeta } from "~/composables/useSources";
 import type { SourceResource } from "~/composables/useSources";
+import { SHARED_SECRET_HEADER } from "#shared/utils/webhookSecrets";
 
 const ICON_BY_TYPE: Record<string, string> = {
   webhook: "zap",
@@ -137,6 +154,19 @@ const PRESET_TYPES = new Set([
   "shortcuts",
 ]);
 
+const SECRET_LABEL_BY_PROVIDER: Record<string, string> = {
+  github: "webhook secret",
+  zapier: "shared secret",
+  shortcuts: "shared secret",
+};
+
+const SECRET_HINT_BY_PROVIDER: Record<string, string> = {
+  github:
+    "Paste this into the GitHub repo's Settings -> Webhooks -> Secret field.",
+  zapier: `Add it as a custom header named ${SHARED_SECRET_HEADER} on the Zapier webhook action.`,
+  shortcuts: `Add it as a custom header named ${SHARED_SECRET_HEADER} in the "Get Contents of URL" action.`,
+};
+
 const props = defineProps<{
   source: SourceResource;
 }>();
@@ -177,6 +207,20 @@ const subLabel = computed(() => {
 
 const endpointLabel = computed(
   () => LABEL_BY_TYPE[sourceType.value] ?? "ingest url",
+);
+
+const providerSecret = computed(
+  () => props.source.attributes.providerSecret ?? null,
+);
+
+const secretLabel = computed(
+  () =>
+    SECRET_LABEL_BY_PROVIDER[props.source.attributes.provider ?? ""] ??
+    "secret",
+);
+
+const secretHint = computed(
+  () => SECRET_HINT_BY_PROVIDER[props.source.attributes.provider ?? ""] ?? "",
 );
 
 const endpointUrl = computed(() =>

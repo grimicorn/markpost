@@ -5,18 +5,36 @@ import { requireUser } from "../../utils/auth";
 import { ApiError, apiErrorHandler } from "../../utils/errors";
 import { generateEndpointSlug } from "../../utils/endpointSlug";
 import { assertWithinSourceLimit } from "../../utils/planLimits";
+import {
+  generateProviderSecret,
+  isSecretBackedProvider,
+} from "../../utils/signatureVerifier";
 import { sourceSerializer, type SourceApiResponse } from "../../utils/response";
 import { apiValidate, type AttributeRule } from "../../utils/validate";
 
+// RSS/Atom is intentionally excluded: there is no polling infrastructure
+// (scheduler, dedup, fetch cadence) anywhere in the codebase to service an
+// "rss" source, so creating one would silently never ingest a single record.
+// See https://github.com/grimicorn/markpost/issues/116.
 const VALID_SOURCE_TYPES = [
   "webhook",
   "email",
   "stripe",
   "github",
   "zapier",
-  "rss",
   "shortcuts",
 ] as const;
+
+// Types that double as a provider identity: creating a source with one of
+// these types implies signature verification against that provider, even
+// when the caller doesn't pass `provider` explicitly (this is how the preset
+// flow in AddSourceModal.vue creates sources today).
+const PROVIDER_TYPES = new Set<string>([
+  "stripe",
+  "github",
+  "zapier",
+  "shortcuts",
+]);
 
 const MAX_SLUG_ATTEMPTS = 5;
 
@@ -40,7 +58,9 @@ type CreateSourceBody = ApiRequest & {
 type InsertSourceInput = Required<
   Pick<CreateSourceAttributes, "type" | "name" | "routeFolder">
 > &
-  Pick<CreateSourceAttributes, "provider" | "fieldMapping">;
+  Pick<CreateSourceAttributes, "provider" | "fieldMapping"> & {
+    providerSecret: string | null;
+  };
 
 const VALIDATION_RULES: AttributeRule[] = [
   { key: "type", type: "string" },
@@ -50,6 +70,22 @@ const VALIDATION_RULES: AttributeRule[] = [
 
 function isValidSourceType(value: string): value is SourceType {
   return (VALID_SOURCE_TYPES as readonly string[]).includes(value);
+}
+
+// The Add Source modal creates preset sources by sending `type` alone (e.g.
+// type: "github"), never `provider` — so without this fallback their
+// signature verification silently never activates. An explicit `provider`
+// still wins, which keeps the generic "webhook" type able to opt into a
+// provider deliberately.
+function deriveProvider(attributes: {
+  type: string;
+  provider?: string;
+}): string | null {
+  if (attributes.provider) {
+    return attributes.provider;
+  }
+
+  return PROVIDER_TYPES.has(attributes.type) ? attributes.type : null;
 }
 
 function isUniqueViolation(error: unknown): boolean {
@@ -75,6 +111,7 @@ async function insertSource(userId: string, attributes: InsertSourceInput) {
           type: attributes.type,
           name: attributes.name,
           provider: attributes.provider ?? null,
+          providerSecret: attributes.providerSecret,
           endpointSlug,
           routeFolder: attributes.routeFolder,
           fieldMapping: attributes.fieldMapping ?? null,
@@ -152,11 +189,18 @@ export default defineEventHandler(async (event): Promise<SourceApiResponse> => {
 
     await assertWithinSourceLimit(userId);
 
+    const provider = deriveProvider(attributes);
+    const providerSecret =
+      provider && isSecretBackedProvider(provider)
+        ? generateProviderSecret()
+        : null;
+
     const source = await insertSource(userId, {
       type: attributes.type,
       name: attributes.name,
       routeFolder: attributes.routeFolder,
-      provider: attributes.provider,
+      provider: provider ?? undefined,
+      providerSecret,
       fieldMapping: attributes.fieldMapping,
     });
 

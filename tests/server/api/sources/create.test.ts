@@ -105,6 +105,7 @@ describe("POST /api/sources", () => {
           type: sampleSource.type,
           name: sampleSource.name,
           provider: null,
+          providerSecret: null,
           endpointSlug: sampleSource.endpointSlug,
           routeFolder: sampleSource.routeFolder,
           fieldMapping: null,
@@ -254,6 +255,122 @@ describe("POST /api/sources", () => {
           },
         ],
       },
+    });
+  });
+
+  it("throws 422 when type is 'rss' (RSS/Atom polling is not implemented)", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        type: "rss",
+        name: "My Feed",
+        routeFolder: "99-incoming/",
+      }),
+    );
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 422,
+      data: {
+        errors: [
+          {
+            status: "422",
+            title: "Invalid Attribute",
+            detail: expect.stringContaining("Type must be one of"),
+            source: { pointer: "/data/attributes/type" },
+          },
+        ],
+      },
+    });
+
+    const call = mockCreateError.mock.calls[0] as [
+      { data: { errors: [{ detail: string }] } },
+    ];
+    expect(call[0].data.errors[0].detail).not.toContain("rss");
+  });
+
+  describe("provider derivation and secret generation", () => {
+    it.each(["github", "zapier", "shortcuts"])(
+      "derives provider from type and generates a providerSecret for %s",
+      async (type) => {
+        mockReadBody.mockResolvedValue(
+          buildBody({ type, name: "My Source", routeFolder: "99-incoming/" }),
+        );
+        const { values } = stubInsertResult([
+          { ...sampleSource, type, provider: type },
+        ]);
+
+        await handler(buildEvent(userId));
+
+        const insertedValues = (
+          values.mock.calls[0] as [Record<string, unknown>]
+        )[0];
+        expect(insertedValues.provider).toBe(type);
+        expect(insertedValues.providerSecret).toMatch(/^[0-9a-f]{48}$/);
+      },
+    );
+
+    it("derives provider 'stripe' from type but does not generate a providerSecret", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "stripe",
+          name: "My Stripe Source",
+          routeFolder: "99-incoming/",
+        }),
+      );
+      const { values } = stubInsertResult([
+        { ...sampleSource, type: "stripe", provider: "stripe" },
+      ]);
+
+      await handler(buildEvent(userId));
+
+      const insertedValues = (
+        values.mock.calls[0] as [Record<string, unknown>]
+      )[0];
+      expect(insertedValues.provider).toBe("stripe");
+      expect(insertedValues.providerSecret).toBeNull();
+    });
+
+    it("does not derive a provider for the generic webhook type", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "webhook",
+          name: "My Webhook",
+          routeFolder: "99-incoming/",
+        }),
+      );
+      const { values } = stubInsertResult([sampleSource]);
+
+      await handler(buildEvent(userId));
+
+      const insertedValues = (
+        values.mock.calls[0] as [Record<string, unknown>]
+      )[0];
+      expect(insertedValues.provider).toBeNull();
+      expect(insertedValues.providerSecret).toBeNull();
+    });
+
+    it("an explicit provider wins over the type-derived one and still generates a secret", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "webhook",
+          name: "My Webhook",
+          routeFolder: "99-incoming/",
+          provider: "github",
+        }),
+      );
+      const { values } = stubInsertResult([
+        { ...sampleSource, provider: "github" },
+      ]);
+
+      await handler(buildEvent(userId));
+
+      const insertedValues = (
+        values.mock.calls[0] as [Record<string, unknown>]
+      )[0];
+      expect(insertedValues.provider).toBe("github");
+      expect(insertedValues.providerSecret).toMatch(/^[0-9a-f]{48}$/);
     });
   });
 

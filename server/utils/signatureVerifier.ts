@@ -1,9 +1,39 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { SHARED_SECRET_HEADER } from "#shared/utils/webhookSecrets";
 
 const STRIPE_SIGNATURE_HEADER = "stripe-signature";
 const STRIPE_TIMESTAMP_PREFIX = "t=";
 const STRIPE_V1_PREFIX = "v1=";
 const STRIPE_TIMESTAMP_TOLERANCE_SECONDS = 300;
+
+// GitHub signs deliveries with a per-webhook secret the user pastes into their
+// repo's webhook settings, so verification needs that source's own secret
+// rather than a single global one.
+const GITHUB_SIGNATURE_HEADER = "x-hub-signature-256";
+const GITHUB_SIGNATURE_PREFIX = "sha256=";
+
+// 24 random bytes -> 48 hex chars, ~192 bits of entropy: comfortably beyond
+// brute-force range for a value transmitted over HTTPS only.
+const PROVIDER_SECRET_BYTE_LENGTH = 24;
+
+// Providers verified via a per-source secret generated at source-creation time
+// (as opposed to Stripe, which verifies against the app-wide STRIPE_WEBHOOK_SECRET).
+export const SECRET_BACKED_PROVIDERS = [
+  "github",
+  "zapier",
+  "shortcuts",
+] as const;
+export type SecretBackedProvider = (typeof SECRET_BACKED_PROVIDERS)[number];
+
+export function isSecretBackedProvider(
+  provider: string,
+): provider is SecretBackedProvider {
+  return (SECRET_BACKED_PROVIDERS as readonly string[]).includes(provider);
+}
+
+export function generateProviderSecret(): string {
+  return randomBytes(PROVIDER_SECRET_BYTE_LENGTH).toString("hex");
+}
 
 export type VerificationResult = { ok: true } | { ok: false; reason: string };
 
@@ -112,6 +142,51 @@ export function verifyStripeSignature(
   return { ok: true };
 }
 
+export function verifyGithubSignature(
+  signatureHeader: string,
+  rawBody: string,
+  secret: string,
+): VerificationResult {
+  if (!signatureHeader.startsWith(GITHUB_SIGNATURE_PREFIX)) {
+    return { ok: false, reason: "Invalid X-Hub-Signature-256 header format" };
+  }
+
+  const candidate = signatureHeader.slice(GITHUB_SIGNATURE_PREFIX.length);
+  const expected = createHmac("sha256", secret)
+    .update(rawBody, "utf8")
+    .digest("hex");
+
+  if (!compareSignatures(expected, [candidate])) {
+    return { ok: false, reason: "GitHub webhook signature mismatch" };
+  }
+
+  return { ok: true };
+}
+
+export function verifySharedSecret(
+  providedSecret: string | undefined,
+  secret: string,
+): VerificationResult {
+  if (!providedSecret) {
+    return {
+      ok: false,
+      reason: `Missing ${SHARED_SECRET_HEADER} header`,
+    };
+  }
+
+  const providedBuffer = Buffer.from(providedSecret, "utf8");
+  const expectedBuffer = Buffer.from(secret, "utf8");
+  const matches =
+    providedBuffer.length === expectedBuffer.length &&
+    timingSafeEqual(providedBuffer, expectedBuffer);
+
+  if (!matches) {
+    return { ok: false, reason: "Webhook secret mismatch" };
+  }
+
+  return { ok: true };
+}
+
 export type ProviderSignatureInput = {
   provider: string | null;
   headers: Record<string, string | undefined>;
@@ -121,6 +196,51 @@ export type ProviderSignatureInput = {
 
 function normalizeProvider(provider: string | null): string {
   return provider?.toLowerCase().trim() ?? "";
+}
+
+function verifyStripeProvider(
+  input: ProviderSignatureInput,
+): VerificationResult {
+  if (!input.secret) {
+    return { ok: false, reason: "Stripe webhook secret is not configured" };
+  }
+
+  const signatureHeader = input.headers[STRIPE_SIGNATURE_HEADER];
+
+  if (!signatureHeader) {
+    return { ok: false, reason: "Missing Stripe-Signature header" };
+  }
+
+  return verifyStripeSignature(signatureHeader, input.rawBody, input.secret);
+}
+
+function verifyGithubProvider(
+  input: ProviderSignatureInput,
+): VerificationResult {
+  if (!input.secret) {
+    return { ok: false, reason: "GitHub webhook secret is not configured" };
+  }
+
+  const signatureHeader = input.headers[GITHUB_SIGNATURE_HEADER];
+
+  if (!signatureHeader) {
+    return { ok: false, reason: "Missing X-Hub-Signature-256 header" };
+  }
+
+  return verifyGithubSignature(signatureHeader, input.rawBody, input.secret);
+}
+
+function verifySharedSecretProvider(
+  input: ProviderSignatureInput,
+): VerificationResult {
+  if (!input.secret) {
+    return {
+      ok: false,
+      reason: "Webhook secret is not configured for this source",
+    };
+  }
+
+  return verifySharedSecret(input.headers[SHARED_SECRET_HEADER], input.secret);
 }
 
 export function verifyProviderSignature(
@@ -133,22 +253,20 @@ export function verifyProviderSignature(
     return { ok: true };
   }
 
-  if (provider !== "stripe") {
-    return {
-      ok: false,
-      reason: `Unsupported provider for signature verification: ${input.provider}`,
-    };
+  if (provider === "stripe") {
+    return verifyStripeProvider(input);
   }
 
-  if (!input.secret) {
-    return { ok: false, reason: "Stripe webhook secret is not configured" };
+  if (provider === "github") {
+    return verifyGithubProvider(input);
   }
 
-  const signatureHeader = input.headers[STRIPE_SIGNATURE_HEADER];
-
-  if (!signatureHeader) {
-    return { ok: false, reason: "Missing Stripe-Signature header" };
+  if (provider === "zapier" || provider === "shortcuts") {
+    return verifySharedSecretProvider(input);
   }
 
-  return verifyStripeSignature(signatureHeader, input.rawBody, input.secret);
+  return {
+    ok: false,
+    reason: `Unsupported provider for signature verification: ${input.provider}`,
+  };
 }

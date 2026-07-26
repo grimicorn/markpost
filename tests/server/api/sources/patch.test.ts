@@ -93,6 +93,7 @@ describe("PATCH /api/sources/:uuid", () => {
           type: sampleSource.type,
           name: sampleSource.name,
           provider: null,
+          providerSecret: null,
           endpointSlug: sampleSource.endpointSlug,
           routeFolder: "05-stripe/",
           fieldMapping: { event: "$.type" },

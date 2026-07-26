@@ -2,10 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { H3Event } from "h3";
 import {
   buildValidStripeHeader,
+  buildValidGithubHeader,
   stubFailingUpdate,
   spyConsoleError,
 } from "../../helpers";
 import { ApiError } from "../../../../server/utils/errors";
+import { SHARED_SECRET_HEADER } from "#shared/utils/webhookSecrets";
 
 const selectMock = vi.fn();
 const insertMock = vi.fn();
@@ -383,6 +385,134 @@ describe("POST /api/hooks/[slug]", () => {
         expect.objectContaining({ statusCode: 401 }),
       );
     });
+  });
+
+  describe("github signature verification", () => {
+    const GITHUB_SECRET = "github_test_secret";
+    const githubSource = {
+      ...sampleSource,
+      provider: "github",
+      providerSecret: GITHUB_SECRET,
+    };
+
+    function stubGithubHeader(rawBody: string, secret: string): void {
+      mockGetHeader.mockImplementation((_event: unknown, name: string) =>
+        name === "x-hub-signature-256"
+          ? buildValidGithubHeader(rawBody, secret)
+          : undefined,
+      );
+    }
+
+    it("returns 401 when the X-Hub-Signature-256 header is missing", async () => {
+      stubSourceOnly([githubSource]);
+      mockReadRawBody.mockResolvedValue(JSON.stringify({ ref: "main" }));
+      mockGetHeader.mockReturnValue(undefined);
+
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 401,
+      });
+    });
+
+    it("returns 401 when the signature does not match the source's secret", async () => {
+      const rawBody = JSON.stringify({ ref: "main" });
+      stubSourceOnly([githubSource]);
+      mockReadRawBody.mockResolvedValue(rawBody);
+      stubGithubHeader(rawBody, "wrong_secret");
+
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 401,
+      });
+    });
+
+    it("returns 202 when the signature matches the source's providerSecret", async () => {
+      const rawBody = JSON.stringify({ ref: "main" });
+      stubSourceAndSettings([githubSource]);
+      stubInsertRecord(sampleRecord);
+      stubUpdateStats();
+      mockReadRawBody.mockResolvedValue(rawBody);
+      stubGithubHeader(rawBody, GITHUB_SECRET);
+
+      const response = await handler(buildEvent());
+
+      expect202Success(response, mockSetResponseStatus, sampleRecord.uuid);
+    });
+
+    it("returns 401 when the source has no providerSecret configured", async () => {
+      const rawBody = JSON.stringify({ ref: "main" });
+      stubSourceOnly([{ ...githubSource, providerSecret: null }]);
+      mockReadRawBody.mockResolvedValue(rawBody);
+      stubGithubHeader(rawBody, GITHUB_SECRET);
+
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 401,
+      });
+    });
+  });
+
+  describe("zapier / shortcuts shared-secret verification", () => {
+    const SHARED_SECRET = "shared_test_secret";
+
+    function stubSharedSecretHeader(value: string | undefined): void {
+      mockGetHeader.mockImplementation((_event: unknown, name: string) =>
+        name === SHARED_SECRET_HEADER ? value : undefined,
+      );
+    }
+
+    it.each(["zapier", "shortcuts"])(
+      "returns 401 for %s when the shared-secret header is missing",
+      async (provider) => {
+        const source = {
+          ...sampleSource,
+          provider,
+          providerSecret: SHARED_SECRET,
+        };
+        stubSourceOnly([source]);
+        mockReadRawBody.mockResolvedValue(JSON.stringify({ title: "T" }));
+        stubSharedSecretHeader(undefined);
+
+        await expect(handler(buildEvent())).rejects.toMatchObject({
+          statusCode: 401,
+        });
+      },
+    );
+
+    it.each(["zapier", "shortcuts"])(
+      "returns 401 for %s when the shared secret does not match",
+      async (provider) => {
+        const source = {
+          ...sampleSource,
+          provider,
+          providerSecret: SHARED_SECRET,
+        };
+        stubSourceOnly([source]);
+        mockReadRawBody.mockResolvedValue(JSON.stringify({ title: "T" }));
+        stubSharedSecretHeader("wrong-value");
+
+        await expect(handler(buildEvent())).rejects.toMatchObject({
+          statusCode: 401,
+        });
+      },
+    );
+
+    it.each(["zapier", "shortcuts"])(
+      "returns 202 for %s when the shared secret matches",
+      async (provider) => {
+        const source = {
+          ...sampleSource,
+          provider,
+          providerSecret: SHARED_SECRET,
+        };
+        stubSourceAndSettings([source]);
+        stubInsertRecord(sampleRecord);
+        stubUpdateStats();
+        mockReadRawBody.mockResolvedValue(JSON.stringify({ title: "T" }));
+        stubSharedSecretHeader(SHARED_SECRET);
+
+        const response = await handler(buildEvent());
+
+        expect202Success(response, mockSetResponseStatus, sampleRecord.uuid);
+      },
+    );
   });
 
   describe("fieldMapping", () => {

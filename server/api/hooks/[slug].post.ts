@@ -9,9 +9,13 @@ import { assertWithinRecordLimit } from "../../utils/planLimits";
 import { verifyProviderSignature } from "../../utils/signatureVerifier";
 import { writeEvent } from "../../utils/eventWriter";
 import { recordWebhookHit } from "../../utils/webhookThrottle";
+import { SHARED_SECRET_HEADER } from "#shared/utils/webhookSecrets";
 
 const DEFAULT_FILENAME_TEMPLATE = "{{date}}-{{slug}}.md";
 const STRIPE_WEBHOOK_SECRET_ENV = "STRIPE_WEBHOOK_SECRET";
+const STRIPE_SIGNATURE_HEADER = "stripe-signature";
+const GITHUB_SIGNATURE_HEADER = "x-hub-signature-256";
+const STRIPE_PROVIDER = "stripe";
 const RECORD_STATUS_PENDING = "pending";
 const RECORD_STATUS_ERROR = "error";
 const EVENT_KIND_OK = "ok";
@@ -23,6 +27,7 @@ type SourceRow = {
   type: string;
   name: string;
   provider: string | null;
+  providerSecret: string | null;
   fieldMapping: unknown;
 };
 
@@ -79,6 +84,7 @@ async function resolveSourceBySlug(slug: string): Promise<SourceRow | null> {
       type: sources.type,
       name: sources.name,
       provider: sources.provider,
+      providerSecret: sources.providerSecret,
       fieldMapping: sources.fieldMapping,
     })
     .from(sources)
@@ -178,7 +184,11 @@ function buildProviderHeaders(
   event: H3Event,
 ): Record<string, string | undefined> {
   return {
-    "stripe-signature": getHeader(event, "stripe-signature") ?? undefined,
+    [STRIPE_SIGNATURE_HEADER]:
+      getHeader(event, STRIPE_SIGNATURE_HEADER) ?? undefined,
+    [GITHUB_SIGNATURE_HEADER]:
+      getHeader(event, GITHUB_SIGNATURE_HEADER) ?? undefined,
+    [SHARED_SECRET_HEADER]: getHeader(event, SHARED_SECRET_HEADER) ?? undefined,
   };
 }
 
@@ -221,18 +231,29 @@ async function resolveAndValidateSource(
   return source;
 }
 
+// Stripe verifies against the app-wide STRIPE_WEBHOOK_SECRET env var (the
+// source represents the app's own Stripe account); every other secret-backed
+// provider verifies against the secret generated for that specific source at
+// creation time, since each user's GitHub/Zapier/Shortcuts integration is
+// configured independently.
+function resolveProviderSecret(source: SourceRow): string | null {
+  if (source.provider?.toLowerCase().trim() === STRIPE_PROVIDER) {
+    return process.env[STRIPE_WEBHOOK_SECRET_ENV] ?? null;
+  }
+
+  return source.providerSecret;
+}
+
 function checkSignature(
   source: SourceRow,
   providerHeaders: Record<string, string | undefined>,
   rawBody: string,
 ): void {
-  const stripeSecret = process.env[STRIPE_WEBHOOK_SECRET_ENV] ?? null;
-
   const sigResult = verifyProviderSignature({
     provider: source.provider,
     headers: providerHeaders,
     rawBody,
-    secret: stripeSecret,
+    secret: resolveProviderSecret(source),
   });
 
   if (!sigResult.ok) {

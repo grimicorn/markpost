@@ -187,6 +187,7 @@ type SourceAttributes = {
   type: string;
   name: string;
   provider: string | null;
+  providerSecret?: string | null;
   endpointSlug: string;
   routeFolder: string;
   fieldMapping: unknown;
@@ -222,6 +223,7 @@ export function sourceSerializer(
       type: source.type,
       name: source.name,
       provider: source.provider,
+      providerSecret: source.providerSecret ?? null,
       endpointSlug: source.endpointSlug,
       routeFolder: source.routeFolder,
       fieldMapping: source.fieldMapping,

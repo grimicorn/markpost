@@ -1,3 +1,5 @@
+import { computeElapsedBuckets } from "../utils/timeBuckets";
+
 export type RecordStatus = "synced" | "pending" | "error";
 
 export type RecordAttributes = {
@@ -97,34 +99,29 @@ export async function fetchRecordStats(): Promise<RecordStats | null> {
 }
 
 export function formatRelativeTime(isoString: string): string {
-  const diffMs = Date.now() - new Date(isoString).getTime();
+  const { seconds, minutes, hours, days } = computeElapsedBuckets(isoString);
 
-  if (Number.isNaN(diffMs)) {
+  if (Number.isNaN(seconds)) {
     return "—";
   }
 
-  const diffSeconds = Math.floor(diffMs / 1000);
-  const diffMinutes = Math.floor(diffSeconds / 60);
-  const diffHours = Math.floor(diffMinutes / 60);
-  const diffDays = Math.floor(diffHours / 24);
-
-  if (diffSeconds < 60) {
+  if (seconds < 60) {
     return "just now";
   }
 
-  if (diffMinutes < 60) {
-    return `${diffMinutes}m ago`;
+  if (minutes < 60) {
+    return `${minutes}m ago`;
   }
 
-  if (diffHours < 24) {
-    return `${diffHours}h ago`;
+  if (hours < 24) {
+    return `${hours}h ago`;
   }
 
-  if (diffDays === 1) {
+  if (days === 1) {
     return "yesterday";
   }
 
-  return `${diffDays}d ago`;
+  return `${days}d ago`;
 }
 
 export function useRecords(initialFilter: RecordFilterValue = "all") {

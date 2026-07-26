@@ -3,10 +3,16 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   parseStripeSignatureHeader,
   verifyStripeSignature,
+  verifyGithubSignature,
+  verifySharedSecret,
   verifyProviderSignature,
+  generateProviderSecret,
+  isSecretBackedProvider,
+  SECRET_BACKED_PROVIDERS,
   type VerificationResult,
 } from "../../../server/utils/signatureVerifier";
-import { buildValidStripeHeader } from "../helpers";
+import { SHARED_SECRET_HEADER } from "#shared/utils/webhookSecrets";
+import { buildValidStripeHeader, buildValidGithubHeader } from "../helpers";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -121,7 +127,7 @@ describe("verifyProviderSignature", () => {
 
   it("returns ok: false for unrecognized non-null provider (fail closed)", () => {
     const result = verifyProviderSignature({
-      provider: "github",
+      provider: "mailchimp",
       headers: {},
       rawBody,
       secret: null,
@@ -190,4 +196,178 @@ describe("verifyProviderSignature", () => {
     });
     expect(result.ok).toBe(false);
   });
+
+  describe("github provider", () => {
+    it("returns ok: false when the secret is not configured", () => {
+      const result = verifyProviderSignature({
+        provider: "github",
+        headers: { "x-hub-signature-256": "sha256=abc" },
+        rawBody,
+        secret: null,
+      });
+      expectFailureWithReason(result, /secret/i);
+    });
+
+    it("returns ok: false when the X-Hub-Signature-256 header is missing", () => {
+      const result = verifyProviderSignature({
+        provider: "github",
+        headers: {},
+        rawBody,
+        secret,
+      });
+      expectFailureWithReason(result, /Missing X-Hub-Signature-256/i);
+    });
+
+    it("returns ok: true for a valid signature", () => {
+      const header = buildValidGithubHeader(rawBody, secret);
+      const result = verifyProviderSignature({
+        provider: "github",
+        headers: { "x-hub-signature-256": header },
+        rawBody,
+        secret,
+      });
+      expect(result).toEqual({ ok: true });
+    });
+
+    it("returns ok: false for a mismatched signature", () => {
+      const header = buildValidGithubHeader(rawBody, "wrong_secret");
+      const result = verifyProviderSignature({
+        provider: "github",
+        headers: { "x-hub-signature-256": header },
+        rawBody,
+        secret,
+      });
+      expectFailureWithReason(result, /mismatch/i);
+    });
+  });
+
+  describe("zapier and shortcuts providers (shared secret)", () => {
+    it.each(["zapier", "shortcuts"])(
+      "returns ok: false for %s when the secret is not configured",
+      (provider) => {
+        const result = verifyProviderSignature({
+          provider,
+          headers: { [SHARED_SECRET_HEADER]: "anything" },
+          rawBody,
+          secret: null,
+        });
+        expectFailureWithReason(result, /secret/i);
+      },
+    );
+
+    it.each(["zapier", "shortcuts"])(
+      "returns ok: false for %s when the shared secret header is missing",
+      (provider) => {
+        const result = verifyProviderSignature({
+          provider,
+          headers: {},
+          rawBody,
+          secret,
+        });
+        expectFailureWithReason(
+          result,
+          new RegExp(`Missing ${SHARED_SECRET_HEADER}`, "i"),
+        );
+      },
+    );
+
+    it.each(["zapier", "shortcuts"])(
+      "returns ok: true for %s when the shared secret matches",
+      (provider) => {
+        const result = verifyProviderSignature({
+          provider,
+          headers: { [SHARED_SECRET_HEADER]: secret },
+          rawBody,
+          secret,
+        });
+        expect(result).toEqual({ ok: true });
+      },
+    );
+
+    it.each(["zapier", "shortcuts"])(
+      "returns ok: false for %s when the shared secret does not match",
+      (provider) => {
+        const result = verifyProviderSignature({
+          provider,
+          headers: { [SHARED_SECRET_HEADER]: "wrong" },
+          rawBody,
+          secret,
+        });
+        expectFailureWithReason(result, /mismatch/i);
+      },
+    );
+  });
+});
+
+describe("verifyGithubSignature", () => {
+  const secret = "github_test_secret";
+  const rawBody = JSON.stringify({ ref: "refs/heads/main" });
+
+  it("returns ok: true for a valid signature", () => {
+    const header = buildValidGithubHeader(rawBody, secret);
+    expect(verifyGithubSignature(header, rawBody, secret)).toEqual({
+      ok: true,
+    });
+  });
+
+  it("returns ok: false for a header missing the sha256= prefix", () => {
+    const result = verifyGithubSignature("abc123", rawBody, secret);
+    expectFailureWithReason(result, /Invalid X-Hub-Signature-256/i);
+  });
+
+  it("returns ok: false when the signature does not match", () => {
+    const header = buildValidGithubHeader(rawBody, "wrong_secret");
+    const result = verifyGithubSignature(header, rawBody, secret);
+    expectFailureWithReason(result, /mismatch/i);
+  });
+});
+
+describe("verifySharedSecret", () => {
+  const secret = "shared_test_secret";
+
+  it("returns ok: true when the provided secret matches", () => {
+    expect(verifySharedSecret(secret, secret)).toEqual({ ok: true });
+  });
+
+  it("returns ok: false when the provided secret is undefined", () => {
+    const result = verifySharedSecret(undefined, secret);
+    expectFailureWithReason(
+      result,
+      new RegExp(`Missing ${SHARED_SECRET_HEADER}`, "i"),
+    );
+  });
+
+  it("returns ok: false when the provided secret does not match", () => {
+    const result = verifySharedSecret("nope", secret);
+    expectFailureWithReason(result, /mismatch/i);
+  });
+
+  it("returns ok: false when lengths differ (no timing leak via early return)", () => {
+    const result = verifySharedSecret("short", "a much longer secret value");
+    expectFailureWithReason(result, /mismatch/i);
+  });
+});
+
+describe("generateProviderSecret", () => {
+  it("returns a 48-char hex string (24 random bytes)", () => {
+    const secret = generateProviderSecret();
+    expect(secret).toMatch(/^[0-9a-f]{48}$/);
+  });
+
+  it("returns a different value on each call", () => {
+    expect(generateProviderSecret()).not.toBe(generateProviderSecret());
+  });
+});
+
+describe("isSecretBackedProvider", () => {
+  it.each(SECRET_BACKED_PROVIDERS)("returns true for %s", (provider) => {
+    expect(isSecretBackedProvider(provider)).toBe(true);
+  });
+
+  it.each(["stripe", "webhook", "email", "rss", ""])(
+    "returns false for %s",
+    (provider) => {
+      expect(isSecretBackedProvider(provider)).toBe(false);
+    },
+  );
 });

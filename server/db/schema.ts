@@ -93,6 +93,11 @@ export const sources = pgTable(
     type: text("type").notNull(),
     name: text("name").notNull(),
     provider: text("provider"),
+    // HMAC/shared secret for provider signature verification (GitHub, Zapier,
+    // Apple Shortcuts). Stripe verification uses the global STRIPE_WEBHOOK_SECRET
+    // env var instead, since Stripe sources authenticate against the app's own
+    // Stripe account rather than a per-source secret.
+    providerSecret: text("provider_secret"),
     endpointSlug: text("endpoint_slug").notNull(),
     routeFolder: text("route_folder").notNull(),
     fieldMapping: jsonb("field_mapping"),
