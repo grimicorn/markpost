@@ -209,6 +209,11 @@ function formatDate(date: Date | null): string {
   return date.toLocaleDateString("en-US", DATE_FORMAT_OPTIONS);
 }
 
+// Reads Date.now() with no reactive dependency on the clock, so a page left
+// open across a token's exact expiry keeps showing "expires in 1 day" until
+// something else (loadTokens, a mint/revoke) re-renders this row. Acceptable
+// for a settings page — accepted intentionally rather than adding a ticking
+// interval for a display-only staleness window measured in days.
 function formatExpiry(expiresAt: Date | null): string {
   if (!expiresAt) {
     return "no expiry";
@@ -241,6 +246,8 @@ const {
   clearRevealedToken,
 } = useApiTokens();
 
+// Same non-reactive Date.now() caveat as formatExpiry above: this count goes
+// stale at the same pace, re-evaluating only when `tokens` changes.
 const activeTokenCount = computed(
   () => tokens.value.filter((token) => !isTokenExpired(token.expiresAt)).length,
 );

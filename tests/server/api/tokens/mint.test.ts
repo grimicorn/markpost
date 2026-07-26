@@ -337,6 +337,20 @@ describe("POST /api/tokens", () => {
       });
     });
 
+    it("throws 422 when expiresInDays is an empty string (not treated as absent)", async () => {
+      // apiValidate's presence check treats "" as absent for an optional
+      // rule and skips the type check (server/utils/validate.ts isAbsent),
+      // so this only fails if normalizeExpiresInDays explicitly rejects
+      // non-number, non-null/undefined values itself.
+      mockReadBody.mockResolvedValue(
+        buildBody({ name: "my-token", expiresInDays: "" }),
+      );
+
+      await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+        statusCode: 422,
+      });
+    });
+
     it("throws 422 when expiresInDays is zero", async () => {
       mockReadBody.mockResolvedValue(
         buildBody({ name: "my-token", expiresInDays: 0 }),

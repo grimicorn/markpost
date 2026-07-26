@@ -65,14 +65,24 @@ describe("TokenExpiryFields", () => {
     expect(daysInput.attributes("max")).toBe(String(MAX_TOKEN_EXPIRY_DAYS));
   });
 
-  it("emits 0 (not NaN) when the days input is cleared", async () => {
+  it("emits NaN when the days input is cleared", async () => {
     const wrapper = mount(TokenExpiryFields, {
       props: { wantsExpiry: true, expiryDays: 90 },
     });
 
     await wrapper.find("input[type='number']").setValue("");
 
-    expect(wrapper.emitted("update:expiryDays")).toEqual([[0]]);
+    expect(wrapper.emitted("update:expiryDays")).toEqual([[NaN]]);
+  });
+
+  it("renders an empty (not '0' or 'NaN') days input when expiryDays is NaN", () => {
+    const wrapper = mount(TokenExpiryFields, {
+      props: { wantsExpiry: true, expiryDays: NaN },
+    });
+
+    const daysInput = wrapper.find("input[type='number']")
+      .element as HTMLInputElement;
+    expect(daysInput.value).toBe("");
   });
 
   it("disables both inputs when disabled is true", () => {

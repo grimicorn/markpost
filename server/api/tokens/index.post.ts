@@ -4,11 +4,7 @@ import type { ApiRequest } from "../../types/api.types";
 import { requireUser } from "../../utils/auth";
 import { ApiError, apiErrorHandler } from "../../utils/errors";
 import type { ApiResponse } from "../../types/api.types";
-import {
-  apiValidate,
-  isAbsent,
-  type AttributeRule,
-} from "../../utils/validate";
+import { apiValidate, type AttributeRule } from "../../utils/validate";
 import {
   computeExpiresAt,
   extractTokenPrefix,
@@ -65,15 +61,23 @@ function invalidExpiryError(): ApiError {
   );
 }
 
-// isAbsent treats null and "" the same as omitted, matching how apiValidate's
-// presence check already treats them — a JSON:API client sending an explicit
-// `"expiresInDays": null` means the same thing as leaving it out entirely.
+// Only undefined/null mean "no expiry requested" (a JSON:API client sending
+// an explicit `"expiresInDays": null` means the same thing as leaving it out
+// entirely). Anything else that isn't a number — including "" — is a bad
+// value, not an absent one: apiValidate's presence check (isAbsent) treats
+// "" as absent for an *optional* rule and skips the type check, so without
+// this explicit rejection an empty-string form field would silently mint a
+// never-expiring token instead of failing with a 422.
 function normalizeExpiresInDays(expiresInDays: unknown): number | undefined {
-  if (isAbsent(expiresInDays)) {
+  if (expiresInDays === undefined || expiresInDays === null) {
     return undefined;
   }
 
-  return expiresInDays as number;
+  if (typeof expiresInDays !== "number") {
+    throw invalidExpiryError();
+  }
+
+  return expiresInDays;
 }
 
 function assertValidExpiresInDays(expiresInDays: number | undefined): void {

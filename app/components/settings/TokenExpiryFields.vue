@@ -21,7 +21,7 @@
         type="number"
         :min="MIN_TOKEN_EXPIRY_DAYS"
         :max="MAX_TOKEN_EXPIRY_DAYS"
-        :value="expiryDays"
+        :value="displayExpiryDays"
         :disabled="disabled"
         @input="onExpiryDaysInput"
       />
@@ -36,7 +36,7 @@ import {
   MIN_TOKEN_EXPIRY_DAYS,
 } from "#shared/utils/tokens";
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     wantsExpiry?: boolean;
     expiryDays?: number;
@@ -54,12 +54,21 @@ const emit = defineEmits<{
   "update:expiryDays": [value: number];
 }>();
 
+// NaN (a cleared or non-numeric field) must not be bound back into :value —
+// Vue would coerce it to the literal string "NaN". Falling back to "" instead
+// of a sentinel like 0 keeps the field genuinely empty while the user is
+// mid-edit (e.g. clearing "90" to type "30"); a 0 round-tripped through
+// :value would show up as a leading digit the user never typed.
+const displayExpiryDays = computed(() =>
+  Number.isFinite(props.expiryDays) ? props.expiryDays : "",
+);
+
 // valueAsNumber is NaN when the field is cleared or holds non-numeric text.
-// Emitting NaN would round-trip back in as :value="NaN"; emit 0 instead so
-// the parent's bounds check (isExpiryDaysValid) rejects it the same way it
-// rejects any other value below MIN_TOKEN_EXPIRY_DAYS.
+// Emit it as-is rather than substituting a sentinel — the parent's bounds
+// check (isExpiryDaysValid) already rejects NaN via Number.isInteger, same
+// as any other out-of-range value.
 function onExpiryDaysInput(event: Event): void {
   const rawValue = (event.target as HTMLInputElement).valueAsNumber;
-  emit("update:expiryDays", Number.isNaN(rawValue) ? 0 : rawValue);
+  emit("update:expiryDays", rawValue);
 }
 </script>

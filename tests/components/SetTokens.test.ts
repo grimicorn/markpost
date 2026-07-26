@@ -459,6 +459,62 @@ describe("SetTokens", () => {
     expect(mockMintToken).toHaveBeenCalledWith("expiring-token", 30);
   });
 
+  it("does not call mintToken when expiry is opted into but the days field is cleared", async () => {
+    const SetTokens = (
+      await import("../../app/components/settings/SetTokens.vue")
+    ).default;
+    const wrapper = mount(SetTokens, globalConfig);
+    await flushPromises();
+
+    const generateButton = wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("generate token"));
+    await generateButton?.trigger("click");
+
+    await wrapper.find("input.input").setValue("expiring-token");
+    await wrapper.find("input[type='checkbox']").setValue(true);
+    await wrapper.find("input[type='number']").setValue("");
+
+    const confirmButton = wrapper
+      .findAll("button")
+      .find(
+        (button) =>
+          button.text() === "generate" || button.text() === "generating…",
+      );
+    await confirmButton?.trigger("click");
+    await flushPromises();
+
+    expect(mockMintToken).not.toHaveBeenCalled();
+  });
+
+  it("does not call mintToken when the days field exceeds the maximum bound", async () => {
+    const SetTokens = (
+      await import("../../app/components/settings/SetTokens.vue")
+    ).default;
+    const wrapper = mount(SetTokens, globalConfig);
+    await flushPromises();
+
+    const generateButton = wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("generate token"));
+    await generateButton?.trigger("click");
+
+    await wrapper.find("input.input").setValue("expiring-token");
+    await wrapper.find("input[type='checkbox']").setValue(true);
+    await wrapper.find("input[type='number']").setValue(3651);
+
+    const confirmButton = wrapper
+      .findAll("button")
+      .find(
+        (button) =>
+          button.text() === "generate" || button.text() === "generating…",
+      );
+    await confirmButton?.trigger("click");
+    await flushPromises();
+
+    expect(mockMintToken).not.toHaveBeenCalled();
+  });
+
   it("shows 'no expiry' for a token with a null expiresAt", async () => {
     mockTokens.value = [STUB_TOKENS[0]];
     const SetTokens = (

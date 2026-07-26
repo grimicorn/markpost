@@ -46,7 +46,7 @@ function tokenSerializer(token: TokenListItem): TokenResource {
 // expired-but-unrevoked token can no longer authenticate (server/middleware/
 // auth.ts), but still needs to show up here so the owner can see it expired
 // and clean it up. The UI surfaces the distinction (SetTokens.vue).
-async function listActiveTokens(
+async function listUnrevokedTokens(
   db: ReturnType<typeof getDb>,
   userId: string,
 ): Promise<TokenListItem[]> {
@@ -68,7 +68,7 @@ export default defineEventHandler(
   async (event): Promise<TokenListApiResponse> => {
     try {
       const userId = requireUser(event);
-      const tokens = await listActiveTokens(getDb(), userId);
+      const tokens = await listUnrevokedTokens(getDb(), userId);
 
       return { data: tokens.map(tokenSerializer) };
     } catch (error) {
