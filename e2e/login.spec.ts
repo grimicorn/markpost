@@ -2,10 +2,6 @@ import { test, expect, type Page } from "@playwright/test";
 import { clerkSetup, setupClerkTestingToken } from "@clerk/testing/playwright";
 import { TEST_USER_EMAIL, TEST_USER_PASSWORD } from "./helpers/clerk";
 
-// Clerk's test code for test emails (+clerk_test) — satisfies email/device
-// verification without a real inbox.
-const TEST_VERIFICATION_CODE = "424242";
-
 async function submitIdentifier(page: Page, email: string): Promise<void> {
   await page.fill('input[name="identifier"]', email);
   await page.getByRole("button", { name: /continue/i }).click();
@@ -83,14 +79,6 @@ test.describe("login page", () => {
   test("signs in through the full UI flow", async ({ page }) => {
     await submitIdentifier(page, TEST_USER_EMAIL);
     await submitPassword(page, TEST_USER_PASSWORD);
-
-    // New-device verification (client trust). Clerk renders a numeric code
-    // field; the test code completes it without a real email.
-    await page.waitForURL(/\/login\/client-trust/, { timeout: 10000 });
-    await page
-      .locator('input[inputmode="numeric"]')
-      .first()
-      .fill(TEST_VERIFICATION_CODE);
 
     // A completed sign-in redirects away from the /login flow.
     await expect(page).not.toHaveURL(/\/login/, { timeout: 12000 });
