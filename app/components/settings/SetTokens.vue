@@ -26,6 +26,9 @@
             {{ revealedToken }}
           </div>
         </div>
+        <p style="margin-top: 10px; font-size: 12.5px">
+          {{ formatExpiry(revealedTokenExpiresAt) }}
+        </p>
       </AppAlert>
     </div>
 
@@ -186,7 +189,10 @@ import SetHead from "./SetHead.vue";
 import TokenExpiryFields from "./TokenExpiryFields.vue";
 import {
   DEFAULT_TOKEN_EXPIRY_DAYS,
+  MAX_TOKEN_EXPIRY_DAYS,
   MILLISECONDS_PER_DAY,
+  MIN_TOKEN_EXPIRY_DAYS,
+  isTokenExpired,
 } from "#shared/utils/tokens";
 
 const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
@@ -203,16 +209,12 @@ function formatDate(date: Date | null): string {
   return date.toLocaleDateString("en-US", DATE_FORMAT_OPTIONS);
 }
 
-function isTokenUsable(expiresAt: Date | null): boolean {
-  return !expiresAt || expiresAt.getTime() > Date.now();
-}
-
 function formatExpiry(expiresAt: Date | null): string {
   if (!expiresAt) {
     return "no expiry";
   }
 
-  if (!isTokenUsable(expiresAt)) {
+  if (isTokenExpired(expiresAt)) {
     return "expired";
   }
 
@@ -232,6 +234,7 @@ const {
   isRevoking,
   revokeError,
   revealedToken,
+  revealedTokenExpiresAt,
   loadTokens,
   mintToken,
   revokeToken,
@@ -239,7 +242,7 @@ const {
 } = useApiTokens();
 
 const activeTokenCount = computed(
-  () => tokens.value.filter((token) => isTokenUsable(token.expiresAt)).length,
+  () => tokens.value.filter((token) => !isTokenExpired(token.expiresAt)).length,
 );
 
 const isGenerating = ref(false);
@@ -248,12 +251,15 @@ const wantsExpiry = ref(false);
 const pendingExpiryDays = ref(DEFAULT_TOKEN_EXPIRY_DAYS);
 
 // Whole days only, and only relevant once the user has opted into an expiry
-// — mirrors the bounds server/api/tokens/index.post.ts enforces so a bad
-// value (e.g. NaN from a cleared TokenExpiryFields input) is caught
-// client-side instead of round-tripping to a 422.
+// — mirrors the bounds server/api/tokens/index.post.ts enforces (both read
+// from #shared/utils/tokens) so a bad value, e.g. 0 from a cleared
+// TokenExpiryFields input, is caught client-side instead of round-tripping
+// to a 422.
 const isExpiryDaysValid = computed(
   () =>
-    Number.isInteger(pendingExpiryDays.value) && pendingExpiryDays.value >= 1,
+    Number.isInteger(pendingExpiryDays.value) &&
+    pendingExpiryDays.value >= MIN_TOKEN_EXPIRY_DAYS &&
+    pendingExpiryDays.value <= MAX_TOKEN_EXPIRY_DAYS,
 );
 
 const isConfirmGenerateDisabled = computed(

@@ -295,6 +295,9 @@ describe("POST /api/tokens", () => {
     });
 
     it("accepts the maximum boundary of 3650 days", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-06-01T00:00:00.000Z"));
+
       const getCapturedRow = stubInsertCapturingRow();
 
       mockReadBody.mockResolvedValue(
@@ -303,7 +306,14 @@ describe("POST /api/tokens", () => {
 
       await handler(buildEvent(userId));
 
-      expect(getCapturedRow()?.expiresAt).toBeInstanceOf(Date);
+      expect(getCapturedRow()?.expiresAt).toEqual(
+        new Date(
+          new Date("2026-06-01T00:00:00.000Z").getTime() +
+            3650 * 24 * 60 * 60 * 1000,
+        ),
+      );
+
+      vi.useRealTimers();
     });
 
     it("throws 422 when expiresInDays is not a number", async () => {

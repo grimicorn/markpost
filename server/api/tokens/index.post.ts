@@ -15,12 +15,10 @@ import {
   generateRawToken,
   hashToken,
 } from "../../utils/tokens";
-
-// Bounds for the opt-in `expiresInDays` mint attribute. Omitting the
-// attribute entirely (undefined) skips this check and mints a
-// never-expiring token — these bounds only constrain an explicit choice.
-const MIN_TOKEN_EXPIRY_DAYS = 1;
-const MAX_TOKEN_EXPIRY_DAYS = 3650; // 10 years — a ceiling against fat-fingered values, not a policy.
+import {
+  MAX_TOKEN_EXPIRY_DAYS,
+  MIN_TOKEN_EXPIRY_DAYS,
+} from "#shared/utils/tokens";
 
 type MintTokenAttributes = {
   name?: string;

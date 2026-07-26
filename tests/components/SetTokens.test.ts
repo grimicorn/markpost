@@ -35,6 +35,7 @@ const mockMintError = ref<string | null>(null);
 const mockIsRevoking = ref(false);
 const mockRevokeError = ref<string | null>(null);
 const mockRevealedToken = ref("");
+const mockRevealedTokenExpiresAt = ref<Date | null>(null);
 
 vi.stubGlobal("useApiTokens", () => ({
   tokens: mockTokens,
@@ -45,6 +46,7 @@ vi.stubGlobal("useApiTokens", () => ({
   isRevoking: mockIsRevoking,
   revokeError: mockRevokeError,
   revealedToken: mockRevealedToken,
+  revealedTokenExpiresAt: mockRevealedTokenExpiresAt,
   loadTokens: mockLoadTokens,
   mintToken: mockMintToken,
   revokeToken: mockRevokeToken,
@@ -87,6 +89,7 @@ beforeEach(() => {
   mockIsRevoking.value = false;
   mockRevokeError.value = null;
   mockRevealedToken.value = "";
+  mockRevealedTokenExpiresAt.value = null;
 });
 
 describe("SetTokens", () => {
@@ -136,6 +139,26 @@ describe("SetTokens", () => {
     const wrapper = mount(SetTokens, globalConfig);
     await flushPromises();
     expect(wrapper.html()).toContain("2 active tokens");
+  });
+
+  it("excludes expired-but-unrevoked tokens from the active token count", async () => {
+    mockTokens.value = [
+      STUB_TOKENS[0],
+      {
+        ...STUB_TOKENS[1],
+        expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      },
+    ];
+    const SetTokens = (
+      await import("../../app/components/settings/SetTokens.vue")
+    ).default;
+    const wrapper = mount(SetTokens, globalConfig);
+    await flushPromises();
+    expect(wrapper.html()).toContain("1 active tokens");
+    // Both rows still render — an expired token stays visible so it can be
+    // cleaned up, only the header count treats it as inactive.
+    expect(wrapper.html()).toContain("obsidian-laptop");
+    expect(wrapper.html()).toContain("home-server");
   });
 
   it("renders each token name and prefix", async () => {
@@ -306,6 +329,30 @@ describe("SetTokens", () => {
     await flushPromises();
     expect(wrapper.html()).toContain("mp_live_abc123");
     expect(wrapper.html()).toContain("Copy your new token now");
+  });
+
+  it("shows 'no expiry' in the reveal panel when the minted token has no expiry", async () => {
+    mockRevealedToken.value = "mp_live_abc123"; // gitleaks:allow
+    mockRevealedTokenExpiresAt.value = null;
+    const SetTokens = (
+      await import("../../app/components/settings/SetTokens.vue")
+    ).default;
+    const wrapper = mount(SetTokens, globalConfig);
+    await flushPromises();
+    expect(wrapper.html()).toContain("no expiry");
+  });
+
+  it("shows the remaining lifetime in the reveal panel when the minted token expires", async () => {
+    mockRevealedToken.value = "mp_live_abc123"; // gitleaks:allow
+    mockRevealedTokenExpiresAt.value = new Date(
+      Date.now() + 5 * 24 * 60 * 60 * 1000,
+    );
+    const SetTokens = (
+      await import("../../app/components/settings/SetTokens.vue")
+    ).default;
+    const wrapper = mount(SetTokens, globalConfig);
+    await flushPromises();
+    expect(wrapper.html()).toContain("expires in 5 days");
   });
 
   it("calls clearRevealedToken when the token alert close event fires", async () => {

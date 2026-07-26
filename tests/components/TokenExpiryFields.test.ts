@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import TokenExpiryFields from "../../app/components/settings/TokenExpiryFields.vue";
+import {
+  MAX_TOKEN_EXPIRY_DAYS,
+  MIN_TOKEN_EXPIRY_DAYS,
+} from "../../shared/utils/tokens";
 
 describe("TokenExpiryFields", () => {
   it("matches snapshot when expiry is not opted into", () => {
@@ -49,6 +53,26 @@ describe("TokenExpiryFields", () => {
     await wrapper.find("input[type='number']").setValue(30);
 
     expect(wrapper.emitted("update:expiryDays")).toEqual([[30]]);
+  });
+
+  it("binds min and max to the shared expiry day bounds", () => {
+    const wrapper = mount(TokenExpiryFields, {
+      props: { wantsExpiry: true, expiryDays: 90 },
+    });
+
+    const daysInput = wrapper.find("input[type='number']");
+    expect(daysInput.attributes("min")).toBe(String(MIN_TOKEN_EXPIRY_DAYS));
+    expect(daysInput.attributes("max")).toBe(String(MAX_TOKEN_EXPIRY_DAYS));
+  });
+
+  it("emits 0 (not NaN) when the days input is cleared", async () => {
+    const wrapper = mount(TokenExpiryFields, {
+      props: { wantsExpiry: true, expiryDays: 90 },
+    });
+
+    await wrapper.find("input[type='number']").setValue("");
+
+    expect(wrapper.emitted("update:expiryDays")).toEqual([[0]]);
   });
 
   it("disables both inputs when disabled is true", () => {

@@ -1,6 +1,8 @@
 import { createHash, randomBytes } from "crypto";
 import { MILLISECONDS_PER_DAY } from "#shared/utils/tokens";
 
+export { isTokenExpired } from "#shared/utils/tokens";
+
 export const TOKEN_PREFIX = "mp_live_";
 const TOKEN_RANDOM_BYTES = 32;
 const HASH_ALGORITHM = "sha256";
@@ -32,14 +34,4 @@ export function computeExpiresAt(expiresInDays?: number): Date | null {
   }
 
   return new Date(Date.now() + expiresInDays * MILLISECONDS_PER_DAY);
-}
-
-// A null expiresAt (never set, or a legacy pre-expiry token) never counts as
-// expired.
-export function isTokenExpired(expiresAt: Date | null | undefined): boolean {
-  if (!expiresAt) {
-    return false;
-  }
-
-  return expiresAt.getTime() <= Date.now();
 }

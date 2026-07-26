@@ -19,30 +19,32 @@
       <input
         class="input"
         type="number"
-        :min="1"
+        :min="MIN_TOKEN_EXPIRY_DAYS"
+        :max="MAX_TOKEN_EXPIRY_DAYS"
         :value="expiryDays"
         :disabled="disabled"
-        @input="
-          emit(
-            'update:expiryDays',
-            ($event.target as HTMLInputElement).valueAsNumber,
-          )
-        "
+        @input="onExpiryDaysInput"
       />
     </label>
   </div>
 </template>
 
 <script setup lang="ts">
+import {
+  DEFAULT_TOKEN_EXPIRY_DAYS,
+  MAX_TOKEN_EXPIRY_DAYS,
+  MIN_TOKEN_EXPIRY_DAYS,
+} from "#shared/utils/tokens";
+
 withDefaults(
   defineProps<{
     wantsExpiry?: boolean;
-    expiryDays?: number | string;
+    expiryDays?: number;
     disabled?: boolean;
   }>(),
   {
     wantsExpiry: false,
-    expiryDays: 0,
+    expiryDays: DEFAULT_TOKEN_EXPIRY_DAYS,
     disabled: false,
   },
 );
@@ -51,4 +53,13 @@ const emit = defineEmits<{
   "update:wantsExpiry": [value: boolean];
   "update:expiryDays": [value: number];
 }>();
+
+// valueAsNumber is NaN when the field is cleared or holds non-numeric text.
+// Emitting NaN would round-trip back in as :value="NaN"; emit 0 instead so
+// the parent's bounds check (isExpiryDaysValid) rejects it the same way it
+// rejects any other value below MIN_TOKEN_EXPIRY_DAYS.
+function onExpiryDaysInput(event: Event): void {
+  const rawValue = (event.target as HTMLInputElement).valueAsNumber;
+  emit("update:expiryDays", Number.isNaN(rawValue) ? 0 : rawValue);
+}
 </script>

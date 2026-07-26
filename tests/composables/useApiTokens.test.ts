@@ -27,7 +27,7 @@ function makeErrorResponse(detail = "Something went wrong.") {
 }
 
 // prettier-ignore
-function makeMintResponse(token = "mp_live_abc123") { // gitleaks:allow
+function makeMintResponse(token = "mp_live_abc123", expiresAt: string | null = null) { // gitleaks:allow
   return {
     data: {
       type: "api_tokens",
@@ -36,7 +36,7 @@ function makeMintResponse(token = "mp_live_abc123") { // gitleaks:allow
         name: "new-token",
         prefix: "mp_live_abc",
         createdAt: "2026-06-27T00:00:00.000Z",
-        expiresAt: null,
+        expiresAt,
         token,
       },
     },
@@ -354,6 +354,45 @@ describe("useApiTokens", () => {
       expect(revealedToken.value).toBe("mp_live_xyz");
       clearRevealedToken();
       expect(revealedToken.value).toBe("");
+    });
+
+    it("resets revealedTokenExpiresAt to null", async () => {
+      mockFetch
+        .mockResolvedValueOnce(
+          makeMintResponse("mp_live_xyz", "2026-09-25T00:00:00.000Z"), // gitleaks:allow
+        )
+        .mockResolvedValueOnce(makeListResponse());
+      const { revealedTokenExpiresAt, mintToken, clearRevealedToken } =
+        useApiTokens();
+      await mintToken("my-token", 90);
+      expect(revealedTokenExpiresAt.value).not.toBeNull();
+      clearRevealedToken();
+      expect(revealedTokenExpiresAt.value).toBeNull();
+    });
+  });
+
+  describe("revealedTokenExpiresAt", () => {
+    it("deserializes the minted token's expiresAt to a Date", async () => {
+      mockFetch
+        .mockResolvedValueOnce(
+          makeMintResponse("mp_live_abc", "2026-09-25T00:00:00.000Z"), // gitleaks:allow
+        )
+        .mockResolvedValueOnce(makeListResponse());
+      const { revealedTokenExpiresAt, mintToken } = useApiTokens();
+      await mintToken("my-token", 90);
+      expect(revealedTokenExpiresAt.value).toBeInstanceOf(Date);
+      expect(revealedTokenExpiresAt.value?.toISOString()).toBe(
+        "2026-09-25T00:00:00.000Z",
+      );
+    });
+
+    it("is null when the minted token has no expiry", async () => {
+      mockFetch
+        .mockResolvedValueOnce(makeMintResponse("mp_live_abc")) // gitleaks:allow
+        .mockResolvedValueOnce(makeListResponse());
+      const { revealedTokenExpiresAt, mintToken } = useApiTokens();
+      await mintToken("my-token");
+      expect(revealedTokenExpiresAt.value).toBeNull();
     });
   });
 });

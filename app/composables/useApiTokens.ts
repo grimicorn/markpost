@@ -116,6 +116,7 @@ export function useApiTokens() {
   const isRevoking = ref(false);
   const revokeError = ref<string | null>(null);
   const revealedToken = ref("");
+  const revealedTokenExpiresAt = ref<Date | null>(null);
 
   // Internal: fetches and applies the token list without the de-dupe guard.
   // Use this from mintToken so the post-mint refresh always runs.
@@ -159,6 +160,7 @@ export function useApiTokens() {
     isMinting.value = true;
     mintError.value = null;
     revealedToken.value = "";
+    revealedTokenExpiresAt.value = null;
 
     try {
       const response = await $fetch<MintTokenResponse>(API_TOKENS_ENDPOINT, {
@@ -180,6 +182,9 @@ export function useApiTokens() {
       }
 
       revealedToken.value = response.data.attributes.token;
+      revealedTokenExpiresAt.value = response.data.attributes.expiresAt
+        ? new Date(response.data.attributes.expiresAt)
+        : null;
       // Bypass the isLoading guard so the refresh always runs even when the
       // initial load is still in flight.
       await fetchAndApplyTokens();
@@ -224,6 +229,7 @@ export function useApiTokens() {
 
   function clearRevealedToken() {
     revealedToken.value = "";
+    revealedTokenExpiresAt.value = null;
   }
 
   return {
@@ -235,6 +241,7 @@ export function useApiTokens() {
     isRevoking,
     revokeError,
     revealedToken,
+    revealedTokenExpiresAt,
     loadTokens,
     mintToken,
     revokeToken,
