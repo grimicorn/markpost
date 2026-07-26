@@ -24,6 +24,7 @@
     "db:migrate:production": "dotenvx run -f .env.production -- drizzle-kit migrate",
     "db:push": "dotenvx run -f .env -- drizzle-kit push",
     "db:studio": "dotenvx run -f .env -- drizzle-kit studio",
+    "pree2e": "nuxt prepare",
     "e2e": "dotenvx run -f .env.e2e -- playwright test",
     "e2e:headed": "dotenvx run -f .env.e2e -- playwright test --headed",
     "e2e:ui": "dotenvx run -f .env.e2e -- playwright test --ui",
@@ -31,11 +32,11 @@
     "e2e:report": "playwright show-report e2e/report"
   },
   "dependencies": {
-    "@clerk/backend": "^3.11.7",
-    "@clerk/nuxt": "^2.6.19",
+    "@clerk/backend": "^3.13.1",
+    "@clerk/nuxt": "^2.6.22",
     "@neondatabase/serverless": "^1.1.0",
     "@pinia/nuxt": "^0.11.3",
-    "@sentry/nuxt": "^10.66.0",
+    "@sentry/nuxt": "^10.68.0",
     "@types/turndown": "^5.0.6",
     "drizzle-orm": "^0.45.2",
     "geist": "^1.7.2",
@@ -47,28 +48,35 @@
     "vue-router": "^5.1.0"
   },
   "devDependencies": {
-    "@clerk/testing": "^2.2.10",
-    "@dotenvx/dotenvx": "^2.14.0",
+    "@clerk/testing": "^2.2.13",
+    "@dotenvx/dotenvx": "^2.17.4",
     "@eslint/js": "^10.0.1",
-    "@playwright/test": "^1.61.1",
+    "@playwright/test": "^1.62.0",
     "@tailwindcss/vite": "^4.3.3",
-    "@typescript-eslint/parser": "^8.64.0",
+    "@typescript-eslint/parser": "^8.65.0",
     "@vitejs/plugin-vue": "^6.0.7",
     "@vitest/ui": "^4.1.10",
     "@vue/test-utils": "^2.4.11",
     "drizzle-kit": "^0.31.10",
-    "eslint": "^10.7.0",
+    "eslint": "^10.8.0",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-vue": "^10.9.2",
-    "fallow": "^3.6.0",
+    "eslint-plugin-vue": "^10.10.0",
+    "fallow": "^3.9.1",
     "globals": "^17.7.0",
-    "happy-dom": "^20.11.0",
+    "happy-dom": "^20.11.1",
     "husky": "^9.1.7",
-    "prettier": "^3.9.5",
+    "prettier": "^3.9.6",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "tailwindcss": "^4.3.1",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8",
     "vue-eslint-parser": "^10.4.1"
+  },
+  "overrides": {
+    "brace-expansion": "^5.0.8",
+    "next": {
+      "postcss": "^8.5.23",
+      "sharp": "^0.35.3"
+    }
   }
 }
