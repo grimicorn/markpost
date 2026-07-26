@@ -4,9 +4,11 @@ import { records, RECORD_STATUSES } from "../../db/schema";
 import { ApiError, apiErrorHandler } from "../../utils/errors";
 import { buildRecordListResponse, parsePageSize } from "../../utils/pagination";
 import type { RecordListApiResponse } from "../../utils/response";
-
-const ALLOWED_SOURCE_TYPES = ["webhook", "email"] as const;
-type AllowedSourceType = (typeof ALLOWED_SOURCE_TYPES)[number];
+import {
+  isSourceType,
+  SOURCE_TYPES,
+  type SourceType,
+} from "#shared/utils/sourceTypes";
 
 type Database = ReturnType<typeof getDb>;
 
@@ -16,7 +18,7 @@ type CursorPosition = {
 };
 
 type RecordFilters = {
-  source?: AllowedSourceType;
+  source?: SourceType;
   status?: string;
   query?: string;
 };
@@ -65,6 +67,34 @@ async function resolveCursor(
   }
 
   return cursor;
+}
+
+function invalidSourceFilterError(): ApiError {
+  return new ApiError(
+    [
+      {
+        status: "400",
+        title: "Invalid filter[source]",
+        detail: `filter[source] must be one of: ${SOURCE_TYPES.join(", ")}`,
+        source: { parameter: "filter[source]" },
+      },
+    ],
+    400,
+  );
+}
+
+function validateSourceFilter(
+  filterSource: string | undefined,
+): SourceType | undefined {
+  if (!filterSource) {
+    return undefined;
+  }
+
+  if (!isSourceType(filterSource)) {
+    throw invalidSourceFilterError();
+  }
+
+  return filterSource;
 }
 
 function buildFilterConditions(
@@ -143,11 +173,7 @@ export default defineEventHandler(
       const filterStatus = query["filter[status]"] as string | undefined;
       const filterQuery = query["filter[q]"] as string | undefined;
 
-      const validatedSource = ALLOWED_SOURCE_TYPES.includes(
-        filterSource as AllowedSourceType,
-      )
-        ? (filterSource as AllowedSourceType)
-        : undefined;
+      const validatedSource = validateSourceFilter(filterSource);
 
       const validatedStatus = RECORD_STATUSES.includes(
         filterStatus as (typeof RECORD_STATUSES)[number],

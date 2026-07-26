@@ -7,20 +7,9 @@ import { generateEndpointSlug } from "../../utils/endpointSlug";
 import { assertWithinSourceLimit } from "../../utils/planLimits";
 import { sourceSerializer, type SourceApiResponse } from "../../utils/response";
 import { apiValidate, type AttributeRule } from "../../utils/validate";
-
-const VALID_SOURCE_TYPES = [
-  "webhook",
-  "email",
-  "stripe",
-  "github",
-  "zapier",
-  "rss",
-  "shortcuts",
-] as const;
+import { isSourceType, SOURCE_TYPES } from "#shared/utils/sourceTypes";
 
 const MAX_SLUG_ATTEMPTS = 5;
-
-type SourceType = (typeof VALID_SOURCE_TYPES)[number];
 
 type CreateSourceAttributes = {
   type?: string;
@@ -47,10 +36,6 @@ const VALIDATION_RULES: AttributeRule[] = [
   { key: "name", type: "string" },
   { key: "routeFolder", type: "string" },
 ];
-
-function isValidSourceType(value: string): value is SourceType {
-  return (VALID_SOURCE_TYPES as readonly string[]).includes(value);
-}
 
 function isUniqueViolation(error: unknown): boolean {
   return (
@@ -107,7 +92,7 @@ function invalidTypeError(): ApiError {
       {
         status: "422",
         title: "Invalid Attribute",
-        detail: `Type must be one of: ${VALID_SOURCE_TYPES.join(", ")}`,
+        detail: `Type must be one of: ${SOURCE_TYPES.join(", ")}`,
         source: { pointer: "/data/attributes/type" },
       },
     ],
@@ -138,7 +123,7 @@ export default defineEventHandler(async (event): Promise<SourceApiResponse> => {
 
     const attributes = body.data.attributes as Required<CreateSourceAttributes>;
 
-    if (!isValidSourceType(attributes.type)) {
+    if (!isSourceType(attributes.type)) {
       throw invalidTypeError();
     }
 
