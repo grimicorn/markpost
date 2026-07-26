@@ -69,6 +69,9 @@ async function resolveCursor(
   return cursor;
 }
 
+// 400 (not 422) because this validates a query parameter, not a body
+// attribute — matching the "Invalid cursor" 400 above rather than the 422s
+// used for POST /api/sources body validation.
 function invalidSourceFilterError(): ApiError {
   return new ApiError(
     [

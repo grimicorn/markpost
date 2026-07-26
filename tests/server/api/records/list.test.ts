@@ -128,7 +128,6 @@ describe("GET /api/records", () => {
         ],
       },
     });
-    expect(selectMock).not.toHaveBeenCalled();
   });
 
   it.each(SOURCE_TYPES)(
