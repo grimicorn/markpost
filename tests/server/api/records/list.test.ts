@@ -130,6 +130,21 @@ describe("GET /api/records", () => {
     });
   });
 
+  // Pinned literal (not derived from SOURCE_TYPES) so dropping a type from the
+  // shared constant fails this test, rather than silently shrinking the
+  // it.each below along with it.
+  it("recognizes exactly the seven source types the sources API accepts", () => {
+    expect(SOURCE_TYPES).toEqual([
+      "webhook",
+      "email",
+      "stripe",
+      "github",
+      "zapier",
+      "rss",
+      "shortcuts",
+    ]);
+  });
+
   it.each(SOURCE_TYPES)(
     "applies a LIKE filter when filter[source]=%s",
     async (sourceType) => {
@@ -151,6 +166,16 @@ describe("GET /api/records", () => {
       expect(hasLikeCondition).toBe(true);
     },
   );
+
+  it("ignores an empty filter[source] value rather than treating it as invalid", async () => {
+    queryParams = { "filter[source]": "" };
+    const { countWhere } = stubSelectResults({ value: 0 }, []);
+
+    await handler(buildEvent(userId));
+
+    const whereArg = countWhere.mock.calls[0]?.[0] as { and: unknown[] };
+    expect(whereArg.and).toHaveLength(1);
+  });
 
   it("ignores an invalid filter[status] value and does not add a second eq condition", async () => {
     queryParams = { "filter[status]": "unknown_status" };
