@@ -11,3 +11,7 @@
 // for personal access tokens — balancing CLI convenience against reducing
 // the blast radius of a leaked token.
 export const DEFAULT_TOKEN_EXPIRY_DAYS = 90;
+
+// Shared so the client (formatting remaining lifetime) and server (computing
+// an expiresAt from expiresInDays) use exactly one day-length constant.
+export const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;

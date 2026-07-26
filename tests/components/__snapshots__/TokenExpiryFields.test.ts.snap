@@ -1,0 +1,9 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`TokenExpiryFields > matches snapshot when expiry is not opted into 1`] = `
+"<div class="col gap-3"><label class="row gap-2" style="align-items: center;"><input type="checkbox"><span style="font-size: 13px;">Expire this token</span></label>
+  <!--v-if-->
+</div>"
+`;
+
+exports[`TokenExpiryFields > matches snapshot when expiry is opted into 1`] = `"<div class="col gap-3"><label class="row gap-2" style="align-items: center;"><input checked="" type="checkbox"><span style="font-size: 13px;">Expire this token</span></label><label class="col gap-2"><span style="font-size: 13px; font-weight: 500;"> Expires in (days) </span><input class="input" type="number" min="1" value="90"></label></div>"`;

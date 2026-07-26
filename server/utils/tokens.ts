@@ -1,10 +1,10 @@
 import { createHash, randomBytes } from "crypto";
+import { MILLISECONDS_PER_DAY } from "#shared/utils/tokens";
 
 export const TOKEN_PREFIX = "mp_live_";
 const TOKEN_RANDOM_BYTES = 32;
 const HASH_ALGORITHM = "sha256";
 const PREFIX_VISIBLE_CHARS = 4;
-const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export function generateRawToken(): string {
   return `${TOKEN_PREFIX}${randomBytes(TOKEN_RANDOM_BYTES).toString("hex")}`;

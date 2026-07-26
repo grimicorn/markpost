@@ -4,7 +4,11 @@ import type { ApiRequest } from "../../types/api.types";
 import { requireUser } from "../../utils/auth";
 import { ApiError, apiErrorHandler } from "../../utils/errors";
 import type { ApiResponse } from "../../types/api.types";
-import { apiValidate, type AttributeRule } from "../../utils/validate";
+import {
+  apiValidate,
+  isAbsent,
+  type AttributeRule,
+} from "../../utils/validate";
 import {
   computeExpiresAt,
   extractTokenPrefix,
@@ -63,6 +67,17 @@ function invalidExpiryError(): ApiError {
   );
 }
 
+// isAbsent treats null and "" the same as omitted, matching how apiValidate's
+// presence check already treats them — a JSON:API client sending an explicit
+// `"expiresInDays": null` means the same thing as leaving it out entirely.
+function normalizeExpiresInDays(expiresInDays: unknown): number | undefined {
+  if (isAbsent(expiresInDays)) {
+    return undefined;
+  }
+
+  return expiresInDays as number;
+}
+
 function assertValidExpiresInDays(expiresInDays: number | undefined): void {
   if (expiresInDays === undefined) {
     return;
@@ -78,12 +93,16 @@ function assertValidExpiresInDays(expiresInDays: number | undefined): void {
   }
 }
 
+type InsertTokenInput = {
+  userId: string;
+  name: string;
+  rawToken: string;
+  expiresAt: Date | null;
+};
+
 async function insertToken(
   db: ReturnType<typeof getDb>,
-  userId: string,
-  name: string,
-  rawToken: string,
-  expiresAt: Date | null,
+  { userId, name, rawToken, expiresAt }: InsertTokenInput,
 ) {
   const prefix = extractTokenPrefix(rawToken);
   const hashedToken = hashToken(rawToken);
@@ -109,17 +128,17 @@ export default defineEventHandler(
       > &
         Pick<MintTokenAttributes, "expiresInDays">;
 
-      assertValidExpiresInDays(attributes.expiresInDays);
+      const expiresInDays = normalizeExpiresInDays(attributes.expiresInDays);
+      assertValidExpiresInDays(expiresInDays);
 
       const rawToken = generateRawToken();
-      const expiresAt = computeExpiresAt(attributes.expiresInDays);
-      const record = await insertToken(
-        getDb(),
+      const expiresAt = computeExpiresAt(expiresInDays);
+      const record = await insertToken(getDb(), {
         userId,
-        attributes.name,
+        name: attributes.name,
         rawToken,
         expiresAt,
-      );
+      });
 
       setResponseStatus(event, 201);
 

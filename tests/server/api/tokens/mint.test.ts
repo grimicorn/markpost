@@ -201,7 +201,10 @@ describe("POST /api/tokens", () => {
   });
 
   describe("expiresInDays", () => {
-    it("mints a token with no expiry when expiresInDays is omitted", async () => {
+    // Shared by every test in this block: stubs the insert chain and hands
+    // back the row that was actually passed to `.values(...)`, so each test
+    // can assert on the expiresAt drizzle would have persisted.
+    function stubInsertCapturingRow() {
       let capturedRow: { expiresAt?: Date | null } | undefined;
 
       const returning = vi.fn(async () => [
@@ -220,11 +223,33 @@ describe("POST /api/tokens", () => {
       });
       insertMock.mockReturnValue({ values });
 
+      return () => capturedRow;
+    }
+
+    it("mints a token with no expiry when expiresInDays is omitted", async () => {
+      const getCapturedRow = stubInsertCapturingRow();
+
       mockReadBody.mockResolvedValue(buildBody({ name: "my-token" }));
 
       const response = await handler(buildEvent(userId));
 
-      expect(capturedRow?.expiresAt).toBeNull();
+      expect(getCapturedRow()?.expiresAt).toBeNull();
+      const data = (
+        response as { data: { attributes: { expiresAt: Date | null } } }
+      ).data;
+      expect(data.attributes.expiresAt).toBeNull();
+    });
+
+    it("mints a token with no expiry when expiresInDays is explicitly null", async () => {
+      const getCapturedRow = stubInsertCapturingRow();
+
+      mockReadBody.mockResolvedValue(
+        buildBody({ name: "my-token", expiresInDays: null }),
+      );
+
+      const response = await handler(buildEvent(userId));
+
+      expect(getCapturedRow()?.expiresAt).toBeNull();
       const data = (
         response as { data: { attributes: { expiresAt: Date | null } } }
       ).data;
@@ -235,23 +260,7 @@ describe("POST /api/tokens", () => {
       vi.useFakeTimers();
       vi.setSystemTime(new Date("2026-06-01T00:00:00.000Z"));
 
-      let capturedRow: { expiresAt?: Date | null } | undefined;
-
-      const returning = vi.fn(async () => [
-        {
-          id: "token-uuid-1",
-          name: "my-token",
-          prefix: "mp_live_abcd",
-          hashedToken: "some-hash",
-          createdAt: new Date(),
-          expiresAt: capturedRow?.expiresAt ?? null,
-        },
-      ]);
-      const values = vi.fn((row: { expiresAt?: Date | null }) => {
-        capturedRow = row;
-        return { returning };
-      });
-      insertMock.mockReturnValue({ values });
+      const getCapturedRow = stubInsertCapturingRow();
 
       mockReadBody.mockResolvedValue(
         buildBody({ name: "my-token", expiresInDays: 30 }),
@@ -259,11 +268,42 @@ describe("POST /api/tokens", () => {
 
       await handler(buildEvent(userId));
 
-      expect(capturedRow?.expiresAt).toEqual(
+      expect(getCapturedRow()?.expiresAt).toEqual(
         new Date("2026-07-01T00:00:00.000Z"),
       );
 
       vi.useRealTimers();
+    });
+
+    it("accepts the minimum boundary of 1 day", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-06-01T00:00:00.000Z"));
+
+      const getCapturedRow = stubInsertCapturingRow();
+
+      mockReadBody.mockResolvedValue(
+        buildBody({ name: "my-token", expiresInDays: 1 }),
+      );
+
+      await handler(buildEvent(userId));
+
+      expect(getCapturedRow()?.expiresAt).toEqual(
+        new Date("2026-06-02T00:00:00.000Z"),
+      );
+
+      vi.useRealTimers();
+    });
+
+    it("accepts the maximum boundary of 3650 days", async () => {
+      const getCapturedRow = stubInsertCapturingRow();
+
+      mockReadBody.mockResolvedValue(
+        buildBody({ name: "my-token", expiresInDays: 3650 }),
+      );
+
+      await handler(buildEvent(userId));
+
+      expect(getCapturedRow()?.expiresAt).toBeInstanceOf(Date);
     });
 
     it("throws 422 when expiresInDays is not a number", async () => {
