@@ -169,23 +169,45 @@ describe("GET /api/records", () => {
     expect(hasStatusCondition).toBe(true);
   });
 
+  type QueryCondition = {
+    or: { ilike: { column: unknown; pattern: unknown } }[];
+  };
+
+  function isIlikeBranch(branch: unknown): boolean {
+    return typeof branch === "object" && branch !== null && "ilike" in branch;
+  }
+
   // filter[q] matches records via an `or(ilike(title), ilike(content))`
   // condition nested inside the top-level `and`. The cursor predicate is
   // also shaped `{ or: [...] }` under this mock, so narrow to `or` branches
-  // that are themselves ILIKE conditions to avoid matching the cursor.
-  function findQueryCondition(conditions: unknown[]) {
-    return conditions.find(
-      (condition) =>
-        typeof condition === "object" &&
-        condition !== null &&
-        "or" in condition &&
-        Array.isArray((condition as { or: unknown[] }).or) &&
-        (condition as { or: unknown[] }).or.length > 0 &&
-        (condition as { or: unknown[] }).or.every(
-          (branch) =>
-            typeof branch === "object" && branch !== null && "ilike" in branch,
-        ),
-    ) as { or: { ilike: { column: unknown; pattern: unknown } }[] } | undefined;
+  // that are themselves non-empty and entirely ILIKE conditions, to avoid
+  // matching the cursor (or an empty/partial `or` from a regression).
+  function findQueryCondition(
+    conditions: unknown[],
+  ): QueryCondition | undefined {
+    return conditions.find((condition) => {
+      if (typeof condition !== "object" || condition === null) {
+        return false;
+      }
+      if (!("or" in condition)) {
+        return false;
+      }
+
+      const branches = (condition as { or: unknown[] }).or;
+      if (!Array.isArray(branches) || branches.length === 0) {
+        return false;
+      }
+
+      return branches.every(isIlikeBranch);
+    }) as QueryCondition | undefined;
+  }
+
+  // The two ends of an `or(ilike(title), ilike(content))` condition, as
+  // column names, in the order returned by buildFilterConditions.
+  function matchedColumnNames(queryCondition: QueryCondition | undefined) {
+    return queryCondition?.or.map(
+      (condition) => (condition.ilike.column as { name?: string })?.name,
+    );
   }
 
   it("applies an ILIKE filter on title OR content when filter[q] is set", async () => {
@@ -218,19 +240,14 @@ describe("GET /api/records", () => {
 
     const whereArg = countWhere.mock.calls[0]?.[0] as { and: unknown[] };
     const queryCondition = findQueryCondition(whereArg.and);
-    const matchedColumnNames = queryCondition?.or.map(
-      (condition) => (condition.ilike.column as { name?: string })?.name,
-    );
-    expect(matchedColumnNames).toContain("title");
-    expect(matchedColumnNames).toContain("content");
+    expect(matchedColumnNames(queryCondition)).toEqual(["title", "content"]);
 
     const pageWhereArg = pageWhere.mock.calls[0]?.[0] as { and: unknown[] };
     const pageQueryCondition = findQueryCondition(pageWhereArg.and);
-    const pageMatchedColumnNames = pageQueryCondition?.or.map(
-      (condition) => (condition.ilike.column as { name?: string })?.name,
-    );
-    expect(pageMatchedColumnNames).toContain("title");
-    expect(pageMatchedColumnNames).toContain("content");
+    expect(matchedColumnNames(pageQueryCondition)).toEqual([
+      "title",
+      "content",
+    ]);
   });
 
   it("trims whitespace from filter[q] before searching", async () => {
@@ -241,7 +258,7 @@ describe("GET /api/records", () => {
 
     const whereArg = countWhere.mock.calls[0]?.[0] as { and: unknown[] };
     const queryCondition = findQueryCondition(whereArg.and);
-    expect(queryCondition?.or).toHaveLength(2);
+    expect(matchedColumnNames(queryCondition)).toEqual(["title", "content"]);
     expect(
       queryCondition?.or.every(
         (condition) => condition.ilike.pattern === "%invoice%",
@@ -257,7 +274,7 @@ describe("GET /api/records", () => {
 
     const whereArg = countWhere.mock.calls[0]?.[0] as { and: unknown[] };
     const queryCondition = findQueryCondition(whereArg.and);
-    expect(queryCondition?.or).toHaveLength(2);
+    expect(matchedColumnNames(queryCondition)).toEqual(["title", "content"]);
     expect(
       queryCondition?.or.every(
         (condition) => condition.ilike.pattern === "%100\\%\\_off\\\\%",
