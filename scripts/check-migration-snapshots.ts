@@ -13,16 +13,20 @@ import { pathToFileURL } from "node:url";
 // convention: both scripts are only ever invoked via an npm script running
 // from the package root. (An import.meta.url-anchored path was tried instead
 // but breaks when this module is imported under vitest's SSR transform,
-// where import.meta.url is not a plain file:// URL.)
-const MIGRATIONS_FOLDER = "server/db/migrations";
-const META_FOLDER = `${MIGRATIONS_FOLDER}/meta`;
-const JOURNAL_FILE = `${META_FOLDER}/_journal.json`;
+// where import.meta.url is not a plain file:// URL.) Overridable via a CLI
+// arg so tests can point it at a fixture directory.
+const DEFAULT_MIGRATIONS_FOLDER = "server/db/migrations";
+
+// drizzle-kit seeds the very first snapshot's prevId with this all-zero UUID;
+// there is no earlier snapshot for it to chain to.
+const ROOT_SNAPSHOT_PREV_ID = "00000000-0000-0000-0000-000000000000";
 
 const SNAPSHOT_FILENAME_PATTERN = /^(\d{4})_snapshot\.json$/;
 const JOURNAL_TAG_PREFIX_PATTERN = /^(\d{4})_/;
 
 type JournalEntry = {
   tag: string;
+  idx: number;
 };
 
 type Journal = {
@@ -58,20 +62,26 @@ export function findMissingSnapshotTags(
 // A snapshot file existing is not enough: 0009_snapshot.json existed all
 // along but its `prevId` pointed straight at 0004, silently skipping
 // 0005-0008. This walks the chain in journal order and reports any link
-// whose `prevId` doesn't match the id of the snapshot immediately before it.
+// whose `prevId` doesn't match the id of the snapshot immediately before it
+// (or, for the first snapshot, doesn't match drizzle's root sentinel).
 export function findBrokenChainLinks(
   orderedSnapshots: SnapshotChainLink[],
 ): string[] {
   return orderedSnapshots.flatMap((snapshot, index) => {
-    if (index === 0) {
+    const expectedPrevId =
+      index === 0 ? ROOT_SNAPSHOT_PREV_ID : orderedSnapshots[index - 1].id;
+
+    if (snapshot.prevId === expectedPrevId) {
       return [];
+    }
+
+    if (index === 0) {
+      return [
+        `${snapshot.tag}: prevId "${snapshot.prevId}" is not the root sentinel "${ROOT_SNAPSHOT_PREV_ID}"`,
+      ];
     }
 
     const previousSnapshot = orderedSnapshots[index - 1];
-    if (snapshot.prevId === previousSnapshot.id) {
-      return [];
-    }
-
     return [
       `${snapshot.tag}: prevId "${snapshot.prevId}" does not match ` +
         `"${previousSnapshot.tag}"'s id "${previousSnapshot.id}"`,
@@ -79,32 +89,58 @@ export function findBrokenChainLinks(
   });
 }
 
-function readJournal(): Journal {
-  const raw = readFileSync(JOURNAL_FILE, "utf8");
+function readJournal(journalFile: string): Journal {
+  const raw = readFileSync(journalFile, "utf8");
   const journal = JSON.parse(raw) as Partial<Journal>;
 
   if (!Array.isArray(journal.entries)) {
-    throw new Error(`${JOURNAL_FILE} has no "entries" array`);
+    throw new Error(`${journalFile} has no "entries" array`);
+  }
+
+  const hasNonStringTag = journal.entries.some(
+    (entry) => typeof entry?.tag !== "string",
+  );
+  if (hasNonStringTag) {
+    throw new Error(`${journalFile} has an entry with a non-string "tag"`);
   }
 
   return journal as Journal;
 }
 
-function snapshotFilenameForTag(tag: string): string {
+function snapshotFilenameForTag(tag: string): string | undefined {
   const prefix = tag.match(JOURNAL_TAG_PREFIX_PATTERN)?.[1];
-  return `${prefix}_snapshot.json`;
+  return prefix ? `${prefix}_snapshot.json` : undefined;
 }
 
-function loadSnapshotChain(journalTags: string[]): SnapshotChainLink[] {
+function describeExpectedSnapshot(tag: string): string {
+  const filename = snapshotFilenameForTag(tag);
+  return filename ? `expected ${filename}` : "tag has no NNNN_ prefix";
+}
+
+export function loadSnapshotChain(
+  journalTags: string[],
+  metaFolder: string,
+): SnapshotChainLink[] {
   return journalTags.map((tag) => {
-    const filePath = `${META_FOLDER}/${snapshotFilenameForTag(tag)}`;
-    const snapshot = JSON.parse(readFileSync(filePath, "utf8")) as {
-      id: string;
-      prevId: string;
-    };
+    const filePath = `${metaFolder}/${snapshotFilenameForTag(tag)}`;
+    const raw = readFileSync(filePath, "utf8");
+    const snapshot = JSON.parse(raw) as Partial<SnapshotChainLink>;
+
+    if (
+      typeof snapshot.id !== "string" ||
+      typeof snapshot.prevId !== "string"
+    ) {
+      throw new Error(`${filePath} is missing a string "id" or "prevId"`);
+    }
 
     return { tag, id: snapshot.id, prevId: snapshot.prevId };
   });
+}
+
+function orderedJournalTags(journal: Journal): string[] {
+  return [...journal.entries]
+    .sort((first, second) => first.idx - second.idx)
+    .map((entry) => entry.tag);
 }
 
 function reportProblems(title: string, problems: string[]): void {
@@ -116,9 +152,13 @@ function reportProblems(title: string, problems: string[]): void {
 }
 
 async function main(): Promise<void> {
-  const journal = readJournal();
-  const journalTags = journal.entries.map((entry) => entry.tag);
-  const existingSnapshotFilenames = readdirSync(META_FOLDER);
+  const migrationsFolder = process.argv[2] ?? DEFAULT_MIGRATIONS_FOLDER;
+  const metaFolder = `${migrationsFolder}/meta`;
+  const journalFile = `${metaFolder}/_journal.json`;
+
+  const journal = readJournal(journalFile);
+  const journalTags = orderedJournalTags(journal);
+  const existingSnapshotFilenames = readdirSync(metaFolder);
 
   const missingTags = findMissingSnapshotTags(
     journalTags,
@@ -128,19 +168,19 @@ async function main(): Promise<void> {
   if (missingTags.length > 0) {
     reportProblems(
       "Missing migration snapshot file(s):",
-      missingTags.map(
-        (tag) => `${tag} (expected ${snapshotFilenameForTag(tag)})`,
-      ),
+      missingTags.map((tag) => `${tag} (${describeExpectedSnapshot(tag)})`),
     );
     console.error(
-      `\nEach entry in ${JOURNAL_FILE} must have a matching <NNNN>_snapshot.json ` +
-        `in ${META_FOLDER}/, or the next \`drizzle-kit generate\` will diff ` +
+      `\nEach entry in ${journalFile} must have a matching <NNNN>_snapshot.json ` +
+        `in ${metaFolder}/, or the next \`drizzle-kit generate\` will diff ` +
         "against a stale base schema.",
     );
     return;
   }
 
-  const brokenLinks = findBrokenChainLinks(loadSnapshotChain(journalTags));
+  const brokenLinks = findBrokenChainLinks(
+    loadSnapshotChain(journalTags, metaFolder),
+  );
 
   if (brokenLinks.length > 0) {
     reportProblems("Broken migration snapshot chain link(s):", brokenLinks);
@@ -165,6 +205,15 @@ function isInvokedDirectly(): boolean {
   return import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
 }
 
+async function run(): Promise<void> {
+  try {
+    await main();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+  }
+}
+
 if (isInvokedDirectly()) {
-  await main();
+  await run();
 }
