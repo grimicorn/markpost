@@ -169,23 +169,46 @@ describe("GET /api/records", () => {
     expect(hasStatusCondition).toBe(true);
   });
 
-  it("applies an ILIKE filter on title when filter[q] is set", async () => {
+  // filter[q] matches records via an `or(ilike(title), ilike(content))`
+  // condition nested inside the top-level `and`; this helper unwraps it.
+  function findQueryCondition(conditions: unknown[]) {
+    return conditions.find(
+      (condition) =>
+        typeof condition === "object" &&
+        condition !== null &&
+        "or" in condition,
+    ) as { or: { ilike: { column: unknown; pattern: unknown } }[] } | undefined;
+  }
+
+  it("applies an ILIKE filter on title OR content when filter[q] is set", async () => {
     queryParams = { "filter[q]": "invoice" };
     const { countWhere } = stubSelectResults({ value: 0 }, []);
 
     await handler(buildEvent(userId));
 
     const whereArg = countWhere.mock.calls[0]?.[0] as { and: unknown[] };
-    const conditions = whereArg.and;
-    const hasQueryCondition = conditions.some(
-      (condition) =>
-        typeof condition === "object" &&
-        condition !== null &&
-        "ilike" in condition &&
-        (condition as { ilike: { pattern: unknown } }).ilike.pattern ===
-          "%invoice%",
+    const queryCondition = findQueryCondition(whereArg.and);
+    expect(queryCondition?.or).toHaveLength(2);
+    expect(
+      queryCondition?.or.every(
+        (condition) => condition.ilike.pattern === "%invoice%",
+      ),
+    ).toBe(true);
+  });
+
+  it("matches on records.content, not just records.title, for filter[q]", async () => {
+    queryParams = { "filter[q]": "invoice" };
+    const { countWhere } = stubSelectResults({ value: 0 }, []);
+
+    await handler(buildEvent(userId));
+
+    const whereArg = countWhere.mock.calls[0]?.[0] as { and: unknown[] };
+    const queryCondition = findQueryCondition(whereArg.and);
+    const matchedColumnNames = queryCondition?.or.map(
+      (condition) => (condition.ilike.column as { name?: string })?.name,
     );
-    expect(hasQueryCondition).toBe(true);
+    expect(matchedColumnNames).toContain("title");
+    expect(matchedColumnNames).toContain("content");
   });
 
   it("trims whitespace from filter[q] before searching", async () => {
@@ -195,16 +218,12 @@ describe("GET /api/records", () => {
     await handler(buildEvent(userId));
 
     const whereArg = countWhere.mock.calls[0]?.[0] as { and: unknown[] };
-    const conditions = whereArg.and;
-    const hasQueryCondition = conditions.some(
-      (condition) =>
-        typeof condition === "object" &&
-        condition !== null &&
-        "ilike" in condition &&
-        (condition as { ilike: { pattern: unknown } }).ilike.pattern ===
-          "%invoice%",
-    );
-    expect(hasQueryCondition).toBe(true);
+    const queryCondition = findQueryCondition(whereArg.and);
+    expect(
+      queryCondition?.or.every(
+        (condition) => condition.ilike.pattern === "%invoice%",
+      ),
+    ).toBe(true);
   });
 
   it("escapes LIKE wildcard characters in filter[q]", async () => {
@@ -214,14 +233,12 @@ describe("GET /api/records", () => {
     await handler(buildEvent(userId));
 
     const whereArg = countWhere.mock.calls[0]?.[0] as { and: unknown[] };
-    const conditions = whereArg.and;
-    const queryCondition = conditions.find(
-      (condition) =>
-        typeof condition === "object" &&
-        condition !== null &&
-        "ilike" in condition,
-    ) as { ilike: { pattern: unknown } } | undefined;
-    expect(queryCondition?.ilike.pattern).toBe("%100\\%\\_off\\\\%");
+    const queryCondition = findQueryCondition(whereArg.and);
+    expect(
+      queryCondition?.or.every(
+        (condition) => condition.ilike.pattern === "%100\\%\\_off\\\\%",
+      ),
+    ).toBe(true);
   });
 
   it("ignores an empty or whitespace-only filter[q] and does not add an ILIKE condition", async () => {

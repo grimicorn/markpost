@@ -71,6 +71,13 @@
       "when": 1784417364656,
       "tag": "0009_add_source_throttle_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1785101552176,
+      "tag": "0010_add_records_content_search_index",
+      "breakpoints": true
     }
   ]
 }
