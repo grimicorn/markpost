@@ -69,6 +69,22 @@
             @keydown.escape="cancelGenerate"
           />
         </label>
+        <label class="row gap-2" style="align-items: center">
+          <input v-model="wantsExpiry" type="checkbox" :disabled="isMinting" />
+          <span style="font-size: 13px">Expire this token</span>
+        </label>
+        <label v-if="wantsExpiry" class="col gap-2">
+          <span style="font-size: 13px; font-weight: 500">
+            Expires in (days)
+          </span>
+          <input
+            v-model.number="pendingExpiryDays"
+            class="input"
+            type="number"
+            :min="1"
+            :disabled="isMinting"
+          />
+        </label>
         <div class="row gap-3">
           <AppBtn
             variant="accent"
@@ -136,7 +152,8 @@
               <span class="mono faint" style="font-size: 11.5px">
                 {{ token.prefix }}•••••••••••• · created
                 {{ formatDate(token.createdAt) }} · used
-                {{ formatDate(token.lastUsedAt) }}
+                {{ formatDate(token.lastUsedAt) }} ·
+                {{ formatExpiry(token.expiresAt) }}
               </span>
             </div>
           </div>
@@ -177,6 +194,7 @@
 
 <script setup lang="ts">
 import SetHead from "./SetHead.vue";
+import { DEFAULT_TOKEN_EXPIRY_DAYS } from "#shared/utils/tokens";
 
 const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
   month: "short",
@@ -185,11 +203,29 @@ const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
   timeZone: "UTC",
 };
 
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+
 function formatDate(date: Date | null): string {
   if (!date) {
     return "never";
   }
   return date.toLocaleDateString("en-US", DATE_FORMAT_OPTIONS);
+}
+
+function formatExpiry(expiresAt: Date | null): string {
+  if (!expiresAt) {
+    return "no expiry";
+  }
+
+  const millisecondsRemaining = expiresAt.getTime() - Date.now();
+  if (millisecondsRemaining <= 0) {
+    return "expired";
+  }
+
+  const daysRemaining = Math.ceil(millisecondsRemaining / MILLISECONDS_PER_DAY);
+  return daysRemaining === 1
+    ? "expires in 1 day"
+    : `expires in ${daysRemaining} days`;
 }
 
 const {
@@ -209,10 +245,14 @@ const {
 
 const isGenerating = ref(false);
 const pendingTokenName = ref("");
+const wantsExpiry = ref(false);
+const pendingExpiryDays = ref(DEFAULT_TOKEN_EXPIRY_DAYS);
 
 function startGenerate() {
   isGenerating.value = true;
   pendingTokenName.value = "";
+  wantsExpiry.value = false;
+  pendingExpiryDays.value = DEFAULT_TOKEN_EXPIRY_DAYS;
 }
 
 function cancelGenerate() {
@@ -227,7 +267,9 @@ async function confirmGenerate() {
     return;
   }
 
-  await mintToken(name);
+  const expiresInDays = wantsExpiry.value ? pendingExpiryDays.value : undefined;
+
+  await mintToken(name, expiresInDays);
 
   if (mintError.value) {
     return;

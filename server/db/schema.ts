@@ -73,6 +73,11 @@ export const apiTokens = pgTable(
       .notNull(),
     lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    // Nullable and opt-in at mint time (server/api/tokens/index.post.ts): a
+    // NULL expiresAt means "never expires", preserving today's behavior for
+    // every token minted before this column existed and for anyone who mints
+    // a new token without requesting an expiry.
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
   },
   (table) => [
     index("api_tokens_user_id_idx").on(table.userId),

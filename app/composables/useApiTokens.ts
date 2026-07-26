@@ -4,6 +4,7 @@ export type ApiToken = {
   prefix: string;
   createdAt: Date | null;
   lastUsedAt: Date | null;
+  expiresAt: Date | null;
 };
 
 // Wire-level types use string for date fields because JSON serializes Date as ISO string.
@@ -15,6 +16,7 @@ type TokenResource = {
     prefix: string;
     createdAt: string | null;
     lastUsedAt: string | null;
+    expiresAt: string | null;
   };
 };
 
@@ -30,6 +32,7 @@ type MintedTokenResource = {
     name: string;
     prefix: string;
     createdAt: string | null;
+    expiresAt: string | null;
     token: string;
   };
 };
@@ -83,14 +86,23 @@ function deserializeToken(resource: TokenResource): ApiToken {
     lastUsedAt: resource.attributes.lastUsedAt
       ? new Date(resource.attributes.lastUsedAt)
       : null,
+    expiresAt: resource.attributes.expiresAt
+      ? new Date(resource.attributes.expiresAt)
+      : null,
   };
 }
 
-function buildMintBody(name: string) {
+function buildMintBody(name: string, expiresInDays?: number) {
+  const attributes: { name: string; expiresInDays?: number } = { name };
+
+  if (expiresInDays !== undefined) {
+    attributes.expiresInDays = expiresInDays;
+  }
+
   return {
     data: {
       type: "api_tokens",
-      attributes: { name },
+      attributes,
     },
   };
 }
@@ -139,7 +151,7 @@ export function useApiTokens() {
     await fetchAndApplyTokens();
   }
 
-  async function mintToken(name: string) {
+  async function mintToken(name: string, expiresInDays?: number) {
     if (isMinting.value) {
       return;
     }
@@ -151,7 +163,7 @@ export function useApiTokens() {
     try {
       const response = await $fetch<MintTokenResponse>(API_TOKENS_ENDPOINT, {
         method: "POST",
-        body: buildMintBody(name),
+        body: buildMintBody(name, expiresInDays),
       });
 
       if (isErrorBody(response)) {

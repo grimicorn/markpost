@@ -1,7 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { getDb } from "../db";
 import { apiTokens } from "../db/schema";
-import { hashToken, isApiToken } from "../utils/tokens";
+import { hashToken, isApiToken, isTokenExpired } from "../utils/tokens";
 import { ensureUserRegistered } from "../utils/auth";
 import { getClerkClient } from "../utils/clerk";
 
@@ -24,7 +24,11 @@ async function authenticateViaApiToken(
   const incomingHash = hashToken(rawToken);
 
   const [matched] = await getDb()
-    .select({ id: apiTokens.id, userId: apiTokens.userId })
+    .select({
+      id: apiTokens.id,
+      userId: apiTokens.userId,
+      expiresAt: apiTokens.expiresAt,
+    })
     .from(apiTokens)
     .where(
       and(eq(apiTokens.hashedToken, incomingHash), isNull(apiTokens.revokedAt)),
@@ -32,6 +36,10 @@ async function authenticateViaApiToken(
     .limit(1);
 
   if (!matched) {
+    return null;
+  }
+
+  if (isTokenExpired(matched.expiresAt)) {
     return null;
   }
 

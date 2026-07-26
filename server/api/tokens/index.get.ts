@@ -11,6 +11,7 @@ type TokenListItem = {
   prefix: string;
   createdAt: Date;
   lastUsedAt: Date | null;
+  expiresAt: Date | null;
 };
 
 type TokenResource = {
@@ -21,6 +22,7 @@ type TokenResource = {
     prefix: string;
     createdAt: Date;
     lastUsedAt: Date | null;
+    expiresAt: Date | null;
   };
 };
 
@@ -35,10 +37,15 @@ function tokenSerializer(token: TokenListItem): TokenResource {
       prefix: token.prefix,
       createdAt: token.createdAt,
       lastUsedAt: token.lastUsedAt,
+      expiresAt: token.expiresAt,
     },
   };
 }
 
+// Lists every non-revoked token, including ones past their expiresAt: an
+// expired-but-unrevoked token can no longer authenticate (server/middleware/
+// auth.ts), but still needs to show up here so the owner can see it expired
+// and clean it up. The UI surfaces the distinction (SetTokens.vue).
 async function listActiveTokens(
   db: ReturnType<typeof getDb>,
   userId: string,
@@ -50,6 +57,7 @@ async function listActiveTokens(
       prefix: apiTokens.prefix,
       createdAt: apiTokens.createdAt,
       lastUsedAt: apiTokens.lastUsedAt,
+      expiresAt: apiTokens.expiresAt,
     })
     .from(apiTokens)
     .where(and(eq(apiTokens.userId, userId), isNull(apiTokens.revokedAt)))

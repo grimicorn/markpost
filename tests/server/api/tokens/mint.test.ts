@@ -38,6 +38,7 @@ function stubInsertResult(record: {
   prefix: string;
   hashedToken: string;
   createdAt: Date;
+  expiresAt?: Date | null;
 }) {
   const returning = vi.fn(() => Promise.resolve([record]));
   const values = vi.fn(() => ({ returning }));
@@ -196,6 +197,134 @@ describe("POST /api/tokens", () => {
     expect(mockCreateError).toHaveBeenCalledWith({
       statusCode: 401,
       statusMessage: "Unauthorized",
+    });
+  });
+
+  describe("expiresInDays", () => {
+    it("mints a token with no expiry when expiresInDays is omitted", async () => {
+      let capturedRow: { expiresAt?: Date | null } | undefined;
+
+      const returning = vi.fn(async () => [
+        {
+          id: "token-uuid-1",
+          name: "my-token",
+          prefix: "mp_live_abcd",
+          hashedToken: "some-hash",
+          createdAt: new Date(),
+          expiresAt: capturedRow?.expiresAt ?? null,
+        },
+      ]);
+      const values = vi.fn((row: { expiresAt?: Date | null }) => {
+        capturedRow = row;
+        return { returning };
+      });
+      insertMock.mockReturnValue({ values });
+
+      mockReadBody.mockResolvedValue(buildBody({ name: "my-token" }));
+
+      const response = await handler(buildEvent(userId));
+
+      expect(capturedRow?.expiresAt).toBeNull();
+      const data = (
+        response as { data: { attributes: { expiresAt: Date | null } } }
+      ).data;
+      expect(data.attributes.expiresAt).toBeNull();
+    });
+
+    it("mints a token with expiresAt set expiresInDays out when provided", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-06-01T00:00:00.000Z"));
+
+      let capturedRow: { expiresAt?: Date | null } | undefined;
+
+      const returning = vi.fn(async () => [
+        {
+          id: "token-uuid-1",
+          name: "my-token",
+          prefix: "mp_live_abcd",
+          hashedToken: "some-hash",
+          createdAt: new Date(),
+          expiresAt: capturedRow?.expiresAt ?? null,
+        },
+      ]);
+      const values = vi.fn((row: { expiresAt?: Date | null }) => {
+        capturedRow = row;
+        return { returning };
+      });
+      insertMock.mockReturnValue({ values });
+
+      mockReadBody.mockResolvedValue(
+        buildBody({ name: "my-token", expiresInDays: 30 }),
+      );
+
+      await handler(buildEvent(userId));
+
+      expect(capturedRow?.expiresAt).toEqual(
+        new Date("2026-07-01T00:00:00.000Z"),
+      );
+
+      vi.useRealTimers();
+    });
+
+    it("throws 422 when expiresInDays is not a number", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({ name: "my-token", expiresInDays: "30" }),
+      );
+
+      await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+        statusCode: 422,
+      });
+      expect(mockCreateError).toHaveBeenCalledWith({
+        statusCode: 422,
+        data: {
+          errors: [
+            expect.objectContaining({
+              status: "422",
+              detail: "ExpiresInDays must be a number",
+            }),
+          ],
+        },
+      });
+    });
+
+    it("throws 422 when expiresInDays is zero", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({ name: "my-token", expiresInDays: 0 }),
+      );
+
+      await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+        statusCode: 422,
+      });
+    });
+
+    it("throws 422 when expiresInDays is negative", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({ name: "my-token", expiresInDays: -5 }),
+      );
+
+      await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+        statusCode: 422,
+      });
+    });
+
+    it("throws 422 when expiresInDays is not an integer", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({ name: "my-token", expiresInDays: 1.5 }),
+      );
+
+      await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+        statusCode: 422,
+      });
+    });
+
+    it("throws 422 when expiresInDays exceeds the 10-year ceiling", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({ name: "my-token", expiresInDays: 3651 }),
+      );
+
+      await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+        statusCode: 422,
+      });
     });
   });
 });

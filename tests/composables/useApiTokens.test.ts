@@ -12,6 +12,7 @@ function makeTokenResource(overrides: Record<string, unknown> = {}) {
       prefix: "mp_live_8f2a",
       createdAt: "2026-04-02T00:00:00.000Z",
       lastUsedAt: "2026-06-27T12:00:00.000Z",
+      expiresAt: null,
       ...overrides,
     },
   };
@@ -35,6 +36,7 @@ function makeMintResponse(token = "mp_live_abc123") { // gitleaks:allow
         name: "new-token",
         prefix: "mp_live_abc",
         createdAt: "2026-06-27T00:00:00.000Z",
+        expiresAt: null,
         token,
       },
     },
@@ -83,6 +85,27 @@ describe("useApiTokens", () => {
       const { tokens, loadTokens } = useApiTokens();
       await loadTokens();
       expect(tokens.value[0].lastUsedAt).toBeNull();
+    });
+
+    it("deserializes expiresAt string to a Date object", async () => {
+      mockFetch.mockResolvedValueOnce(
+        makeListResponse([
+          makeTokenResource({ expiresAt: "2026-09-25T00:00:00.000Z" }),
+        ]),
+      );
+      const { tokens, loadTokens } = useApiTokens();
+      await loadTokens();
+      expect(tokens.value[0].expiresAt).toBeInstanceOf(Date);
+      expect(tokens.value[0].expiresAt?.toISOString()).toBe(
+        "2026-09-25T00:00:00.000Z",
+      );
+    });
+
+    it("sets expiresAt to null when the field is null", async () => {
+      mockFetch.mockResolvedValueOnce(makeListResponse());
+      const { tokens, loadTokens } = useApiTokens();
+      await loadTokens();
+      expect(tokens.value[0].expiresAt).toBeNull();
     });
 
     it("sets loadError when the response carries an errors body", async () => {
@@ -147,6 +170,42 @@ describe("useApiTokens", () => {
       const { revealedToken, mintToken } = useApiTokens();
       await mintToken("new-token");
       expect(revealedToken.value).toBe("mp_live_abc123");
+    });
+
+    it("passes expiresInDays in the mint request body when provided", async () => {
+      mockFetch
+        .mockResolvedValueOnce(makeMintResponse())
+        .mockResolvedValueOnce(makeListResponse());
+      const { mintToken } = useApiTokens();
+      await mintToken("new-token", 30);
+
+      expect(mockFetch).toHaveBeenNthCalledWith(1, "/api/tokens", {
+        method: "POST",
+        body: {
+          data: {
+            type: "api_tokens",
+            attributes: { name: "new-token", expiresInDays: 30 },
+          },
+        },
+      });
+    });
+
+    it("omits expiresInDays from the mint request body when not provided", async () => {
+      mockFetch
+        .mockResolvedValueOnce(makeMintResponse())
+        .mockResolvedValueOnce(makeListResponse());
+      const { mintToken } = useApiTokens();
+      await mintToken("new-token");
+
+      expect(mockFetch).toHaveBeenNthCalledWith(1, "/api/tokens", {
+        method: "POST",
+        body: {
+          data: {
+            type: "api_tokens",
+            attributes: { name: "new-token" },
+          },
+        },
+      });
     });
 
     it("calls loadTokens after a successful mint", async () => {

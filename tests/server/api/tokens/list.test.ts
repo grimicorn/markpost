@@ -26,6 +26,7 @@ const tokenOne = {
   prefix: "mp_live_abcd",
   createdAt: new Date("2026-04-01T00:00:00Z"),
   lastUsedAt: new Date("2026-06-01T00:00:00Z"),
+  expiresAt: new Date("2026-09-01T00:00:00Z"),
 };
 
 const tokenTwo = {
@@ -34,6 +35,7 @@ const tokenTwo = {
   prefix: "mp_live_efgh",
   createdAt: new Date("2026-03-01T00:00:00Z"),
   lastUsedAt: null,
+  expiresAt: null,
 };
 
 function buildEvent(contextUserId: string | undefined): H3Event {
@@ -75,6 +77,7 @@ describe("GET /api/tokens", () => {
             prefix: tokenOne.prefix,
             createdAt: tokenOne.createdAt,
             lastUsedAt: tokenOne.lastUsedAt,
+            expiresAt: tokenOne.expiresAt,
           },
         },
         {
@@ -85,6 +88,7 @@ describe("GET /api/tokens", () => {
             prefix: tokenTwo.prefix,
             createdAt: tokenTwo.createdAt,
             lastUsedAt: null,
+            expiresAt: null,
           },
         },
       ],
