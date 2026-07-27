@@ -248,7 +248,36 @@ describe("SetTokens", () => {
     expect(wrapper.html()).toContain("Token name");
   });
 
-  it("calls mintToken with the entered name when generate is confirmed", async () => {
+  it("calls mintToken with the entered name and no expiry once expiry is unchecked", async () => {
+    const SetTokens = (
+      await import("../../app/components/settings/SetTokens.vue")
+    ).default;
+    const wrapper = mount(SetTokens, globalConfig);
+    await flushPromises();
+
+    const generateButton = wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("generate token"));
+    await generateButton?.trigger("click");
+
+    await wrapper.find("input.input").setValue("my-new-token");
+    // Expiry defaults to checked (opt-out) — uncheck it to isolate this test
+    // to the name-passing behavior, independent of the expiry default.
+    await wrapper.find("input[type='checkbox']").setValue(false);
+
+    const confirmButton = wrapper
+      .findAll("button")
+      .find(
+        (button) =>
+          button.text() === "generate" || button.text() === "generating…",
+      );
+    await confirmButton?.trigger("click");
+    await flushPromises();
+
+    expect(mockMintToken).toHaveBeenCalledWith("my-new-token", undefined);
+  });
+
+  it("calls mintToken with the default 90-day expiry when the generate form is confirmed unchanged", async () => {
     const SetTokens = (
       await import("../../app/components/settings/SetTokens.vue")
     ).default;
@@ -271,7 +300,7 @@ describe("SetTokens", () => {
     await confirmButton?.trigger("click");
     await flushPromises();
 
-    expect(mockMintToken).toHaveBeenCalledWith("my-new-token", undefined);
+    expect(mockMintToken).toHaveBeenCalledWith("my-new-token", 90);
   });
 
   it("does not call mintToken when name is blank", async () => {
@@ -412,7 +441,7 @@ describe("SetTokens", () => {
     expect(wrapper.find("input.input").exists()).toBe(true);
   });
 
-  it("shows the expiry input only after checking 'expire this token'", async () => {
+  it("shows the expiry input by default and hides it once 'expire this token' is unchecked", async () => {
     const SetTokens = (
       await import("../../app/components/settings/SetTokens.vue")
     ).default;
@@ -424,14 +453,17 @@ describe("SetTokens", () => {
       .find((button) => button.text().includes("generate token"));
     await generateButton?.trigger("click");
 
-    expect(wrapper.find("input[type='number']").exists()).toBe(false);
-
-    await wrapper.find("input[type='checkbox']").setValue(true);
-
+    const checkbox = wrapper.find("input[type='checkbox']")
+      .element as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
     expect(wrapper.find("input[type='number']").exists()).toBe(true);
+
+    await wrapper.find("input[type='checkbox']").setValue(false);
+
+    expect(wrapper.find("input[type='number']").exists()).toBe(false);
   });
 
-  it("passes expiresInDays to mintToken when expiry is opted into", async () => {
+  it("passes the entered expiresInDays to mintToken (expiry checked by default)", async () => {
     const SetTokens = (
       await import("../../app/components/settings/SetTokens.vue")
     ).default;
@@ -444,7 +476,6 @@ describe("SetTokens", () => {
     await generateButton?.trigger("click");
 
     await wrapper.find("input.input").setValue("expiring-token");
-    await wrapper.find("input[type='checkbox']").setValue(true);
     await wrapper.find("input[type='number']").setValue(30);
 
     const confirmButton = wrapper
@@ -459,7 +490,7 @@ describe("SetTokens", () => {
     expect(mockMintToken).toHaveBeenCalledWith("expiring-token", 30);
   });
 
-  it("does not call mintToken when expiry is opted into but the days field is cleared", async () => {
+  it("does not call mintToken when the (default-checked) days field is cleared", async () => {
     const SetTokens = (
       await import("../../app/components/settings/SetTokens.vue")
     ).default;
@@ -472,7 +503,6 @@ describe("SetTokens", () => {
     await generateButton?.trigger("click");
 
     await wrapper.find("input.input").setValue("expiring-token");
-    await wrapper.find("input[type='checkbox']").setValue(true);
     await wrapper.find("input[type='number']").setValue("");
 
     const confirmButton = wrapper
@@ -500,7 +530,6 @@ describe("SetTokens", () => {
     await generateButton?.trigger("click");
 
     await wrapper.find("input.input").setValue("expiring-token");
-    await wrapper.find("input[type='checkbox']").setValue(true);
     await wrapper.find("input[type='number']").setValue(3651);
 
     const confirmButton = wrapper

@@ -254,7 +254,9 @@ const activeTokenCount = computed(
 
 const isGenerating = ref(false);
 const pendingTokenName = ref("");
-const wantsExpiry = ref(false);
+// Opt-out: checked by default with the suggested 90-day lifetime. Users
+// uncheck it for a never-expiring token, or raise/lower the day count.
+const wantsExpiry = ref(true);
 const pendingExpiryDays = ref(DEFAULT_TOKEN_EXPIRY_DAYS);
 
 // Whole days only, and only relevant once the user has opted into an expiry
@@ -278,7 +280,7 @@ const isConfirmGenerateDisabled = computed(
 
 function resetGenerateForm() {
   pendingTokenName.value = "";
-  wantsExpiry.value = false;
+  wantsExpiry.value = true;
   pendingExpiryDays.value = DEFAULT_TOKEN_EXPIRY_DAYS;
 }
 

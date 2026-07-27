@@ -7,14 +7,23 @@ import {
 } from "#shared/utils/tokens";
 
 describe("TokenExpiryFields", () => {
-  it("matches snapshot when expiry is not opted into", () => {
+  it("defaults wantsExpiry to true (checked/opt-out) when the prop is omitted", () => {
+    const wrapper = mount(TokenExpiryFields);
+
+    const checkbox = wrapper.find("input[type='checkbox']")
+      .element as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
+    expect(wrapper.find("input[type='number']").exists()).toBe(true);
+  });
+
+  it("matches snapshot when expiry is unchecked", () => {
     const wrapper = mount(TokenExpiryFields, {
       props: { wantsExpiry: false, expiryDays: 90 },
     });
     expect(wrapper.html()).toMatchSnapshot();
   });
 
-  it("matches snapshot when expiry is opted into", () => {
+  it("matches snapshot when expiry is checked", () => {
     const wrapper = mount(TokenExpiryFields, {
       props: { wantsExpiry: true, expiryDays: 90 },
     });

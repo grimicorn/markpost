@@ -14,6 +14,9 @@
       />
       <span style="font-size: 13px">Expire this token</span>
     </label>
+    <p v-if="!wantsExpiry" class="faint" style="font-size: 12px; margin: 0">
+      Unchecked — this token will never expire.
+    </p>
     <label v-if="wantsExpiry" class="col gap-2">
       <span style="font-size: 13px; font-weight: 500"> Expires in (days) </span>
       <input
@@ -43,7 +46,7 @@ const props = withDefaults(
     disabled?: boolean;
   }>(),
   {
-    wantsExpiry: false,
+    wantsExpiry: true,
     expiryDays: DEFAULT_TOKEN_EXPIRY_DAYS,
     disabled: false,
   },
