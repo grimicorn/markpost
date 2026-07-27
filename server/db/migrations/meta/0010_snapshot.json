@@ -1,6 +1,6 @@
 {
-  "id": "670a0819-9bcc-43df-90f9-8011e6637ab9",
-  "prevId": "ce0947a4-3f4d-4944-801a-2cf06771ede8",
+  "id": "92c7db75-2e30-4eac-9827-022d773be21d",
+  "prevId": "670a0819-9bcc-43df-90f9-8011e6637ab9",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -370,6 +370,12 @@
         },
         "provider": {
           "name": "provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider_secret": {
+          "name": "provider_secret",
           "type": "text",
           "primaryKey": false,
           "notNull": false

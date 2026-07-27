@@ -1,6 +1,6 @@
 {
-  "id": "670a0819-9bcc-43df-90f9-8011e6637ab9",
-  "prevId": "ce0947a4-3f4d-4944-801a-2cf06771ede8",
+  "id": "a8fd1416-0653-402f-aab0-a1b2acbf2430",
+  "prevId": "92c7db75-2e30-4eac-9827-022d773be21d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -304,6 +304,38 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "records_title_trgm_idx": {
+          "name": "records_title_trgm_idx",
+          "columns": [
+            {
+              "expression": "title",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "gin_trgm_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        },
+        "records_content_trgm_idx": {
+          "name": "records_content_trgm_idx",
+          "columns": [
+            {
+              "expression": "content",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "gin_trgm_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -370,6 +402,12 @@
         },
         "provider": {
           "name": "provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider_secret": {
+          "name": "provider_secret",
           "type": "text",
           "primaryKey": false,
           "notNull": false

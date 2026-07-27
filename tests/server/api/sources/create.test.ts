@@ -105,6 +105,7 @@ describe("POST /api/sources", () => {
           type: sampleSource.type,
           name: sampleSource.name,
           provider: null,
+          providerSecret: null,
           endpointSlug: sampleSource.endpointSlug,
           routeFolder: sampleSource.routeFolder,
           fieldMapping: null,
@@ -254,6 +255,458 @@ describe("POST /api/sources", () => {
           },
         ],
       },
+    });
+  });
+
+  it("throws 422 when type is 'rss' (RSS/Atom polling is not implemented)", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        type: "rss",
+        name: "My Feed",
+        routeFolder: "99-incoming/",
+      }),
+    );
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 422,
+      data: {
+        errors: [
+          {
+            status: "422",
+            title: "Invalid Attribute",
+            detail: expect.stringContaining("Type must be one of"),
+            source: { pointer: "/data/attributes/type" },
+          },
+        ],
+      },
+    });
+
+    const call = mockCreateError.mock.calls[0] as [
+      { data: { errors: [{ detail: string }] } },
+    ];
+    expect(call[0].data.errors[0].detail).not.toContain("rss");
+  });
+
+  describe("provider derivation and secret generation", () => {
+    it("derives provider from type and generates a plaintext providerSecret for github", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "github",
+          name: "My Source",
+          routeFolder: "99-incoming/",
+        }),
+      );
+      const { values } = stubInsertResult([
+        { ...sampleSource, type: "github", provider: "github" },
+      ]);
+
+      await handler(buildEvent(userId));
+
+      const insertedValues = (
+        values.mock.calls[0] as [Record<string, unknown>]
+      )[0];
+      expect(insertedValues.provider).toBe("github");
+      // GitHub verifies via HMAC, which needs the raw secret at verify time,
+      // so it is stored in plaintext (unlike zapier/shortcuts — see below).
+      expect(insertedValues.providerSecret).toMatch(/^[0-9a-f]{48}$/);
+    });
+
+    it.each(["zapier", "shortcuts"])(
+      "derives provider from type and stores only a hash of the generated secret for %s",
+      async (type) => {
+        mockReadBody.mockResolvedValue(
+          buildBody({ type, name: "My Source", routeFolder: "99-incoming/" }),
+        );
+        const { values } = stubInsertResult([
+          { ...sampleSource, type, provider: type },
+        ]);
+
+        await handler(buildEvent(userId));
+
+        const insertedValues = (
+          values.mock.calls[0] as [Record<string, unknown>]
+        )[0];
+        expect(insertedValues.provider).toBe(type);
+        // Compared by equality only (never HMAC'd), so only a SHA-256 hash is
+        // stored — 64 hex chars, not the 48-char generated plaintext.
+        expect(insertedValues.providerSecret).toMatch(/^[0-9a-f]{64}$/);
+      },
+    );
+
+    it("throws 422 when creating a stripe source without a providerSecret", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "stripe",
+          name: "My Stripe Source",
+          routeFolder: "99-incoming/",
+        }),
+      );
+
+      await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+        statusCode: 422,
+      });
+      expect(mockCreateError).toHaveBeenCalledWith({
+        statusCode: 422,
+        data: {
+          errors: [
+            {
+              status: "422",
+              title: "Invalid Attribute",
+              detail: expect.stringContaining("providerSecret is required"),
+              source: { pointer: "/data/attributes/providerSecret" },
+            },
+          ],
+        },
+      });
+      expect(insertMock).not.toHaveBeenCalled();
+    });
+
+    it("throws 422 when creating a stripe source with a whitespace-only providerSecret", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "stripe",
+          name: "My Stripe Source",
+          routeFolder: "99-incoming/",
+          providerSecret: "   ",
+        }),
+      );
+
+      await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+        statusCode: 422,
+      });
+      expect(insertMock).not.toHaveBeenCalled();
+    });
+
+    it("stores the user-supplied providerSecret verbatim for stripe (not generated)", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "stripe",
+          name: "My Stripe Source",
+          routeFolder: "99-incoming/",
+          providerSecret: "whsec_user_supplied_secret",
+        }),
+      );
+      const { values } = stubInsertResult([
+        { ...sampleSource, type: "stripe", provider: "stripe" },
+      ]);
+
+      await handler(buildEvent(userId));
+
+      const insertedValues = (
+        values.mock.calls[0] as [Record<string, unknown>]
+      )[0];
+      expect(insertedValues.provider).toBe("stripe");
+      expect(insertedValues.providerSecret).toBe("whsec_user_supplied_secret");
+    });
+
+    it("throws 422 when providerSecret is not a string", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "stripe",
+          name: "My Stripe Source",
+          routeFolder: "99-incoming/",
+          providerSecret: 12345,
+        }),
+      );
+
+      await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+        statusCode: 422,
+      });
+      expect(mockCreateError).toHaveBeenCalledWith({
+        statusCode: 422,
+        data: {
+          errors: [
+            {
+              status: "422",
+              title: "Invalid Attribute",
+              detail: "ProviderSecret must be a string",
+              source: { pointer: "/data/attributes/providerSecret" },
+            },
+          ],
+        },
+      });
+      expect(insertMock).not.toHaveBeenCalled();
+    });
+
+    it("does not derive a provider for the generic webhook type", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "webhook",
+          name: "My Webhook",
+          routeFolder: "99-incoming/",
+        }),
+      );
+      const { values } = stubInsertResult([sampleSource]);
+
+      await handler(buildEvent(userId));
+
+      const insertedValues = (
+        values.mock.calls[0] as [Record<string, unknown>]
+      )[0];
+      expect(insertedValues.provider).toBeNull();
+      expect(insertedValues.providerSecret).toBeNull();
+    });
+
+    it.each(["", "   "])(
+      "treats an empty/whitespace-only explicit provider (%j) as absent and falls back to type derivation",
+      async (provider) => {
+        mockReadBody.mockResolvedValue(
+          buildBody({
+            type: "github",
+            name: "My Source",
+            routeFolder: "99-incoming/",
+            provider,
+          }),
+        );
+        const { values } = stubInsertResult([
+          { ...sampleSource, type: "github", provider: "github" },
+        ]);
+
+        await handler(buildEvent(userId));
+
+        const insertedValues = (
+          values.mock.calls[0] as [Record<string, unknown>]
+        )[0];
+        expect(insertedValues.provider).toBe("github");
+      },
+    );
+
+    it("an explicit provider wins over the type-derived one and still generates a secret", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "webhook",
+          name: "My Webhook",
+          routeFolder: "99-incoming/",
+          provider: "github",
+        }),
+      );
+      const { values } = stubInsertResult([
+        { ...sampleSource, provider: "github" },
+      ]);
+
+      await handler(buildEvent(userId));
+
+      const insertedValues = (
+        values.mock.calls[0] as [Record<string, unknown>]
+      )[0];
+      expect(insertedValues.provider).toBe("github");
+      expect(insertedValues.providerSecret).toMatch(/^[0-9a-f]{48}$/);
+    });
+
+    it("normalizes an explicit provider's casing/whitespace before deriving and validating it", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "webhook",
+          name: "My Webhook",
+          routeFolder: "99-incoming/",
+          provider: " GitHub ",
+        }),
+      );
+      const { values } = stubInsertResult([
+        { ...sampleSource, provider: "github" },
+      ]);
+
+      await handler(buildEvent(userId));
+
+      const insertedValues = (
+        values.mock.calls[0] as [Record<string, unknown>]
+      )[0];
+      expect(insertedValues.provider).toBe("github");
+      expect(insertedValues.providerSecret).toMatch(/^[0-9a-f]{48}$/);
+    });
+
+    it("throws 422 for an explicit provider that is not one this backend can verify", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "webhook",
+          name: "My Webhook",
+          routeFolder: "99-incoming/",
+          provider: "mailchimp",
+        }),
+      );
+
+      await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+        statusCode: 422,
+      });
+      expect(mockCreateError).toHaveBeenCalledWith({
+        statusCode: 422,
+        data: {
+          errors: [
+            {
+              status: "422",
+              title: "Invalid Attribute",
+              detail: expect.stringContaining("Provider must be one of"),
+              source: { pointer: "/data/attributes/provider" },
+            },
+          ],
+        },
+      });
+      expect(insertMock).not.toHaveBeenCalled();
+    });
+
+    it("reveals the generated providerSecret in the create response for github", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "github",
+          name: "My GitHub Source",
+          routeFolder: "99-incoming/",
+        }),
+      );
+      stubInsertResult([
+        {
+          ...sampleSource,
+          type: "github",
+          provider: "github",
+        },
+      ]);
+
+      const response = await handler(buildEvent(userId));
+
+      expect(
+        (response as { data: { attributes: { providerSecret: string } } }).data
+          .attributes.providerSecret,
+      ).toMatch(/^[0-9a-f]{48}$/);
+    });
+
+    it("reveals the plaintext providerSecret for zapier even though only a hash is stored", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "zapier",
+          name: "My Zapier Source",
+          routeFolder: "99-incoming/",
+        }),
+      );
+      const { values } = stubInsertResult([
+        { ...sampleSource, type: "zapier", provider: "zapier" },
+      ]);
+
+      const response = await handler(buildEvent(userId));
+
+      const insertedValues = (
+        values.mock.calls[0] as [Record<string, unknown>]
+      )[0];
+      const revealedSecret = (
+        response as { data: { attributes: { providerSecret: string } } }
+      ).data.attributes.providerSecret;
+
+      expect(revealedSecret).toMatch(/^[0-9a-f]{48}$/);
+      // What's stored is a 64-char hash, never equal to the 48-char plaintext.
+      expect(insertedValues.providerSecret).toMatch(/^[0-9a-f]{64}$/);
+      expect(insertedValues.providerSecret).not.toBe(revealedSecret);
+    });
+
+    it("never echoes the user-supplied stripe providerSecret back in the response", async () => {
+      // Unlike github/zapier/shortcuts (server-generated, revealed once since
+      // the user has no other way to see it), the user already has their own
+      // Stripe secret — echoing it back would only add it to the response
+      // body/logs/devtools for no benefit.
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "stripe",
+          name: "My Stripe Source",
+          routeFolder: "99-incoming/",
+          providerSecret: "whsec_user_supplied_secret",
+        }),
+      );
+      const { values } = stubInsertResult([
+        { ...sampleSource, type: "stripe", provider: "stripe" },
+      ]);
+
+      const response = await handler(buildEvent(userId));
+
+      const insertedValues = (
+        values.mock.calls[0] as [Record<string, unknown>]
+      )[0];
+      expect(insertedValues.providerSecret).toBe("whsec_user_supplied_secret");
+      expect(response).toMatchObject({
+        data: { attributes: { providerSecret: null } },
+      });
+    });
+
+    it("throws 422 when providerSecret is supplied for a provider that generates its own (github)", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "github",
+          name: "My GitHub Source",
+          routeFolder: "99-incoming/",
+          providerSecret: "my_existing_repo_secret",
+        }),
+      );
+
+      await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+        statusCode: 422,
+      });
+      expect(mockCreateError).toHaveBeenCalledWith({
+        statusCode: 422,
+        data: {
+          errors: [
+            {
+              status: "422",
+              title: "Invalid Attribute",
+              detail: expect.stringContaining("only accepted"),
+              source: { pointer: "/data/attributes/providerSecret" },
+            },
+          ],
+        },
+      });
+      expect(insertMock).not.toHaveBeenCalled();
+    });
+
+    it("throws 422 when providerSecret is supplied without a secret-capable provider", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "webhook",
+          name: "My Webhook",
+          routeFolder: "99-incoming/",
+          providerSecret: "should-not-be-accepted",
+        }),
+      );
+
+      await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+        statusCode: 422,
+      });
+      expect(insertMock).not.toHaveBeenCalled();
+    });
+
+    it("does not reveal a providerSecret for a plain webhook source (none generated)", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "webhook",
+          name: "My Webhook",
+          routeFolder: "99-incoming/",
+        }),
+      );
+      stubInsertResult([sampleSource]);
+
+      const response = await handler(buildEvent(userId));
+
+      expect(response).toMatchObject({
+        data: { attributes: { providerSecret: null } },
+      });
+    });
+
+    it("generates a different secret for each source created in sequence", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({ type: "github", name: "A", routeFolder: "99-incoming/" }),
+      );
+      const first = stubInsertResult([{ ...sampleSource, provider: "github" }]);
+      await handler(buildEvent(userId));
+      const firstSecret = (
+        first.values.mock.calls[0] as [Record<string, unknown>]
+      )[0].providerSecret;
+
+      const second = stubInsertResult([
+        { ...sampleSource, provider: "github" },
+      ]);
+      await handler(buildEvent(userId));
+      const secondSecret = (
+        second.values.mock.calls[0] as [Record<string, unknown>]
+      )[0].providerSecret;
+
+      expect(firstSecret).not.toBe(secondSecret);
     });
   });
 

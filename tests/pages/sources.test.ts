@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { mount, flushPromises } from "@vue/test-utils";
+import { mount, flushPromises, type VueWrapper } from "@vue/test-utils";
 import { ref } from "vue";
 
 vi.stubGlobal("definePageMeta", vi.fn());
@@ -53,7 +53,7 @@ const globalConfig = {
       },
       AddSourceModal: {
         template: '<div class="add-source-modal" />',
-        props: ["modalState"],
+        props: ["modalState", "submitting"],
         emits: ["close", "pick", "add"],
       },
       ConfirmDialog: {
@@ -77,6 +77,7 @@ function makeSource(id = "uuid-1") {
       type: "webhook",
       name: "Webhook endpoint",
       provider: null,
+      providerSecret: null as string | null,
       endpointSlug: "wh_abc12345",
       routeFolder: "99-incoming/",
       fieldMapping: null,
@@ -196,5 +197,96 @@ describe("sources page", () => {
     await wrapper.find(".cancel-btn").trigger("click");
     expect(mockRemoveSource).not.toHaveBeenCalled();
     expect(wrapper.find(".confirm-dialog").exists()).toBe(false);
+  });
+
+  describe("addSource reveal step", () => {
+    async function openModalAndPickGithub(wrapper: VueWrapper) {
+      await wrapper.find("button").trigger("click");
+      const modal = wrapper.findComponent(".add-source-modal");
+      await modal.vm.$emit("pick", { id: "github", name: "GitHub" });
+    }
+
+    it("closes the modal when the created source has no providerSecret", async () => {
+      mockAddSource.mockResolvedValue(makeSource("uuid-new"));
+      const wrapper = mount(SourcesPage, globalConfig);
+
+      await openModalAndPickGithub(wrapper);
+      const modal = wrapper.findComponent(".add-source-modal");
+      await modal.vm.$emit("add", "99-incoming/");
+      await flushPromises();
+
+      expect(wrapper.find(".add-source-modal").exists()).toBe(false);
+    });
+
+    it("keeps the modal open in the reveal step when the created source has a providerSecret", async () => {
+      const created = makeSource("uuid-new");
+      created.attributes.providerSecret = "generated-secret-value";
+      mockAddSource.mockResolvedValue(created);
+      const wrapper = mount(SourcesPage, globalConfig);
+
+      await openModalAndPickGithub(wrapper);
+      const modal = wrapper.findComponent(".add-source-modal");
+      await modal.vm.$emit("add", "99-incoming/");
+      await flushPromises();
+
+      expect(wrapper.find(".add-source-modal").exists()).toBe(true);
+      expect(modal.props("modalState")).toMatchObject({
+        step: "reveal",
+        revealSecret: "generated-secret-value",
+      });
+    });
+
+    it("closes the modal for a manual-secret preset (stripe) even if the response carried a providerSecret", async () => {
+      // The server never echoes a manual-secret provider's value back (see
+      // computeProviderSecretPlan's revealSecret: null for stripe), but the
+      // page's own `choice.secretEntry === "manual"` check is a second,
+      // independent guard against ever re-displaying it — pinned here in
+      // case the response ever carried one anyway.
+      const created = makeSource("uuid-new");
+      created.attributes.providerSecret = "whsec_user_supplied_secret";
+      mockAddSource.mockResolvedValue(created);
+      const wrapper = mount(SourcesPage, globalConfig);
+
+      await wrapper.find("button").trigger("click");
+      const modal = wrapper.findComponent(".add-source-modal");
+      await modal.vm.$emit("pick", {
+        id: "stripe",
+        name: "Stripe",
+        secretEntry: "manual",
+      });
+      await modal.vm.$emit("add", "99-incoming/", "whsec_user_supplied_secret");
+      await flushPromises();
+
+      expect(wrapper.find(".add-source-modal").exists()).toBe(false);
+    });
+
+    it("passes submitting=true to the modal while the create request is in flight, and false once it settles", async () => {
+      // Use a created source WITH a providerSecret so the modal stays mounted
+      // (reveal step) after the request settles — a source with none closes
+      // the modal entirely, which would make the second prop read stale.
+      let resolveCreate: (
+        value: ReturnType<typeof makeSource>,
+      ) => void = () => {};
+      mockAddSource.mockReturnValue(
+        new Promise((resolve) => {
+          resolveCreate = resolve;
+        }),
+      );
+      const wrapper = mount(SourcesPage, globalConfig);
+
+      await openModalAndPickGithub(wrapper);
+      const modal = wrapper.findComponent(".add-source-modal");
+      modal.vm.$emit("add", "99-incoming/");
+      await Promise.resolve();
+
+      expect(modal.props("submitting")).toBe(true);
+
+      const created = makeSource("uuid-new");
+      created.attributes.providerSecret = "generated-secret-value";
+      resolveCreate(created);
+      await flushPromises();
+
+      expect(modal.props("submitting")).toBe(false);
+    });
   });
 });

@@ -9,7 +9,7 @@
       z-index: 50;
       padding: 24px;
     "
-    @click="emit('close')"
+    @click="handleBackdropClick"
   >
     <div
       class="card"
@@ -48,18 +48,14 @@
                 text-transform: uppercase;
               "
             >
-              {{ modalState.step === "pick" ? "step 1 / 2" : "step 2 / 2" }}
+              {{ stepLabel }}
             </span>
             <h3 style="font-size: 17px; font-weight: 600">
-              {{
-                modalState.step === "pick"
-                  ? "Add a source"
-                  : `Configure ${modalState.choice?.name}`
-              }}
+              {{ stepTitle }}
             </h3>
           </div>
         </div>
-        <button class="icon-btn" @click="emit('close')">
+        <button v-if="showCloseButton" class="icon-btn" @click="emit('close')">
           <AppIcon name="x" :size="18" />
         </button>
       </div>
@@ -129,19 +125,9 @@
             v-for="preset in SOURCE_PRESETS"
             :key="preset.id"
             class="row gap-3"
-            :style="{
-              width: '100%',
-              textAlign: 'left',
-              cursor: 'pointer',
-              border: '1px solid var(--line)',
-              borderRadius: '9px',
-              padding: '11px 14px',
-              background: 'var(--surface-2)',
-              alignItems: 'center',
-              borderColor:
-                hoveredPreset === preset.id ? 'var(--accent)' : undefined,
-            }"
-            @click="emit('pick', preset)"
+            :disabled="preset.disabled"
+            :style="presetButtonStyle(preset)"
+            @click="handlePresetClick(preset)"
             @mouseenter="hoveredPreset = preset.id"
             @mouseleave="hoveredPreset = null"
           >
@@ -169,7 +155,9 @@
                 preset.desc
               }}</span>
             </div>
-            <AppChip style="font-size: 10px">via {{ preset.via }}</AppChip>
+            <AppChip style="font-size: 10px">{{
+              presetBadgeLabel(preset)
+            }}</AppChip>
           </button>
         </div>
       </div>
@@ -182,12 +170,8 @@
         <div v-if="modalState.choice.via" style="margin-bottom: 16px">
           <AppAlert tone="info" title="This is a webhook preset">
             A <strong>{{ modalState.choice.name }}</strong> source is a webhook
-            endpoint with {{ modalState.choice.name }} field-mapping{{
-              modalState.choice.via === "webhook"
-                ? " and signature verification"
-                : ""
-            }}
-            applied automatically. You can edit the mapping any time.
+            endpoint with {{ modalState.choice.name }} field-mapping applied
+            automatically{{ authClause }}. You can edit the mapping any time.
           </AppAlert>
         </div>
 
@@ -239,9 +223,28 @@
           </div>
         </div>
 
-        <div style="margin-top: 18px">
+        <div v-if="requiresManualSecret" style="margin-top: 16px">
           <AppField
             num="01"
+            :label="manualSecretLabel"
+            :msg="manualSecretHint"
+            req
+          >
+            <div class="input-wrap">
+              <span class="lead-addon"><AppIcon name="key" :size="16" /></span>
+              <input
+                v-model="providerSecretInput"
+                class="input has-lead mono"
+                style="font-size: 13.5px"
+                type="password"
+              />
+            </div>
+          </AppField>
+        </div>
+
+        <div style="margin-top: 18px">
+          <AppField
+            :num="requiresManualSecret ? '02' : '01'"
             label="Route records to"
             msg="folder inside your vault"
           >
@@ -266,8 +269,49 @@
           <AppBtn
             variant="accent"
             icon="check"
-            @click="emit('add', folderInput)"
+            :disabled="!canSubmit"
+            @click="handleSubmit"
             >add source</AppBtn
+          >
+        </div>
+      </div>
+
+      <!-- step: reveal (secret-backed presets only — shown once, right after creation) -->
+      <div
+        v-if="modalState.step === 'reveal' && modalState.choice"
+        style="padding: 24px"
+      >
+        <AppAlert tone="ok" title="Source created">
+          Your <strong>{{ modalState.choice.name }}</strong> source is ready.
+          Copy the secret below now — for your security it will not be shown
+          again.
+        </AppAlert>
+
+        <div class="code" style="margin-top: 16px">
+          <div class="code-head">
+            <span class="lang">{{ revealSecretLabel }}</span>
+            <AppCopyBtn
+              :text="modalState.revealSecret ?? ''"
+              label="copy secret"
+            />
+          </div>
+          <div
+            class="code-body mono"
+            style="font-size: 12.5px; word-break: break-all"
+          >
+            {{ modalState.revealSecret }}
+          </div>
+        </div>
+        <div class="muted" style="font-size: 11px; margin-top: 8px">
+          {{ revealSecretHint }}
+        </div>
+
+        <div
+          class="row gap-3"
+          style="justify-content: flex-end; margin-top: 22px"
+        >
+          <AppBtn variant="accent" icon="check" @click="emit('close')"
+            >done</AppBtn
           >
         </div>
       </div>
@@ -276,6 +320,16 @@
 </template>
 
 <script setup lang="ts">
+import {
+  PROVIDER_SECRET_HINT,
+  PROVIDER_SECRET_LABEL,
+} from "../utils/providerSecretCopy";
+
+// "signature" presets verify a cryptographic HMAC (Stripe, GitHub); "sharedSecret"
+// presets verify a static secret sent back in a header, since Zapier and Apple
+// Shortcuts have no native signing capability of their own.
+type AuthKind = "signature" | "sharedSecret";
+
 interface SourceChoice {
   id: string;
   name: string;
@@ -284,25 +338,58 @@ interface SourceChoice {
   ic?: string;
   desc?: string;
   tag?: string;
+  authKind?: AuthKind;
+  disabled?: boolean;
+  // Stripe issues its own signing secret when the user creates their Stripe
+  // webhook endpoint, so — unlike GitHub/Zapier/Shortcuts, whose secret we
+  // generate and reveal after creation — the user must paste it in up front.
+  secretEntry?: "manual";
 }
 
 interface ModalState {
-  step: "pick" | "config";
+  step: "pick" | "config" | "reveal";
   choice: SourceChoice | null;
   folder: string;
+  // Set by the parent once creation succeeds for a secret-backed preset
+  // (github/zapier/shortcuts); drives the one-time "reveal" step below.
+  revealSecret?: string | null;
 }
 
-const props = defineProps<{
-  modalState: ModalState;
-}>();
+const STEP_LABEL_BY_STEP: Record<ModalState["step"], string> = {
+  pick: "step 1 / 2",
+  config: "step 2 / 2",
+  reveal: "step 2 / 2",
+};
+
+const MANUAL_SECRET_LABEL_BY_ID: Record<string, string> = {
+  stripe: "Stripe webhook signing secret",
+};
+
+const MANUAL_SECRET_HINT_BY_ID: Record<string, string> = {
+  stripe:
+    "From your Stripe Dashboard -> Webhooks -> your endpoint -> Signing secret.",
+};
+
+const props = withDefaults(
+  defineProps<{
+    modalState: ModalState;
+    // True while the parent's create request is in flight. A double-click on
+    // "add source" would otherwise fire two requests — both would succeed,
+    // both would consume a plan source slot, and the second response would
+    // overwrite the first in the reveal step before the user ever saw it.
+    submitting?: boolean;
+  }>(),
+  { submitting: false },
+);
 
 const emit = defineEmits<{
   close: [];
   pick: [choice: SourceChoice];
-  add: [folder: string];
+  add: [folder: string, providerSecret?: string];
 }>();
 
 const folderInput = ref(props.modalState.folder);
+const providerSecretInput = ref("");
 const hoveredPrim = ref<string | null>(null);
 const hoveredPreset = ref<string | null>(null);
 
@@ -330,6 +417,8 @@ const SOURCE_PRESETS: SourceChoice[] = [
     desc: "Payments, invoices & subscription events.",
     map: "amount · customer · status",
     via: "webhook",
+    authKind: "signature",
+    secretEntry: "manual",
   },
   {
     id: "github",
@@ -337,6 +426,7 @@ const SOURCE_PRESETS: SourceChoice[] = [
     desc: "Pushes, issues, PRs & releases.",
     map: "repo · ref · title · body",
     via: "webhook",
+    authKind: "signature",
   },
   {
     id: "zapier",
@@ -344,13 +434,15 @@ const SOURCE_PRESETS: SourceChoice[] = [
     desc: "Relay anything from 6,000+ apps.",
     map: "passthrough",
     via: "webhook",
+    authKind: "sharedSecret",
   },
   {
     id: "rss",
     name: "RSS / Atom",
-    desc: "Poll a feed and capture new items.",
+    desc: "Poll a feed and capture new items — not available yet.",
     map: "title · link · content",
     via: "poll",
+    disabled: true,
   },
   {
     id: "shortcuts",
@@ -358,8 +450,119 @@ const SOURCE_PRESETS: SourceChoice[] = [
     desc: "Send text from iOS & macOS.",
     map: "title · text",
     via: "webhook",
+    authKind: "sharedSecret",
   },
 ];
+
+const AUTH_CLAUSE_BY_KIND: Record<AuthKind, string> = {
+  signature: ", with signature verification",
+  sharedSecret: ", with a generated shared secret required on every request",
+};
+
+const authClause = computed(() => {
+  const authKind = props.modalState.choice?.authKind;
+  return authKind ? AUTH_CLAUSE_BY_KIND[authKind] : "";
+});
+
+const stepLabel = computed(() => STEP_LABEL_BY_STEP[props.modalState.step]);
+
+const stepTitle = computed(() => {
+  if (props.modalState.step === "pick") {
+    return "Add a source";
+  }
+  if (props.modalState.step === "reveal") {
+    return "Source created";
+  }
+  return `Configure ${props.modalState.choice?.name}`;
+});
+
+const revealSecretLabel = computed(
+  () => PROVIDER_SECRET_LABEL[props.modalState.choice?.id ?? ""] ?? "secret",
+);
+
+const revealSecretHint = computed(
+  () => PROVIDER_SECRET_HINT[props.modalState.choice?.id ?? ""] ?? "",
+);
+
+const requiresManualSecret = computed(
+  () => props.modalState.choice?.secretEntry === "manual",
+);
+
+const manualSecretLabel = computed(
+  () =>
+    MANUAL_SECRET_LABEL_BY_ID[props.modalState.choice?.id ?? ""] ?? "secret",
+);
+
+const manualSecretHint = computed(
+  () => MANUAL_SECRET_HINT_BY_ID[props.modalState.choice?.id ?? ""] ?? "",
+);
+
+const canSubmit = computed(() => {
+  if (props.submitting) {
+    return false;
+  }
+  return (
+    !requiresManualSecret.value || providerSecretInput.value.trim().length > 0
+  );
+});
+
+function handleSubmit(): void {
+  if (!canSubmit.value) {
+    return;
+  }
+
+  const secret = requiresManualSecret.value
+    ? providerSecretInput.value.trim()
+    : undefined;
+  emit("add", folderInput.value, secret);
+}
+
+// Losing the one-time secret reveal to an accidental backdrop/header-X click
+// would leave the user with no way to recover it — "done" is the only
+// intended way out of the reveal step, so both are suppressed there.
+const showCloseButton = computed(() => props.modalState.step !== "reveal");
+
+function handleBackdropClick(): void {
+  if (!showCloseButton.value) {
+    return;
+  }
+  emit("close");
+}
+
+// A disabled preset (RSS/Atom — see SOURCE_PRESETS) can't be picked yet: skip
+// the emit entirely rather than branching inside the template.
+function handlePresetClick(preset: SourceChoice): void {
+  if (preset.disabled) {
+    return;
+  }
+  emit("pick", preset);
+}
+
+function presetBadgeLabel(preset: SourceChoice): string {
+  if (preset.disabled) {
+    return "coming soon";
+  }
+  return `via ${preset.via}`;
+}
+
+function presetButtonStyle(
+  preset: SourceChoice,
+): Record<string, string | number | undefined> {
+  const isHovered = hoveredPreset.value === preset.id && !preset.disabled;
+
+  return {
+    width: "100%",
+    textAlign: "left",
+    cursor: preset.disabled ? "not-allowed" : "pointer",
+    opacity: preset.disabled ? 0.55 : 1,
+    border: "1px solid var(--line)",
+    borderRadius: "9px",
+    padding: "11px 14px",
+    background: "var(--surface-2)",
+    alignItems: "center",
+    borderColor: isHovered ? "var(--accent)" : undefined,
+  };
+}
 
 const configEndpointId = computed(() => {
   const choice = props.modalState.choice;

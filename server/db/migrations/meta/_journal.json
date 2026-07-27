@@ -75,8 +75,15 @@
     {
       "idx": 10,
       "version": "7",
+      "when": 1784500000000,
+      "tag": "0010_add_source_provider_secret",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
       "when": 1785101552176,
-      "tag": "0010_add_records_content_search_index",
+      "tag": "0011_add_records_content_search_index",
       "breakpoints": true
     }
   ]
