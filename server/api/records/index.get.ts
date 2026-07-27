@@ -131,8 +131,9 @@ function buildFilterConditions(
   }
 
   if (filters.query) {
+    const pattern = `%${escapeLikePattern(filters.query)}%`;
     conditions.push(
-      ilike(records.title, `%${escapeLikePattern(filters.query)}%`),
+      or(ilike(records.title, pattern), ilike(records.content, pattern)),
     );
   }
 

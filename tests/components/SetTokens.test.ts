@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { ref } from "vue";
 import type { ApiToken } from "../../app/composables/useApiTokens";
+import { DEFAULT_TOKEN_EXPIRY_DAYS } from "#shared/utils/tokens";
 
 const STUB_TOKENS: ApiToken[] = [
   {
@@ -10,6 +11,7 @@ const STUB_TOKENS: ApiToken[] = [
     prefix: "mp_live_8f2a",
     createdAt: new Date("2026-04-02T00:00:00.000Z"),
     lastUsedAt: new Date("2026-06-27T00:00:00.000Z"),
+    expiresAt: null,
   },
   {
     id: "uuid-2",
@@ -17,6 +19,7 @@ const STUB_TOKENS: ApiToken[] = [
     prefix: "mp_live_2c71",
     createdAt: new Date("2026-03-18T00:00:00.000Z"),
     lastUsedAt: null,
+    expiresAt: null,
   },
 ];
 
@@ -33,6 +36,7 @@ const mockMintError = ref<string | null>(null);
 const mockIsRevoking = ref(false);
 const mockRevokeError = ref<string | null>(null);
 const mockRevealedToken = ref("");
+const mockRevealedTokenExpiresAt = ref<Date | null>(null);
 
 vi.stubGlobal("useApiTokens", () => ({
   tokens: mockTokens,
@@ -43,6 +47,7 @@ vi.stubGlobal("useApiTokens", () => ({
   isRevoking: mockIsRevoking,
   revokeError: mockRevokeError,
   revealedToken: mockRevealedToken,
+  revealedTokenExpiresAt: mockRevealedTokenExpiresAt,
   loadTokens: mockLoadTokens,
   mintToken: mockMintToken,
   revokeToken: mockRevokeToken,
@@ -85,6 +90,7 @@ beforeEach(() => {
   mockIsRevoking.value = false;
   mockRevokeError.value = null;
   mockRevealedToken.value = "";
+  mockRevealedTokenExpiresAt.value = null;
 });
 
 describe("SetTokens", () => {
@@ -134,6 +140,26 @@ describe("SetTokens", () => {
     const wrapper = mount(SetTokens, globalConfig);
     await flushPromises();
     expect(wrapper.html()).toContain("2 active tokens");
+  });
+
+  it("excludes expired-but-unrevoked tokens from the active token count", async () => {
+    mockTokens.value = [
+      STUB_TOKENS[0],
+      {
+        ...STUB_TOKENS[1],
+        expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      },
+    ];
+    const SetTokens = (
+      await import("../../app/components/settings/SetTokens.vue")
+    ).default;
+    const wrapper = mount(SetTokens, globalConfig);
+    await flushPromises();
+    expect(wrapper.html()).toContain("1 active tokens");
+    // Both rows still render — an expired token stays visible so it can be
+    // cleaned up, only the header count treats it as inactive.
+    expect(wrapper.html()).toContain("obsidian-laptop");
+    expect(wrapper.html()).toContain("home-server");
   });
 
   it("renders each token name and prefix", async () => {
@@ -223,7 +249,36 @@ describe("SetTokens", () => {
     expect(wrapper.html()).toContain("Token name");
   });
 
-  it("calls mintToken with the entered name when generate is confirmed", async () => {
+  it("calls mintToken with the entered name and no expiry once expiry is unchecked", async () => {
+    const SetTokens = (
+      await import("../../app/components/settings/SetTokens.vue")
+    ).default;
+    const wrapper = mount(SetTokens, globalConfig);
+    await flushPromises();
+
+    const generateButton = wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("generate token"));
+    await generateButton?.trigger("click");
+
+    await wrapper.find("input.input").setValue("my-new-token");
+    // Expiry defaults to checked (opt-out) — uncheck it to isolate this test
+    // to the name-passing behavior, independent of the expiry default.
+    await wrapper.find("input[type='checkbox']").setValue(false);
+
+    const confirmButton = wrapper
+      .findAll("button")
+      .find(
+        (button) =>
+          button.text() === "generate" || button.text() === "generating…",
+      );
+    await confirmButton?.trigger("click");
+    await flushPromises();
+
+    expect(mockMintToken).toHaveBeenCalledWith("my-new-token", undefined);
+  });
+
+  it("calls mintToken with the default 90-day expiry when the generate form is confirmed unchanged", async () => {
     const SetTokens = (
       await import("../../app/components/settings/SetTokens.vue")
     ).default;
@@ -246,7 +301,10 @@ describe("SetTokens", () => {
     await confirmButton?.trigger("click");
     await flushPromises();
 
-    expect(mockMintToken).toHaveBeenCalledWith("my-new-token");
+    expect(mockMintToken).toHaveBeenCalledWith(
+      "my-new-token",
+      DEFAULT_TOKEN_EXPIRY_DAYS,
+    );
   });
 
   it("does not call mintToken when name is blank", async () => {
@@ -295,6 +353,34 @@ describe("SetTokens", () => {
     expect(wrapper.find("input.input").exists()).toBe(false);
   });
 
+  it("re-checks expiry by default when the form is reopened after cancelling with it unchecked", async () => {
+    const SetTokens = (
+      await import("../../app/components/settings/SetTokens.vue")
+    ).default;
+    const wrapper = mount(SetTokens, globalConfig);
+    await flushPromises();
+
+    const findGenerateButton = () =>
+      wrapper
+        .findAll("button")
+        .find((button) => button.text().includes("generate token"));
+    const findCancelButton = () =>
+      wrapper
+        .findAll("button")
+        .find((button) => button.text().includes("cancel"));
+
+    await findGenerateButton()?.trigger("click");
+    await wrapper.find("input[type='checkbox']").setValue(false);
+    await findCancelButton()?.trigger("click");
+
+    await findGenerateButton()?.trigger("click");
+
+    const checkbox = wrapper.find("input[type='checkbox']")
+      .element as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
+    expect(wrapper.find("input[type='number']").exists()).toBe(true);
+  });
+
   it("shows the revealed token alert when revealedToken is set", async () => {
     mockRevealedToken.value = "mp_live_abc123"; // gitleaks:allow
     const SetTokens = (
@@ -304,6 +390,30 @@ describe("SetTokens", () => {
     await flushPromises();
     expect(wrapper.html()).toContain("mp_live_abc123");
     expect(wrapper.html()).toContain("Copy your new token now");
+  });
+
+  it("shows 'no expiry' in the reveal panel when the minted token has no expiry", async () => {
+    mockRevealedToken.value = "mp_live_abc123"; // gitleaks:allow
+    mockRevealedTokenExpiresAt.value = null;
+    const SetTokens = (
+      await import("../../app/components/settings/SetTokens.vue")
+    ).default;
+    const wrapper = mount(SetTokens, globalConfig);
+    await flushPromises();
+    expect(wrapper.html()).toContain("no expiry");
+  });
+
+  it("shows the remaining lifetime in the reveal panel when the minted token expires", async () => {
+    mockRevealedToken.value = "mp_live_abc123"; // gitleaks:allow
+    mockRevealedTokenExpiresAt.value = new Date(
+      Date.now() + 5 * 24 * 60 * 60 * 1000,
+    );
+    const SetTokens = (
+      await import("../../app/components/settings/SetTokens.vue")
+    ).default;
+    const wrapper = mount(SetTokens, globalConfig);
+    await flushPromises();
+    expect(wrapper.html()).toContain("expires in 5 days");
   });
 
   it("calls clearRevealedToken when the token alert close event fires", async () => {
@@ -361,6 +471,160 @@ describe("SetTokens", () => {
     await flushPromises();
 
     expect(wrapper.find("input.input").exists()).toBe(true);
+  });
+
+  it("shows the expiry input by default and hides it once 'expire this token' is unchecked", async () => {
+    const SetTokens = (
+      await import("../../app/components/settings/SetTokens.vue")
+    ).default;
+    const wrapper = mount(SetTokens, globalConfig);
+    await flushPromises();
+
+    const generateButton = wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("generate token"));
+    await generateButton?.trigger("click");
+
+    const checkbox = wrapper.find("input[type='checkbox']")
+      .element as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
+    expect(wrapper.find("input[type='number']").exists()).toBe(true);
+
+    await wrapper.find("input[type='checkbox']").setValue(false);
+
+    expect(wrapper.find("input[type='number']").exists()).toBe(false);
+
+    // Re-checking within the same open form must restore the days input,
+    // still prefilled with the shared default — covers the false -> true
+    // leg of the v-model round-trip, not just the initial default and the
+    // true -> false uncheck.
+    await wrapper.find("input[type='checkbox']").setValue(true);
+
+    expect(wrapper.find("input[type='number']").exists()).toBe(true);
+    expect(
+      (wrapper.find("input[type='number']").element as HTMLInputElement).value,
+    ).toBe(String(DEFAULT_TOKEN_EXPIRY_DAYS));
+  });
+
+  it("passes the entered expiresInDays to mintToken (expiry checked by default)", async () => {
+    const SetTokens = (
+      await import("../../app/components/settings/SetTokens.vue")
+    ).default;
+    const wrapper = mount(SetTokens, globalConfig);
+    await flushPromises();
+
+    const generateButton = wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("generate token"));
+    await generateButton?.trigger("click");
+
+    await wrapper.find("input.input").setValue("expiring-token");
+    await wrapper.find("input[type='number']").setValue(30);
+
+    const confirmButton = wrapper
+      .findAll("button")
+      .find(
+        (button) =>
+          button.text() === "generate" || button.text() === "generating…",
+      );
+    await confirmButton?.trigger("click");
+    await flushPromises();
+
+    expect(mockMintToken).toHaveBeenCalledWith("expiring-token", 30);
+  });
+
+  it("does not call mintToken when the (default-checked) days field is cleared", async () => {
+    const SetTokens = (
+      await import("../../app/components/settings/SetTokens.vue")
+    ).default;
+    const wrapper = mount(SetTokens, globalConfig);
+    await flushPromises();
+
+    const generateButton = wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("generate token"));
+    await generateButton?.trigger("click");
+
+    await wrapper.find("input.input").setValue("expiring-token");
+    await wrapper.find("input[type='number']").setValue("");
+
+    const confirmButton = wrapper
+      .findAll("button")
+      .find(
+        (button) =>
+          button.text() === "generate" || button.text() === "generating…",
+      );
+    await confirmButton?.trigger("click");
+    await flushPromises();
+
+    expect(mockMintToken).not.toHaveBeenCalled();
+  });
+
+  it("does not call mintToken when the days field exceeds the maximum bound", async () => {
+    const SetTokens = (
+      await import("../../app/components/settings/SetTokens.vue")
+    ).default;
+    const wrapper = mount(SetTokens, globalConfig);
+    await flushPromises();
+
+    const generateButton = wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("generate token"));
+    await generateButton?.trigger("click");
+
+    await wrapper.find("input.input").setValue("expiring-token");
+    await wrapper.find("input[type='number']").setValue(3651);
+
+    const confirmButton = wrapper
+      .findAll("button")
+      .find(
+        (button) =>
+          button.text() === "generate" || button.text() === "generating…",
+      );
+    await confirmButton?.trigger("click");
+    await flushPromises();
+
+    expect(mockMintToken).not.toHaveBeenCalled();
+  });
+
+  it("shows 'no expiry' for a token with a null expiresAt", async () => {
+    mockTokens.value = [STUB_TOKENS[0]];
+    const SetTokens = (
+      await import("../../app/components/settings/SetTokens.vue")
+    ).default;
+    const wrapper = mount(SetTokens, globalConfig);
+    await flushPromises();
+    expect(wrapper.html()).toContain("no expiry");
+  });
+
+  it("shows remaining days for a token with a future expiresAt", async () => {
+    mockTokens.value = [
+      {
+        ...STUB_TOKENS[0],
+        expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
+      },
+    ];
+    const SetTokens = (
+      await import("../../app/components/settings/SetTokens.vue")
+    ).default;
+    const wrapper = mount(SetTokens, globalConfig);
+    await flushPromises();
+    expect(wrapper.html()).toContain("expires in 5 days");
+  });
+
+  it("shows 'expired' for a token with a past expiresAt", async () => {
+    mockTokens.value = [
+      {
+        ...STUB_TOKENS[0],
+        expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      },
+    ];
+    const SetTokens = (
+      await import("../../app/components/settings/SetTokens.vue")
+    ).default;
+    const wrapper = mount(SetTokens, globalConfig);
+    await flushPromises();
+    expect(wrapper.html()).toContain("expired");
   });
 
   it("shows revokeError when revokeError is set", async () => {

@@ -1,10 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   TOKEN_PREFIX,
+  computeExpiresAt,
   extractTokenPrefix,
   generateRawToken,
   hashToken,
   isApiToken,
+  isTokenExpired,
 } from "../../../server/utils/tokens";
 
 // These strings are non-secret test fixtures, not real tokens.
@@ -59,6 +61,58 @@ describe("extractTokenPrefix", () => {
     const token = generateRawToken();
     const extracted = extractTokenPrefix(token);
     expect(extracted.length).toBe(TOKEN_PREFIX.length + 4);
+  });
+});
+
+describe("computeExpiresAt", () => {
+  const NOW = new Date("2026-06-01T00:00:00.000Z");
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("returns null when expiresInDays is omitted (never expires)", () => {
+    expect(computeExpiresAt(undefined)).toBeNull();
+  });
+
+  it("returns a Date offset by the given number of days", () => {
+    const expiresAt = computeExpiresAt(90);
+    expect(expiresAt).toEqual(new Date("2026-08-30T00:00:00.000Z"));
+  });
+
+  it("returns a Date one day out for expiresInDays of 1", () => {
+    const expiresAt = computeExpiresAt(1);
+    expect(expiresAt).toEqual(new Date("2026-06-02T00:00:00.000Z"));
+  });
+});
+
+describe("isTokenExpired", () => {
+  it("returns false for a null expiresAt (never expires)", () => {
+    expect(isTokenExpired(null)).toBe(false);
+  });
+
+  it("returns false for an undefined expiresAt (legacy row shape)", () => {
+    expect(isTokenExpired(undefined)).toBe(false);
+  });
+
+  it("returns false for a future expiresAt", () => {
+    const future = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    expect(isTokenExpired(future)).toBe(false);
+  });
+
+  it("returns true for a past expiresAt", () => {
+    const past = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    expect(isTokenExpired(past)).toBe(true);
+  });
+
+  it("returns true for an expiresAt exactly at the current instant", () => {
+    const now = new Date();
+    expect(isTokenExpired(now)).toBe(true);
   });
 });
 

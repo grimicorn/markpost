@@ -1,4 +1,7 @@
 import { createHash, randomBytes } from "crypto";
+import { MILLISECONDS_PER_DAY } from "#shared/utils/tokens";
+
+export { isTokenExpired } from "#shared/utils/tokens";
 
 export const TOKEN_PREFIX = "mp_live_";
 const TOKEN_RANDOM_BYTES = 32;
@@ -19,4 +22,16 @@ export function extractTokenPrefix(rawToken: string): string {
 
 export function isApiToken(value: string): boolean {
   return value.startsWith(TOKEN_PREFIX);
+}
+
+// Expiry is opt-in at mint time (server/api/tokens/index.post.ts): omitting
+// expiresInDays returns null, which the schema stores as NULL — "never
+// expires" — preserving today's behavior for anyone who doesn't ask for a
+// bounded lifetime.
+export function computeExpiresAt(expiresInDays?: number): Date | null {
+  if (expiresInDays === undefined) {
+    return null;
+  }
+
+  return new Date(Date.now() + expiresInDays * MILLISECONDS_PER_DAY);
 }

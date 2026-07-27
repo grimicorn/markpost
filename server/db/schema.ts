@@ -73,6 +73,11 @@ export const apiTokens = pgTable(
       .notNull(),
     lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    // Nullable and opt-in at mint time (server/api/tokens/index.post.ts): a
+    // NULL expiresAt means "never expires", preserving today's behavior for
+    // every token minted before this column existed and for anyone who mints
+    // a new token without requesting an expiry.
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
   },
   (table) => [
     index("api_tokens_user_id_idx").on(table.userId),
@@ -145,6 +150,17 @@ export const records = pgTable(
   (table) => [
     index("records_user_id_idx").on(table.userId),
     index("records_status_idx").on(table.status),
+    // Trigram GIN indexes back the ILIKE `%term%` search in
+    // server/api/records/index.get.ts so title/content search stays fast at
+    // scale. Requires the pg_trgm extension (enabled in migration 0011).
+    index("records_title_trgm_idx").using(
+      "gin",
+      table.title.op("gin_trgm_ops"),
+    ),
+    index("records_content_trgm_idx").using(
+      "gin",
+      table.content.op("gin_trgm_ops"),
+    ),
   ],
 );
 

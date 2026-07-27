@@ -35,6 +35,7 @@ const vueGlobals = {
   provide: "readonly",
   useAttrs: "readonly",
   useSlots: "readonly",
+  useId: "readonly",
   defineComponent: "readonly",
   h: "readonly",
   resolveComponent: "readonly",

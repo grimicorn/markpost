@@ -26,6 +26,9 @@
             {{ revealedToken }}
           </div>
         </div>
+        <p style="margin-top: 10px; font-size: 12.5px">
+          {{ formatExpiry(revealedTokenExpiresAt) }}
+        </p>
       </AppAlert>
     </div>
 
@@ -69,12 +72,17 @@
             @keydown.escape="cancelGenerate"
           />
         </label>
+        <TokenExpiryFields
+          v-model:wants-expiry="wantsExpiry"
+          v-model:expiry-days="pendingExpiryDays"
+          :disabled="isMinting"
+        />
         <div class="row gap-3">
           <AppBtn
             variant="accent"
             size="sm"
             icon="check"
-            :disabled="!pendingTokenName.trim() || isMinting"
+            :disabled="isConfirmGenerateDisabled"
             @click="confirmGenerate"
           >
             {{ isMinting ? "generating…" : "generate" }}
@@ -94,7 +102,7 @@
     <div class="row between" style="margin-bottom: 14px">
       <span class="kicker">
         <template v-if="isLoading">loading…</template>
-        <template v-else>{{ tokens.length }} active tokens</template>
+        <template v-else>{{ activeTokenCount }} active tokens</template>
       </span>
       <AppBtn
         size="sm"
@@ -136,7 +144,8 @@
               <span class="mono faint" style="font-size: 11.5px">
                 {{ token.prefix }}•••••••••••• · created
                 {{ formatDate(token.createdAt) }} · used
-                {{ formatDate(token.lastUsedAt) }}
+                {{ formatDate(token.lastUsedAt) }} ·
+                {{ formatExpiry(token.expiresAt) }}
               </span>
             </div>
           </div>
@@ -177,6 +186,14 @@
 
 <script setup lang="ts">
 import SetHead from "./SetHead.vue";
+import TokenExpiryFields from "./TokenExpiryFields.vue";
+import {
+  DEFAULT_TOKEN_EXPIRY_DAYS,
+  MAX_TOKEN_EXPIRY_DAYS,
+  MILLISECONDS_PER_DAY,
+  MIN_TOKEN_EXPIRY_DAYS,
+  isTokenExpired,
+} from "#shared/utils/tokens";
 
 const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
   month: "short",
@@ -192,6 +209,27 @@ function formatDate(date: Date | null): string {
   return date.toLocaleDateString("en-US", DATE_FORMAT_OPTIONS);
 }
 
+// Reads Date.now() with no reactive dependency on the clock, so a page left
+// open across a token's exact expiry keeps showing "expires in 1 day" until
+// something else (loadTokens, a mint/revoke) re-renders this row. Acceptable
+// for a settings page — accepted intentionally rather than adding a ticking
+// interval for a display-only staleness window measured in days.
+function formatExpiry(expiresAt: Date | null): string {
+  if (!expiresAt) {
+    return "no expiry";
+  }
+
+  if (isTokenExpired(expiresAt)) {
+    return "expired";
+  }
+
+  const millisecondsRemaining = expiresAt.getTime() - Date.now();
+  const daysRemaining = Math.ceil(millisecondsRemaining / MILLISECONDS_PER_DAY);
+  return daysRemaining === 1
+    ? "expires in 1 day"
+    : `expires in ${daysRemaining} days`;
+}
+
 const {
   tokens,
   isLoading,
@@ -201,23 +239,59 @@ const {
   isRevoking,
   revokeError,
   revealedToken,
+  revealedTokenExpiresAt,
   loadTokens,
   mintToken,
   revokeToken,
   clearRevealedToken,
 } = useApiTokens();
 
+// Same non-reactive Date.now() caveat as formatExpiry above: this count goes
+// stale at the same pace, re-evaluating only when `tokens` changes.
+const activeTokenCount = computed(
+  () => tokens.value.filter((token) => !isTokenExpired(token.expiresAt)).length,
+);
+
 const isGenerating = ref(false);
 const pendingTokenName = ref("");
+// Opt-out: checked by default with the suggested 90-day lifetime. Users
+// uncheck it for a never-expiring token, or raise/lower the day count.
+const wantsExpiry = ref(true);
+const pendingExpiryDays = ref(DEFAULT_TOKEN_EXPIRY_DAYS);
+
+// Whole days only, and only relevant while the expiry checkbox is checked
+// (it is by default) — mirrors the bounds server/api/tokens/index.post.ts
+// enforces (both read from #shared/utils/tokens) so a bad value, e.g. 0 from
+// a cleared TokenExpiryFields input, is caught client-side instead of
+// round-tripping to a 422.
+const isExpiryDaysValid = computed(
+  () =>
+    Number.isInteger(pendingExpiryDays.value) &&
+    pendingExpiryDays.value >= MIN_TOKEN_EXPIRY_DAYS &&
+    pendingExpiryDays.value <= MAX_TOKEN_EXPIRY_DAYS,
+);
+
+const isConfirmGenerateDisabled = computed(
+  () =>
+    !pendingTokenName.value.trim() ||
+    (wantsExpiry.value && !isExpiryDaysValid.value) ||
+    isMinting.value,
+);
+
+function resetGenerateForm() {
+  pendingTokenName.value = "";
+  wantsExpiry.value = true;
+  pendingExpiryDays.value = DEFAULT_TOKEN_EXPIRY_DAYS;
+}
 
 function startGenerate() {
   isGenerating.value = true;
-  pendingTokenName.value = "";
+  resetGenerateForm();
 }
 
 function cancelGenerate() {
   isGenerating.value = false;
-  pendingTokenName.value = "";
+  resetGenerateForm();
 }
 
 async function confirmGenerate() {
@@ -227,14 +301,20 @@ async function confirmGenerate() {
     return;
   }
 
-  await mintToken(name);
+  if (wantsExpiry.value && !isExpiryDaysValid.value) {
+    return;
+  }
+
+  const expiresInDays = wantsExpiry.value ? pendingExpiryDays.value : undefined;
+
+  await mintToken(name, expiresInDays);
 
   if (mintError.value) {
     return;
   }
 
   isGenerating.value = false;
-  pendingTokenName.value = "";
+  resetGenerateForm();
 }
 
 onMounted(() => {
