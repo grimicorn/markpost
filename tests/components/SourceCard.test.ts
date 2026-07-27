@@ -188,6 +188,63 @@ describe("SourceCard", () => {
     expect(wrapper.emitted("remove")?.[0]).toEqual(["attributes-uuid"]);
   });
 
+  it("never renders a providerSecret, even if the API response happened to include one", () => {
+    // The server only ever reveals providerSecret once, in the create response
+    // (server/utils/response.ts's revealProviderSecret option); SourceCard reads
+    // from the list/patch responses, which always null it out. This pins that
+    // SourceCard has no code path that would display it if that ever changed.
+    const wrapper = mount(SourceCard, {
+      ...globalConfig,
+      props: {
+        source: makeSource({
+          type: "github",
+          name: "GitHub",
+          provider: "github",
+          providerSecret: "abc123secret",
+        }),
+      },
+    });
+    expect(wrapper.text()).not.toContain("abc123secret");
+    expect(wrapper.text()).not.toContain("copy secret");
+  });
+
+  it.each(["zapier", "shortcuts"])(
+    "shows an ongoing header-name hint for %s (shared-secret providers)",
+    (provider) => {
+      const wrapper = mount(SourceCard, {
+        ...globalConfig,
+        props: { source: makeSource({ type: provider, provider }) },
+      });
+      expect(wrapper.text()).toContain("x-markpost-secret");
+    },
+  );
+
+  it("does not show the ongoing hint for github (its instructions reference a value that can't be shown again)", () => {
+    const wrapper = mount(SourceCard, {
+      ...globalConfig,
+      props: {
+        source: makeSource({ type: "github", provider: "github" }),
+      },
+    });
+    expect(wrapper.text()).not.toContain("Paste this into");
+  });
+
+  it("does not show the ongoing hint for stripe or plain webhook sources", () => {
+    const stripeWrapper = mount(SourceCard, {
+      ...globalConfig,
+      props: {
+        source: makeSource({ type: "stripe", provider: "stripe" }),
+      },
+    });
+    const webhookWrapper = mount(SourceCard, {
+      ...globalConfig,
+      props: { source: makeSource() },
+    });
+
+    expect(stripeWrapper.text()).not.toContain("x-markpost-secret");
+    expect(webhookWrapper.text()).not.toContain("x-markpost-secret");
+  });
+
   it("does not duplicate the slug — endpointSlug appears exactly once in code body", () => {
     const wrapper = mount(SourceCard, {
       ...globalConfig,

@@ -2,10 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { H3Event } from "h3";
 import {
   buildValidStripeHeader,
+  buildValidGithubHeader,
   stubFailingUpdate,
   spyConsoleError,
 } from "../../helpers";
 import { ApiError } from "../../../../server/utils/errors";
+import { hashSharedSecret } from "../../../../server/utils/signatureVerifier";
+import { SHARED_SECRET_HEADER } from "#shared/utils/webhookSecrets";
 
 const selectMock = vi.fn();
 const insertMock = vi.fn();
@@ -315,11 +318,19 @@ describe("POST /api/hooks/[slug]", () => {
   });
 
   describe("stripe signature verification", () => {
-    const stripeSource = { ...sampleSource, provider: "stripe" };
+    // Stripe issues the signing secret when the user creates their own Stripe
+    // webhook endpoint, so — unlike the app's own billing webhook
+    // (server/api/billing/webhook.post.ts), which verifies against the
+    // app-wide STRIPE_WEBHOOK_SECRET env var — a user-created Stripe SOURCE
+    // verifies against the secret they supplied at creation, stored on the
+    // row itself (see server/api/sources/index.post.ts).
+    const stripeSource = {
+      ...sampleSource,
+      provider: "stripe",
+      providerSecret: STRIPE_SECRET,
+    };
 
     it("returns 401 when Stripe-Signature header is missing", async () => {
-      process.env.STRIPE_WEBHOOK_SECRET = STRIPE_SECRET;
-
       stubSourceOnly([stripeSource]);
       mockReadRawBody.mockResolvedValue(
         JSON.stringify({ type: "charge.succeeded" }),
@@ -335,7 +346,6 @@ describe("POST /api/hooks/[slug]", () => {
     });
 
     it("returns 401 when Stripe-Signature does not match", async () => {
-      process.env.STRIPE_WEBHOOK_SECRET = STRIPE_SECRET;
       const rawBody = JSON.stringify({ type: "charge.succeeded" });
 
       stubSourceOnly([stripeSource]);
@@ -353,7 +363,6 @@ describe("POST /api/hooks/[slug]", () => {
     });
 
     it("returns 202 when Stripe-Signature is valid", async () => {
-      process.env.STRIPE_WEBHOOK_SECRET = STRIPE_SECRET;
       const rawBody = JSON.stringify({ type: "charge.succeeded" });
       const validHeader = buildValidStripeHeader(rawBody, STRIPE_SECRET);
 
@@ -368,13 +377,14 @@ describe("POST /api/hooks/[slug]", () => {
       expect202Success(response, mockSetResponseStatus, sampleRecord.uuid);
     });
 
-    it("returns 401 when STRIPE_WEBHOOK_SECRET is not configured", async () => {
-      delete process.env.STRIPE_WEBHOOK_SECRET;
+    it("returns 401 when the source has no providerSecret configured", async () => {
       const rawBody = JSON.stringify({ type: "charge.succeeded" });
 
-      stubSourceOnly([stripeSource]);
+      stubSourceOnly([{ ...stripeSource, providerSecret: null }]);
       mockReadRawBody.mockResolvedValue(rawBody);
-      mockGetHeader.mockReturnValue("t=1,v1=abc");
+      mockGetHeader.mockReturnValue(
+        buildValidStripeHeader(rawBody, STRIPE_SECRET),
+      );
 
       await expect(handler(buildEvent())).rejects.toMatchObject({
         statusCode: 401,
@@ -383,6 +393,159 @@ describe("POST /api/hooks/[slug]", () => {
         expect.objectContaining({ statusCode: 401 }),
       );
     });
+
+    it("does not fall back to STRIPE_WEBHOOK_SECRET when the source's own providerSecret doesn't match", async () => {
+      // The app's own billing webhook uses STRIPE_WEBHOOK_SECRET; a user's
+      // Stripe SOURCE must never accept a signature made with that env var
+      // instead of the secret the user actually configured.
+      process.env.STRIPE_WEBHOOK_SECRET = "app-billing-secret-not-this-sources";
+      const rawBody = JSON.stringify({ type: "charge.succeeded" });
+      const headerSignedWithEnvSecret = buildValidStripeHeader(
+        rawBody,
+        process.env.STRIPE_WEBHOOK_SECRET,
+      );
+
+      stubSourceOnly([stripeSource]);
+      mockReadRawBody.mockResolvedValue(rawBody);
+      mockGetHeader.mockReturnValue(headerSignedWithEnvSecret);
+
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 401,
+      });
+
+      delete process.env.STRIPE_WEBHOOK_SECRET;
+    });
+  });
+
+  describe("github signature verification", () => {
+    const GITHUB_SECRET = "github_test_secret";
+    const githubSource = {
+      ...sampleSource,
+      provider: "github",
+      providerSecret: GITHUB_SECRET,
+    };
+
+    function stubGithubHeader(rawBody: string, secret: string): void {
+      mockGetHeader.mockImplementation((_event: unknown, name: string) =>
+        name === "x-hub-signature-256"
+          ? buildValidGithubHeader(rawBody, secret)
+          : undefined,
+      );
+    }
+
+    it("returns 401 when the X-Hub-Signature-256 header is missing", async () => {
+      stubSourceOnly([githubSource]);
+      mockReadRawBody.mockResolvedValue(JSON.stringify({ ref: "main" }));
+      mockGetHeader.mockReturnValue(undefined);
+
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 401,
+      });
+    });
+
+    it("returns 401 when the signature does not match the source's secret", async () => {
+      const rawBody = JSON.stringify({ ref: "main" });
+      stubSourceOnly([githubSource]);
+      mockReadRawBody.mockResolvedValue(rawBody);
+      stubGithubHeader(rawBody, "wrong_secret");
+
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 401,
+      });
+    });
+
+    it("returns 202 when the signature matches the source's providerSecret", async () => {
+      const rawBody = JSON.stringify({ ref: "main" });
+      stubSourceAndSettings([githubSource]);
+      stubInsertRecord(sampleRecord);
+      stubUpdateStats();
+      mockReadRawBody.mockResolvedValue(rawBody);
+      stubGithubHeader(rawBody, GITHUB_SECRET);
+
+      const response = await handler(buildEvent());
+
+      expect202Success(response, mockSetResponseStatus, sampleRecord.uuid);
+    });
+
+    it("returns 401 when the source has no providerSecret configured", async () => {
+      const rawBody = JSON.stringify({ ref: "main" });
+      stubSourceOnly([{ ...githubSource, providerSecret: null }]);
+      mockReadRawBody.mockResolvedValue(rawBody);
+      stubGithubHeader(rawBody, GITHUB_SECRET);
+
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 401,
+      });
+    });
+  });
+
+  describe("zapier / shortcuts shared-secret verification", () => {
+    const SHARED_SECRET = "shared_test_secret";
+    // Only the hash is ever stored (see hashSharedSecret / isHashedStorageProvider);
+    // the plaintext is what the sender actually presents via the header.
+    const STORED_SECRET_HASH = hashSharedSecret(SHARED_SECRET);
+
+    function stubSharedSecretHeader(value: string | undefined): void {
+      mockGetHeader.mockImplementation((_event: unknown, name: string) =>
+        name === SHARED_SECRET_HEADER ? value : undefined,
+      );
+    }
+
+    it.each(["zapier", "shortcuts"])(
+      "returns 401 for %s when the shared-secret header is missing",
+      async (provider) => {
+        const source = {
+          ...sampleSource,
+          provider,
+          providerSecret: STORED_SECRET_HASH,
+        };
+        stubSourceOnly([source]);
+        mockReadRawBody.mockResolvedValue(JSON.stringify({ title: "T" }));
+        stubSharedSecretHeader(undefined);
+
+        await expect(handler(buildEvent())).rejects.toMatchObject({
+          statusCode: 401,
+        });
+      },
+    );
+
+    it.each(["zapier", "shortcuts"])(
+      "returns 401 for %s when the shared secret does not match",
+      async (provider) => {
+        const source = {
+          ...sampleSource,
+          provider,
+          providerSecret: STORED_SECRET_HASH,
+        };
+        stubSourceOnly([source]);
+        mockReadRawBody.mockResolvedValue(JSON.stringify({ title: "T" }));
+        stubSharedSecretHeader("wrong-value");
+
+        await expect(handler(buildEvent())).rejects.toMatchObject({
+          statusCode: 401,
+        });
+      },
+    );
+
+    it.each(["zapier", "shortcuts"])(
+      "returns 202 for %s when the provided secret hashes to the stored hash",
+      async (provider) => {
+        const source = {
+          ...sampleSource,
+          provider,
+          providerSecret: STORED_SECRET_HASH,
+        };
+        stubSourceAndSettings([source]);
+        stubInsertRecord(sampleRecord);
+        stubUpdateStats();
+        mockReadRawBody.mockResolvedValue(JSON.stringify({ title: "T" }));
+        stubSharedSecretHeader(SHARED_SECRET);
+
+        const response = await handler(buildEvent());
+
+        expect202Success(response, mockSetResponseStatus, sampleRecord.uuid);
+      },
+    );
   });
 
   describe("fieldMapping", () => {
