@@ -5,7 +5,7 @@
         :checked="wantsExpiry"
         type="checkbox"
         :disabled="disabled"
-        aria-describedby="token-expiry-hint"
+        :aria-describedby="wantsExpiry ? undefined : 'token-expiry-hint'"
         @change="onWantsExpiryChange"
       />
       <span style="font-size: 13px">Expire this token</span>
@@ -14,7 +14,6 @@
       v-if="!wantsExpiry"
       id="token-expiry-hint"
       class="faint"
-      role="status"
       style="font-size: 12px; margin: 0"
     >
       Unchecked — this token will never expire.

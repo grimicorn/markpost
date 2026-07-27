@@ -493,6 +493,17 @@ describe("SetTokens", () => {
     await wrapper.find("input[type='checkbox']").setValue(false);
 
     expect(wrapper.find("input[type='number']").exists()).toBe(false);
+
+    // Re-checking within the same open form must restore the days input,
+    // still prefilled with the shared default — covers the false -> true
+    // leg of the v-model round-trip, not just the initial default and the
+    // true -> false uncheck.
+    await wrapper.find("input[type='checkbox']").setValue(true);
+
+    expect(wrapper.find("input[type='number']").exists()).toBe(true);
+    expect(
+      (wrapper.find("input[type='number']").element as HTMLInputElement).value,
+    ).toBe(String(DEFAULT_TOKEN_EXPIRY_DAYS));
   });
 
   it("passes the entered expiresInDays to mintToken (expiry checked by default)", async () => {
