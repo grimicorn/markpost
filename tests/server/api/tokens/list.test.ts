@@ -26,6 +26,7 @@ const tokenOne = {
   prefix: "mp_live_abcd",
   createdAt: new Date("2026-04-01T00:00:00Z"),
   lastUsedAt: new Date("2026-06-01T00:00:00Z"),
+  expiresAt: new Date("2026-09-01T00:00:00Z"),
 };
 
 const tokenTwo = {
@@ -34,6 +35,7 @@ const tokenTwo = {
   prefix: "mp_live_efgh",
   createdAt: new Date("2026-03-01T00:00:00Z"),
   lastUsedAt: null,
+  expiresAt: null,
 };
 
 function buildEvent(contextUserId: string | undefined): H3Event {
@@ -75,6 +77,7 @@ describe("GET /api/tokens", () => {
             prefix: tokenOne.prefix,
             createdAt: tokenOne.createdAt,
             lastUsedAt: tokenOne.lastUsedAt,
+            expiresAt: tokenOne.expiresAt,
           },
         },
         {
@@ -85,6 +88,37 @@ describe("GET /api/tokens", () => {
             prefix: tokenTwo.prefix,
             createdAt: tokenTwo.createdAt,
             lastUsedAt: null,
+            expiresAt: null,
+          },
+        },
+      ],
+    });
+  });
+
+  it("still returns an expired-but-unrevoked token (list includes it so the owner can clean it up)", async () => {
+    const expiredToken = {
+      id: "token-id-3",
+      name: "old-laptop",
+      prefix: "mp_live_wxyz",
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+      lastUsedAt: new Date("2026-02-01T00:00:00Z"),
+      expiresAt: new Date("2026-03-01T00:00:00Z"),
+    };
+    stubSelectResult([expiredToken]);
+
+    const response = await handler(buildEvent(userId));
+
+    expect(response).toEqual({
+      data: [
+        {
+          type: "api_tokens",
+          id: expiredToken.id,
+          attributes: {
+            name: expiredToken.name,
+            prefix: expiredToken.prefix,
+            createdAt: expiredToken.createdAt,
+            lastUsedAt: expiredToken.lastUsedAt,
+            expiresAt: expiredToken.expiresAt,
           },
         },
       ],

@@ -8,7 +8,7 @@ export type AttributeRule = {
   key: string;
   message?: string;
   optional?: boolean;
-  type?: "string" | "boolean";
+  type?: "string" | "boolean" | "number";
   enum?: readonly string[];
 };
 
@@ -70,6 +70,9 @@ function validateType(
   }
   if (rule.type === "boolean" && typeof value !== "boolean") {
     return buildError(rule, typeMessage(rule.key, "boolean"));
+  }
+  if (rule.type === "number" && typeof value !== "number") {
+    return buildError(rule, typeMessage(rule.key, "number"));
   }
   return null;
 }

@@ -4,6 +4,7 @@ export type ApiToken = {
   prefix: string;
   createdAt: Date | null;
   lastUsedAt: Date | null;
+  expiresAt: Date | null;
 };
 
 // Wire-level types use string for date fields because JSON serializes Date as ISO string.
@@ -15,6 +16,7 @@ type TokenResource = {
     prefix: string;
     createdAt: string | null;
     lastUsedAt: string | null;
+    expiresAt: string | null;
   };
 };
 
@@ -30,6 +32,7 @@ type MintedTokenResource = {
     name: string;
     prefix: string;
     createdAt: string | null;
+    expiresAt: string | null;
     token: string;
   };
 };
@@ -83,14 +86,23 @@ function deserializeToken(resource: TokenResource): ApiToken {
     lastUsedAt: resource.attributes.lastUsedAt
       ? new Date(resource.attributes.lastUsedAt)
       : null,
+    expiresAt: resource.attributes.expiresAt
+      ? new Date(resource.attributes.expiresAt)
+      : null,
   };
 }
 
-function buildMintBody(name: string) {
+function buildMintBody(name: string, expiresInDays?: number) {
+  const attributes: { name: string; expiresInDays?: number } = { name };
+
+  if (expiresInDays !== undefined) {
+    attributes.expiresInDays = expiresInDays;
+  }
+
   return {
     data: {
       type: "api_tokens",
-      attributes: { name },
+      attributes,
     },
   };
 }
@@ -104,6 +116,7 @@ export function useApiTokens() {
   const isRevoking = ref(false);
   const revokeError = ref<string | null>(null);
   const revealedToken = ref("");
+  const revealedTokenExpiresAt = ref<Date | null>(null);
 
   // Internal: fetches and applies the token list without the de-dupe guard.
   // Use this from mintToken so the post-mint refresh always runs.
@@ -139,7 +152,7 @@ export function useApiTokens() {
     await fetchAndApplyTokens();
   }
 
-  async function mintToken(name: string) {
+  async function mintToken(name: string, expiresInDays?: number) {
     if (isMinting.value) {
       return;
     }
@@ -147,11 +160,12 @@ export function useApiTokens() {
     isMinting.value = true;
     mintError.value = null;
     revealedToken.value = "";
+    revealedTokenExpiresAt.value = null;
 
     try {
       const response = await $fetch<MintTokenResponse>(API_TOKENS_ENDPOINT, {
         method: "POST",
-        body: buildMintBody(name),
+        body: buildMintBody(name, expiresInDays),
       });
 
       if (isErrorBody(response)) {
@@ -168,6 +182,9 @@ export function useApiTokens() {
       }
 
       revealedToken.value = response.data.attributes.token;
+      revealedTokenExpiresAt.value = response.data.attributes.expiresAt
+        ? new Date(response.data.attributes.expiresAt)
+        : null;
       // Bypass the isLoading guard so the refresh always runs even when the
       // initial load is still in flight.
       await fetchAndApplyTokens();
@@ -212,6 +229,7 @@ export function useApiTokens() {
 
   function clearRevealedToken() {
     revealedToken.value = "";
+    revealedTokenExpiresAt.value = null;
   }
 
   return {
@@ -223,6 +241,7 @@ export function useApiTokens() {
     isRevoking,
     revokeError,
     revealedToken,
+    revealedTokenExpiresAt,
     loadTokens,
     mintToken,
     revokeToken,

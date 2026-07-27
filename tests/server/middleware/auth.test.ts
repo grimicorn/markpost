@@ -180,6 +180,59 @@ describe("auth middleware", () => {
       });
     });
 
+    it("authenticates a token with a NULL expiresAt (legacy, no expiry)", async () => {
+      const rawToken = generateRawToken();
+
+      mockGetHeader.mockReturnValue(`Bearer ${rawToken}`);
+      stubSelectResult([{ id: tokenId, userId, expiresAt: null }]);
+      stubUpdateSuccess();
+
+      const event = buildEvent();
+      await handler(event);
+
+      expect(event.context.userId).toBe(userId);
+    });
+
+    it("authenticates a token with a future expiresAt", async () => {
+      const rawToken = generateRawToken();
+      const future = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+      mockGetHeader.mockReturnValue(`Bearer ${rawToken}`);
+      stubSelectResult([{ id: tokenId, userId, expiresAt: future }]);
+      stubUpdateSuccess();
+
+      const event = buildEvent();
+      await handler(event);
+
+      expect(event.context.userId).toBe(userId);
+    });
+
+    it("throws 401 for a token with a past expiresAt", async () => {
+      const rawToken = generateRawToken();
+      const past = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+      mockGetHeader.mockReturnValue(`Bearer ${rawToken}`);
+      stubSelectResult([{ id: tokenId, userId, expiresAt: past }]);
+
+      await expect(handler(buildEvent())).rejects.toThrow();
+      expect(mockCreateError).toHaveBeenCalledWith({
+        statusCode: 401,
+        statusMessage: "Unauthorized",
+      });
+    });
+
+    it("does not update lastUsedAt for an expired token", async () => {
+      const rawToken = generateRawToken();
+      const past = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+      mockGetHeader.mockReturnValue(`Bearer ${rawToken}`);
+      stubSelectResult([{ id: tokenId, userId, expiresAt: past }]);
+
+      await expect(handler(buildEvent())).rejects.toThrow();
+
+      expect(updateMock).not.toHaveBeenCalled();
+    });
+
     it("does not call Clerk for mp_live_ tokens", async () => {
       const rawToken = generateRawToken();
 
