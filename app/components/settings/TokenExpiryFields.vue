@@ -5,18 +5,18 @@
         :checked="wantsExpiry"
         type="checkbox"
         :disabled="disabled"
-        :aria-describedby="wantsExpiry ? undefined : 'token-expiry-hint'"
+        :aria-describedby="wantsExpiry ? undefined : hintId"
         @change="onWantsExpiryChange"
       />
       <span style="font-size: 13px">Expire this token</span>
     </label>
     <p
       v-if="!wantsExpiry"
-      id="token-expiry-hint"
+      :id="hintId"
       class="faint"
       style="font-size: 12px; margin: 0"
     >
-      Unchecked — this token will never expire.
+      This token will never expire.
     </p>
     <label v-else class="col gap-2">
       <span style="font-size: 13px; font-weight: 500"> Expires in (days) </span>
@@ -57,6 +57,11 @@ const emit = defineEmits<{
   "update:wantsExpiry": [value: boolean];
   "update:expiryDays": [value: number];
 }>();
+
+// Per-instance so two mints of this component on one page (unlikely today,
+// but the component doesn't guard against it) don't collide on a hardcoded
+// DOM id and break aria-describedby's reference.
+const hintId = useId();
 
 function onWantsExpiryChange(event: Event): void {
   emit("update:wantsExpiry", (event.target as HTMLInputElement).checked);

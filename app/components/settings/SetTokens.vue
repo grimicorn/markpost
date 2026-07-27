@@ -259,11 +259,11 @@ const pendingTokenName = ref("");
 const wantsExpiry = ref(true);
 const pendingExpiryDays = ref(DEFAULT_TOKEN_EXPIRY_DAYS);
 
-// Whole days only, and only relevant once the user has opted into an expiry
-// — mirrors the bounds server/api/tokens/index.post.ts enforces (both read
-// from #shared/utils/tokens) so a bad value, e.g. 0 from a cleared
-// TokenExpiryFields input, is caught client-side instead of round-tripping
-// to a 422.
+// Whole days only, and only relevant while the expiry checkbox is checked
+// (it is by default) — mirrors the bounds server/api/tokens/index.post.ts
+// enforces (both read from #shared/utils/tokens) so a bad value, e.g. 0 from
+// a cleared TokenExpiryFields input, is caught client-side instead of
+// round-tripping to a 422.
 const isExpiryDaysValid = computed(
   () =>
     Number.isInteger(pendingExpiryDays.value) &&

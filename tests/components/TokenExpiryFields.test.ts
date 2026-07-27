@@ -54,6 +54,16 @@ describe("TokenExpiryFields", () => {
     expect(wrapper.emitted("update:wantsExpiry")).toEqual([[true]]);
   });
 
+  it("emits update:wantsExpiry false when the checkbox is unchecked", async () => {
+    const wrapper = mount(TokenExpiryFields, {
+      props: { wantsExpiry: true, expiryDays: 90 },
+    });
+
+    await wrapper.find("input[type='checkbox']").setValue(false);
+
+    expect(wrapper.emitted("update:wantsExpiry")).toEqual([[false]]);
+  });
+
   it("emits update:expiryDays with the numeric value when the days input changes", async () => {
     const wrapper = mount(TokenExpiryFields, {
       props: { wantsExpiry: true, expiryDays: 90 },
