@@ -4,7 +4,7 @@ import TokenExpiryFields from "../../app/components/settings/TokenExpiryFields.v
 import {
   MAX_TOKEN_EXPIRY_DAYS,
   MIN_TOKEN_EXPIRY_DAYS,
-} from "../../shared/utils/tokens";
+} from "#shared/utils/tokens";
 
 describe("TokenExpiryFields", () => {
   it("matches snapshot when expiry is not opted into", () => {
