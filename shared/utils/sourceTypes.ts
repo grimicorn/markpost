@@ -4,13 +4,17 @@
 // API accepts and the set the filter recognizes can never drift apart. Nuxt
 // auto-resolves `shared/` for both the app and server layers, so this is the
 // one place that may define them.
+//
+// RSS/Atom is intentionally excluded: there is no polling infrastructure
+// (scheduler, dedup, fetch cadence) anywhere in the codebase to service an
+// "rss" source, so creating one would silently never ingest a single record.
+// See https://github.com/grimicorn/markpost/issues/116.
 export const SOURCE_TYPES = [
   "webhook",
   "email",
   "stripe",
   "github",
   "zapier",
-  "rss",
   "shortcuts",
 ] as const;
 

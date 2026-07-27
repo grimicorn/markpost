@@ -58,6 +58,25 @@ npm run db:studio
 | `records`       | Content records with uuid, title, content, and created_at           |
 | `subscriptions` | One row per user tracking plan, status, trial dates, and Stripe IDs |
 
+## Sources and webhook signature verification
+
+A source is a unique ingest endpoint (`/api/hooks/:slug`) that turns an incoming webhook into a record. The Add Source modal offers presets (Stripe, GitHub, Zapier, Apple Shortcuts) that are a plain webhook source with a `provider` set, which enables signature verification on every delivery — see `server/utils/signatureVerifier.ts`.
+
+| Provider        | Verification                                              | Secret                                                                                                                                                                                                                                                                                                                                                                                              |
+| --------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stripe          | HMAC-SHA256 over the `Stripe-Signature` header            | User-supplied at creation — Stripe issues the signing secret when the user creates their own webhook endpoint, so the Add Source modal asks them to paste it in before the source can be created. Stored as-is (HMAC needs the raw value). Unrelated to the app's own billing webhook, which verifies against the separate `STRIPE_WEBHOOK_SECRET` env var (see "Billing and subscriptions" below). |
+| GitHub          | HMAC-SHA256 over the `X-Hub-Signature-256` header         | Generated per source at creation time; paste it into the GitHub repo's Settings → Webhooks → Secret field. Stored as-is (HMAC needs the raw value).                                                                                                                                                                                                                                                 |
+| Zapier          | Shared secret compared via the `X-Markpost-Secret` header | Generated per source at creation time; add it as a custom header on the Zapier webhook action. Only a SHA-256 hash is stored, since equality comparison never needs the plaintext back.                                                                                                                                                                                                             |
+| Apple Shortcuts | Shared secret compared via the `X-Markpost-Secret` header | Generated per source at creation time; add it as a custom header in the "Get Contents of URL" action. Only a SHA-256 hash is stored, for the same reason as Zapier.                                                                                                                                                                                                                                 |
+
+A generated secret (GitHub/Zapier/Shortcuts) is revealed exactly once, in the response to the request that created the source (the Add Source modal shows a one-time "copy this now" step) — the API never returns it again on subsequent `GET`/`PATCH` calls, and the reactive source list in the app never holds onto it either. A user-supplied secret (Stripe) is never shown back, since the user already has it.
+
+Sources created before this verification model existed (`provider` left `null`) keep working unauthenticated rather than being retroactively broken — enabling verification is opt-in for new sources, not a forced migration for old ones.
+
+**No secret rotation yet.** There is no endpoint to regenerate a lost or leaked GitHub/Zapier/Shortcuts secret, or to update a Stripe source's secret if it's rotated on Stripe's side — `PATCH /api/sources/:uuid` deliberately ignores `provider`/`providerSecret`. The only recovery today is deleting and recreating the source, which also changes its `endpointSlug` (the provider's webhook URL has to be reconfigured too). A rotate endpoint is a reasonable follow-up if this becomes a real pain point.
+
+RSS/Atom is listed as a preset but marked unavailable in the UI: there is no polling infrastructure (scheduler, dedup, fetch cadence) to back it yet.
+
 ## Billing and subscriptions
 
 Billing is handled via [Stripe](https://stripe.com). The integration consists of three API routes under `/api/billing/`:

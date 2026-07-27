@@ -134,15 +134,16 @@ describe("GET /api/records", () => {
   // shared constant fails this test, rather than silently shrinking the
   // it.each below along with it. (The coupling with what POST /api/sources
   // accepts is covered separately in tests/server/api/sources/create.test.ts,
-  // which imports this same constant.)
-  it("pins the shared SOURCE_TYPES contract to the seven known source types", () => {
+  // which imports this same constant.) "rss" is deliberately absent — there's
+  // no polling infrastructure to service it, so it's rejected at creation
+  // (see tests/server/api/sources/create.test.ts's 'rss' 422 test).
+  it("pins the shared SOURCE_TYPES contract to the six known source types", () => {
     expect(SOURCE_TYPES).toEqual([
       "webhook",
       "email",
       "stripe",
       "github",
       "zapier",
-      "rss",
       "shortcuts",
     ]);
   });

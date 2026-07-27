@@ -74,6 +74,7 @@ describe("GET /api/sources", () => {
             type: sampleSource.type,
             name: sampleSource.name,
             provider: null,
+            providerSecret: null,
             endpointSlug: sampleSource.endpointSlug,
             routeFolder: sampleSource.routeFolder,
             fieldMapping: null,
@@ -92,6 +93,16 @@ describe("GET /api/sources", () => {
     const response = await handler(buildEvent(userId));
 
     expect(response).toEqual({ data: [] });
+  });
+
+  it("never reveals providerSecret, even when the underlying row has one", async () => {
+    stubSelectResult([
+      { ...sampleSource, provider: "github", providerSecret: "leaked-secret" },
+    ]);
+
+    const response = await handler(buildEvent(userId));
+
+    expect(response.data[0]?.attributes.providerSecret).toBeNull();
   });
 
   it("throws a 401 when the user is not authenticated", async () => {

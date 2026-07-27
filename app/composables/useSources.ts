@@ -1,3 +1,5 @@
+import { computeElapsedBuckets } from "../utils/timeBuckets";
+
 const WEBHOOK_INGEST_BASE = "https://ingest.markpost.io/v1/hooks";
 const EMAIL_DOMAIN = "in.markpost.io";
 
@@ -8,6 +10,7 @@ export type SourceAttributes = {
   type: string;
   name: string;
   provider: string | null;
+  providerSecret?: string | null;
   endpointSlug: string;
   routeFolder: string;
   fieldMapping: unknown;
@@ -35,6 +38,10 @@ export type CreateSourcePayload = {
   name: string;
   routeFolder: string;
   provider?: string;
+  // Only sent for manual-secret presets (Stripe — see AddSourceModal's
+  // `secretEntry: "manual"`); the server generates its own for GitHub/Zapier/
+  // Shortcuts instead.
+  providerSecret?: string;
   fieldMapping?: unknown;
 };
 
@@ -54,25 +61,27 @@ export function formatLastHit(lastHitAt: string | null): string {
     return "never hit";
   }
 
-  const diffMs = Date.now() - new Date(lastHitAt).getTime();
-  const diffSeconds = Math.floor(diffMs / 1000);
-  const diffMinutes = Math.floor(diffSeconds / 60);
-  const diffHours = Math.floor(diffMinutes / 60);
-  const diffDays = Math.floor(diffHours / 24);
+  const buckets = computeElapsedBuckets(lastHitAt);
 
-  if (diffSeconds < 60) {
+  if (!buckets) {
+    return "last hit —";
+  }
+
+  const { seconds, minutes, hours, days } = buckets;
+
+  if (seconds < 60) {
     return "last hit just now";
   }
 
-  if (diffMinutes < 60) {
-    return `last hit ${diffMinutes}m ago`;
+  if (minutes < 60) {
+    return `last hit ${minutes}m ago`;
   }
 
-  if (diffHours < 24) {
-    return `last hit ${diffHours}h ago`;
+  if (hours < 24) {
+    return `last hit ${hours}h ago`;
   }
 
-  return `last hit ${diffDays}d ago`;
+  return `last hit ${days}d ago`;
 }
 
 export function buildSourceMeta(attributes: SourceAttributes): string[] {
@@ -135,7 +144,18 @@ export function useSources() {
     payload: CreateSourcePayload,
   ): Promise<SourceResource> {
     const created = await createSource(payload);
-    sources.value = [...sources.value, created];
+    // The create response reveals providerSecret exactly once (see
+    // server/utils/response.ts's revealProviderSecret option) so the caller
+    // can show it — but `sources` backs the persistent list UI (SourceCard),
+    // which must never hold onto it: GET/PATCH always null it out, and the
+    // reactive list should match that for the rest of the session too.
+    sources.value = [
+      ...sources.value,
+      {
+        ...created,
+        attributes: { ...created.attributes, providerSecret: null },
+      },
+    ];
     return created;
   }
 
