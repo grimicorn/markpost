@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { ref } from "vue";
 import type { ApiToken } from "../../app/composables/useApiTokens";
+import { DEFAULT_TOKEN_EXPIRY_DAYS } from "#shared/utils/tokens";
 
 const STUB_TOKENS: ApiToken[] = [
   {
@@ -300,7 +301,10 @@ describe("SetTokens", () => {
     await confirmButton?.trigger("click");
     await flushPromises();
 
-    expect(mockMintToken).toHaveBeenCalledWith("my-new-token", 90);
+    expect(mockMintToken).toHaveBeenCalledWith(
+      "my-new-token",
+      DEFAULT_TOKEN_EXPIRY_DAYS,
+    );
   });
 
   it("does not call mintToken when name is blank", async () => {
@@ -347,6 +351,34 @@ describe("SetTokens", () => {
     await cancelButton?.trigger("click");
 
     expect(wrapper.find("input.input").exists()).toBe(false);
+  });
+
+  it("re-checks expiry by default when the form is reopened after cancelling with it unchecked", async () => {
+    const SetTokens = (
+      await import("../../app/components/settings/SetTokens.vue")
+    ).default;
+    const wrapper = mount(SetTokens, globalConfig);
+    await flushPromises();
+
+    const findGenerateButton = () =>
+      wrapper
+        .findAll("button")
+        .find((button) => button.text().includes("generate token"));
+    const findCancelButton = () =>
+      wrapper
+        .findAll("button")
+        .find((button) => button.text().includes("cancel"));
+
+    await findGenerateButton()?.trigger("click");
+    await wrapper.find("input[type='checkbox']").setValue(false);
+    await findCancelButton()?.trigger("click");
+
+    await findGenerateButton()?.trigger("click");
+
+    const checkbox = wrapper.find("input[type='checkbox']")
+      .element as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
+    expect(wrapper.find("input[type='number']").exists()).toBe(true);
   });
 
   it("shows the revealed token alert when revealedToken is set", async () => {

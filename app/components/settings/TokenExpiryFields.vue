@@ -5,19 +5,21 @@
         :checked="wantsExpiry"
         type="checkbox"
         :disabled="disabled"
-        @change="
-          emit(
-            'update:wantsExpiry',
-            ($event.target as HTMLInputElement).checked,
-          )
-        "
+        aria-describedby="token-expiry-hint"
+        @change="onWantsExpiryChange"
       />
       <span style="font-size: 13px">Expire this token</span>
     </label>
-    <p v-if="!wantsExpiry" class="faint" style="font-size: 12px; margin: 0">
+    <p
+      v-if="!wantsExpiry"
+      id="token-expiry-hint"
+      class="faint"
+      role="status"
+      style="font-size: 12px; margin: 0"
+    >
       Unchecked — this token will never expire.
     </p>
-    <label v-if="wantsExpiry" class="col gap-2">
+    <label v-else class="col gap-2">
       <span style="font-size: 13px; font-weight: 500"> Expires in (days) </span>
       <input
         class="input"
@@ -56,6 +58,10 @@ const emit = defineEmits<{
   "update:wantsExpiry": [value: boolean];
   "update:expiryDays": [value: number];
 }>();
+
+function onWantsExpiryChange(event: Event): void {
+  emit("update:wantsExpiry", (event.target as HTMLInputElement).checked);
+}
 
 // NaN (a cleared or non-numeric field) must not be bound back into :value —
 // Vue would coerce it to the literal string "NaN". Falling back to "" instead
