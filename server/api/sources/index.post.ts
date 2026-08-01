@@ -17,19 +17,7 @@ import {
 } from "../../utils/signatureVerifier";
 import { sourceSerializer, type SourceApiResponse } from "../../utils/response";
 import { apiValidate, type AttributeRule } from "../../utils/validate";
-
-// RSS/Atom is intentionally excluded: there is no polling infrastructure
-// (scheduler, dedup, fetch cadence) anywhere in the codebase to service an
-// "rss" source, so creating one would silently never ingest a single record.
-// See https://github.com/grimicorn/markpost/issues/116.
-const VALID_SOURCE_TYPES = [
-  "webhook",
-  "email",
-  "stripe",
-  "github",
-  "zapier",
-  "shortcuts",
-] as const;
+import { isSourceType, SOURCE_TYPES } from "#shared/utils/sourceTypes";
 
 // Types that double as a provider identity: creating a source with one of
 // these types implies signature verification against that provider, even
@@ -42,8 +30,6 @@ const VALID_SOURCE_TYPES = [
 const PROVIDER_TYPES = new Set<string>(KNOWN_PROVIDERS);
 
 const MAX_SLUG_ATTEMPTS = 5;
-
-type SourceType = (typeof VALID_SOURCE_TYPES)[number];
 
 type CreateSourceAttributes = {
   type?: string;
@@ -85,10 +71,6 @@ const VALIDATION_RULES: AttributeRule[] = [
   { key: "name", type: "string" },
   { key: "routeFolder", type: "string" },
 ];
-
-function isValidSourceType(value: string): value is SourceType {
-  return (VALID_SOURCE_TYPES as readonly string[]).includes(value);
-}
 
 // The Add Source modal creates preset sources by sending `type` alone (e.g.
 // type: "github"), never `provider` — so without this fallback their
@@ -166,7 +148,7 @@ function invalidTypeError(): ApiError {
       {
         status: "422",
         title: "Invalid Attribute",
-        detail: `Type must be one of: ${VALID_SOURCE_TYPES.join(", ")}`,
+        detail: `Type must be one of: ${SOURCE_TYPES.join(", ")}`,
         source: { pointer: "/data/attributes/type" },
       },
     ],
@@ -256,7 +238,7 @@ function isProviderWrongType(attributes: CreateSourceAttributes): boolean {
 function validateAttributesOrThrow(
   attributes: Required<CreateSourceAttributes>,
 ): void {
-  if (!isValidSourceType(attributes.type)) {
+  if (!isSourceType(attributes.type)) {
     throw invalidTypeError();
   }
 
