@@ -98,6 +98,31 @@ export async function fetchRecordStats(): Promise<RecordStats | null> {
   }
 }
 
+export function sourceTypeIcon(source: string | null): string {
+  if (!source) {
+    return "zap";
+  }
+
+  if (source.startsWith("email/")) {
+    return "mail";
+  }
+
+  return "zap";
+}
+
+export function formatSourceLabel(source: string | null): string {
+  if (!source) {
+    return "unknown";
+  }
+
+  const slashIndex = source.indexOf("/");
+  if (slashIndex === -1) {
+    return source;
+  }
+
+  return source.slice(slashIndex + 1).replaceAll("/", " · ");
+}
+
 export function formatRelativeTime(isoString: string): string {
   const buckets = computeElapsedBuckets(isoString);
 

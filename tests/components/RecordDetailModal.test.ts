@@ -1,0 +1,108 @@
+import { describe, it, expect } from "vitest";
+import { mount } from "@vue/test-utils";
+
+import RecordDetailModal from "../../app/components/RecordDetailModal.vue";
+
+function makeRecord(overrides: Record<string, unknown> = {}) {
+  return {
+    type: "records" as const,
+    id: "uuid-1",
+    attributes: {
+      uuid: "uuid-1",
+      createdAt: "2026-06-27T10:00:00Z",
+      userId: "user-1",
+      title: "Test Record",
+      content: "# Heading\n\nBody",
+      sourceId: null,
+      source: "webhook/github",
+      status: "synced",
+      filePath: "99-incoming/test.md",
+      tags: null,
+      frontmatter: null,
+      syncedAt: null,
+      errorMessage: null,
+      ...overrides,
+    },
+    links: { self: "/api/records/uuid-1" },
+  };
+}
+
+const stubs = {
+  AppBtn: {
+    template:
+      '<button class="app-btn" @click="$emit(\'click\')"><slot /></button>',
+    props: ["variant", "size", "icon"],
+    emits: ["click"],
+  },
+  AppIcon: { template: "<span />", props: ["name", "size"] },
+  AppBadge: {
+    template: '<span class="app-badge"><slot /></span>',
+    props: ["tone", "dot"],
+  },
+  AppAlert: {
+    template: '<div class="app-alert" :data-tone="tone"><slot /></div>',
+    props: ["tone", "title", "closeable"],
+    emits: ["close"],
+  },
+  AppCodeBlock: {
+    template: '<div class="app-code-block"><slot /></div>',
+    props: ["lang", "copy"],
+  },
+};
+
+function mountModal(props: Record<string, unknown> = {}) {
+  return mount(RecordDetailModal, {
+    props: {
+      record: makeRecord(),
+      isLoading: false,
+      loadError: null,
+      ...props,
+    },
+    global: { stubs },
+  });
+}
+
+describe("RecordDetailModal", () => {
+  it("renders the record title and content", () => {
+    const wrapper = mountModal();
+    expect(wrapper.text()).toContain("Test Record");
+    expect(wrapper.find(".app-code-block").text()).toContain("Heading");
+  });
+
+  it("shows a loading indicator while loading", () => {
+    const wrapper = mountModal({ record: null, isLoading: true });
+    expect(wrapper.text()).toContain("loading record");
+  });
+
+  it("shows an error alert when loadError is set", () => {
+    const wrapper = mountModal({
+      record: null,
+      loadError: "Record not found. It may have been removed.",
+    });
+    expect(wrapper.find(".app-alert[data-tone='err']").exists()).toBe(true);
+  });
+
+  it("shows the sync error alert when the record carries an errorMessage", () => {
+    const wrapper = mountModal({
+      record: makeRecord({ status: "error", errorMessage: "disk full" }),
+    });
+    expect(wrapper.text()).toContain("disk full");
+  });
+
+  it("emits close when the close button is clicked", async () => {
+    const wrapper = mountModal();
+    await wrapper.find(".app-btn").trigger("click");
+    expect(wrapper.emitted("close")).toBeTruthy();
+  });
+
+  it("emits close when the backdrop is clicked", async () => {
+    const wrapper = mountModal();
+    await wrapper.trigger("click");
+    expect(wrapper.emitted("close")).toBeTruthy();
+  });
+
+  it("matches the snapshot for a loaded record", () => {
+    const wrapper = mountModal();
+    expect(wrapper.html()).toMatchSnapshot();
+  });
+});

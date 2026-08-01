@@ -27,7 +27,30 @@ vi.mock("../../app/composables/useRecords", () => ({
     void isoString;
     return "2m ago";
   },
+  formatSourceLabel: (source: string | null) => source ?? "unknown",
+  sourceTypeIcon: () => "zap",
 }));
+
+const detailRecordRef = ref<object | null>(null);
+const detailLoadingRef = ref(false);
+const detailErrorRef = ref<string | null>(null);
+const mockOpenDetail = vi.fn();
+const mockCloseDetail = vi.fn();
+
+vi.mock("../../app/composables/useRecordDetail", () => ({
+  useRecordDetail: () => ({
+    record: detailRecordRef,
+    isLoading: detailLoadingRef,
+    loadError: detailErrorRef,
+    open: mockOpenDetail,
+    close: mockCloseDetail,
+  }),
+}));
+
+const routeQueryRef = ref<Record<string, string>>({});
+vi.stubGlobal("useRoute", () => ({ query: routeQueryRef.value }));
+const mockNavigateTo = vi.fn();
+vi.stubGlobal("navigateTo", mockNavigateTo);
 
 import InboxPage from "../../app/pages/inbox.vue";
 
@@ -55,6 +78,12 @@ const globalConfig = {
         template: "<div />",
         props: ["modelValue", "options"],
         emits: ["update:modelValue"],
+      },
+      RecordDetailModal: {
+        template:
+          '<div class="record-detail-modal" @click="$emit(\'close\')" />',
+        props: ["record", "isLoading", "loadError"],
+        emits: ["close"],
       },
     },
   },
@@ -96,6 +125,13 @@ describe("inbox page", () => {
     mockLoadRecords.mockResolvedValue(undefined);
     mockFetchRecordStats.mockReset();
     mockFetchRecordStats.mockResolvedValue(defaultStats);
+    detailRecordRef.value = null;
+    detailLoadingRef.value = false;
+    detailErrorRef.value = null;
+    routeQueryRef.value = {};
+    mockOpenDetail.mockReset();
+    mockCloseDetail.mockReset();
+    mockNavigateTo.mockReset();
   });
 
   it("calls loadRecords on mount", async () => {
@@ -205,5 +241,48 @@ describe("inbox page", () => {
     const wrapper = mount(InboxPage, globalConfig);
     await flushPromises();
     expect(wrapper.text()).toContain("—");
+  });
+
+  it("navigates to the record query param when a row is clicked", async () => {
+    recordsRef.value = [makeRecord({ uuid: "row-uuid" })];
+    const wrapper = mount(InboxPage, globalConfig);
+    await flushPromises();
+    await wrapper.find(".divide-y > .row").trigger("click");
+    expect(mockNavigateTo).toHaveBeenCalledWith("/inbox?record=row-uuid");
+  });
+
+  it("opens the detail for the record query param on mount", async () => {
+    routeQueryRef.value = { record: "query-uuid" };
+    mount(InboxPage, globalConfig);
+    await flushPromises();
+    expect(mockOpenDetail).toHaveBeenCalledWith("query-uuid");
+  });
+
+  it("does not open the detail when no record query param is present", async () => {
+    mount(InboxPage, globalConfig);
+    await flushPromises();
+    expect(mockOpenDetail).not.toHaveBeenCalled();
+    expect(mockCloseDetail).toHaveBeenCalled();
+  });
+
+  it("renders the detail modal when a record query param is present", async () => {
+    routeQueryRef.value = { record: "query-uuid" };
+    const wrapper = mount(InboxPage, globalConfig);
+    await flushPromises();
+    expect(wrapper.find(".record-detail-modal").exists()).toBe(true);
+  });
+
+  it("does not render the detail modal without a record query param", async () => {
+    const wrapper = mount(InboxPage, globalConfig);
+    await flushPromises();
+    expect(wrapper.find(".record-detail-modal").exists()).toBe(false);
+  });
+
+  it("navigates back to /inbox when the detail modal is closed", async () => {
+    routeQueryRef.value = { record: "query-uuid" };
+    const wrapper = mount(InboxPage, globalConfig);
+    await flushPromises();
+    await wrapper.find(".record-detail-modal").trigger("click");
+    expect(mockNavigateTo).toHaveBeenCalledWith("/inbox");
   });
 });

@@ -160,6 +160,7 @@
                 cursor: pointer;
                 transition: background 0.1s;
               "
+              @click="openRecord(record)"
               @mouseenter="
                 ($event.currentTarget as HTMLElement).style.background =
                   'var(--bg-2)'
@@ -234,6 +235,14 @@
         </div>
       </template>
     </div>
+
+    <RecordDetailModal
+      v-if="activeRecordUuid"
+      :record="detailRecord"
+      :is-loading="isDetailLoading"
+      :load-error="detailError"
+      @close="closeRecordDetail"
+    />
   </TheAppShell>
 </template>
 
@@ -242,10 +251,16 @@ import {
   useRecords,
   fetchRecordStats,
   formatRelativeTime,
+  formatSourceLabel,
+  sourceTypeIcon,
+  type RecordResource,
   type RecordStats,
 } from "~/composables/useRecords";
+import { useRecordDetail } from "~/composables/useRecordDetail";
 
 definePageMeta({ middleware: "auth" });
+
+const RECORD_QUERY_KEY = "record";
 
 const STATUS_TONE_MAP: Record<
   string,
@@ -302,31 +317,6 @@ const statsDisplay = computed(() => [
   },
 ]);
 
-function sourceTypeIcon(source: string | null): string {
-  if (!source) {
-    return "zap";
-  }
-
-  if (source.startsWith("email/")) {
-    return "mail";
-  }
-
-  return "zap";
-}
-
-function formatSourceLabel(source: string | null): string {
-  if (!source) {
-    return "unknown";
-  }
-
-  const slashIndex = source.indexOf("/");
-  if (slashIndex === -1) {
-    return source;
-  }
-
-  return source.slice(slashIndex + 1).replaceAll("/", " · ");
-}
-
 async function refreshStats(): Promise<void> {
   const fetchedStats = await fetchRecordStats();
   if (fetchedStats !== null) {
@@ -351,6 +341,43 @@ async function syncNow(): Promise<void> {
     isSyncing.value = false;
   }
 }
+
+const route = useRoute();
+const {
+  record: detailRecord,
+  isLoading: isDetailLoading,
+  loadError: detailError,
+  open: openDetail,
+  close: closeDetail,
+} = useRecordDetail();
+
+const activeRecordUuid = computed(() => {
+  const value = route.query[RECORD_QUERY_KEY];
+  if (typeof value !== "string" || value.length === 0) {
+    return null;
+  }
+  return value;
+});
+
+function openRecord(record: RecordResource): void {
+  navigateTo(`/inbox?${RECORD_QUERY_KEY}=${record.attributes.uuid}`);
+}
+
+function closeRecordDetail(): void {
+  navigateTo("/inbox");
+}
+
+watch(
+  activeRecordUuid,
+  (uuid) => {
+    if (!uuid) {
+      closeDetail();
+      return;
+    }
+    void openDetail(uuid);
+  },
+  { immediate: true },
+);
 
 onMounted(async () => {
   await Promise.all([loadRecords(), refreshStats()]);
