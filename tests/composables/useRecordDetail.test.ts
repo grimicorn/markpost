@@ -101,6 +101,19 @@ describe("useRecordDetail", () => {
     expect(detail.isLoading.value).toBe(false);
   });
 
+  it("sets a not-found error when the fetch rejects with a 404", async () => {
+    mockFetch.mockRejectedValue(
+      Object.assign(new Error("Not Found"), { statusCode: 404 }),
+    );
+
+    const detail = useRecordDetail();
+    await detail.open("gone");
+
+    expect(detail.record.value).toBeNull();
+    expect(detail.loadError.value).toContain("not found");
+    expect(detail.isLoading.value).toBe(false);
+  });
+
   it("encodes the uuid in the request path", async () => {
     mockFetch.mockResolvedValue({ data: null });
 
@@ -140,6 +153,24 @@ describe("useRecordDetail", () => {
 
     expect(detail.record.value).toBeNull();
     expect(detail.loadError.value).toBeNull();
+    expect(detail.isLoading.value).toBe(false);
+  });
+
+  it("drops a response that lands after close", async () => {
+    let resolveFetch: (value: unknown) => void = () => {};
+    mockFetch.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveFetch = resolve;
+      }),
+    );
+
+    const detail = useRecordDetail();
+    const pending = detail.open("uuid-1");
+    detail.close();
+    resolveFetch({ data: makeRecord() });
+    await pending;
+
+    expect(detail.record.value).toBeNull();
     expect(detail.isLoading.value).toBe(false);
   });
 });

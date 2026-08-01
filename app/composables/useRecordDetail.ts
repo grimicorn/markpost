@@ -1,8 +1,16 @@
 import type { RecordResource } from "./useRecords";
 
+const NOT_FOUND_STATUS = 404;
+const RECORD_MISSING_MESSAGE = "Record not found. It may have been removed.";
+const RECORD_LOAD_FAILED_MESSAGE = "Failed to load record. Please try again.";
+
 type RecordDetailResponse = {
   data: RecordResource | null;
 };
+
+function isNotFoundError(error: unknown): boolean {
+  return (error as { statusCode?: number })?.statusCode === NOT_FOUND_STATUS;
+}
 
 export async function fetchRecord(
   uuid: string,
@@ -35,14 +43,20 @@ export function useRecordDetail() {
       }
       record.value = fetched;
       if (!fetched) {
-        loadError.value = "Record not found. It may have been removed.";
+        loadError.value = RECORD_MISSING_MESSAGE;
       }
     } catch (fetchError) {
       if (requestId !== latestRequestId) {
         return;
       }
+      // ofetch throws on non-2xx, so a real 404 lands here, not the null
+      // branch above. Distinguish "removed" from a transient failure.
+      if (isNotFoundError(fetchError)) {
+        loadError.value = RECORD_MISSING_MESSAGE;
+        return;
+      }
       console.error("[useRecordDetail] open error:", fetchError);
-      loadError.value = "Failed to load record. Please try again.";
+      loadError.value = RECORD_LOAD_FAILED_MESSAGE;
     } finally {
       if (requestId === latestRequestId) {
         isLoading.value = false;

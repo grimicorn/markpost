@@ -342,4 +342,15 @@ describe("inbox page", () => {
       query: { record: "kbd-uuid" },
     });
   });
+
+  it("triggers the detail via keyboard when a row receives Space", async () => {
+    recordsRef.value = [makeRecord({ uuid: "kbd-uuid" })];
+    const wrapper = mount(InboxPage, globalConfig);
+    await flushPromises();
+    await wrapper.find(".divide-y > .row").trigger("keydown.space");
+    expect(mockNavigateTo).toHaveBeenCalledWith({
+      path: "/inbox",
+      query: { record: "kbd-uuid" },
+    });
+  });
 });

@@ -97,13 +97,22 @@ describe("RecordDetailModal", () => {
 
   it("emits close when the backdrop is clicked", async () => {
     const wrapper = mountModal();
+    await wrapper.trigger("mousedown");
     await wrapper.trigger("click");
     expect(wrapper.emitted("close")).toBeTruthy();
   });
 
   it("does not emit close when the card is clicked", async () => {
     const wrapper = mountModal();
+    await wrapper.find(".card").trigger("mousedown");
     await wrapper.find(".card").trigger("click");
+    expect(wrapper.emitted("close")).toBeFalsy();
+  });
+
+  it("does not emit close when a drag starts in the card and ends on the backdrop", async () => {
+    const wrapper = mountModal();
+    await wrapper.find(".card").trigger("mousedown");
+    await wrapper.trigger("click");
     expect(wrapper.emitted("close")).toBeFalsy();
   });
 

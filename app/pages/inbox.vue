@@ -265,6 +265,7 @@ import { useRecordDetail } from "~/composables/useRecordDetail";
 
 definePageMeta({ middleware: "auth" });
 
+const INBOX_PATH = "/inbox";
 const RECORD_QUERY_KEY = "record";
 
 const filterOptions = [
@@ -357,7 +358,7 @@ const activeRecordUuid = computed(() => {
 
 function openRecord(record: RecordResource): void {
   navigateTo({
-    path: "/inbox",
+    path: INBOX_PATH,
     query: { ...route.query, [RECORD_QUERY_KEY]: record.attributes.uuid },
   });
 }
@@ -366,7 +367,7 @@ function closeRecordDetail(): void {
   const query = { ...route.query };
   delete query[RECORD_QUERY_KEY];
   // Replace so pressing Back after closing doesn't reopen the modal.
-  navigateTo({ path: "/inbox", query }, { replace: true });
+  navigateTo({ path: INBOX_PATH, query }, { replace: true });
 }
 
 watch(

@@ -12,10 +12,13 @@
       z-index: 60;
       padding: 24px;
     "
-    @click="emit('close')"
+    @mousedown="handleBackdropMousedown"
+    @click="handleBackdropClick"
   >
     <div
+      ref="cardElement"
       class="card"
+      tabindex="-1"
       style="
         width: 640px;
         max-width: 100%;
@@ -23,8 +26,8 @@
         overflow-y: auto;
         box-shadow: var(--sh-pop);
         padding: 24px;
+        outline: none;
       "
-      @click.stop
     >
       <div class="row between" style="margin-bottom: 18px">
         <span class="kicker">record detail</span>
@@ -149,6 +152,25 @@ const emit = defineEmits<{
   close: [];
 }>();
 
+const cardElement = ref<HTMLElement | null>(null);
+let previouslyFocused: HTMLElement | null = null;
+
+// Only dismiss on a click that both started and ended on the backdrop, so a
+// text selection dragged out of the card and released over the overlay doesn't
+// close the modal mid-copy.
+let mousedownOnBackdrop = false;
+
+function handleBackdropMousedown(event: MouseEvent): void {
+  mousedownOnBackdrop = event.target === event.currentTarget;
+}
+
+function handleBackdropClick(event: MouseEvent): void {
+  if (!mousedownOnBackdrop || event.target !== event.currentTarget) {
+    return;
+  }
+  emit("close");
+}
+
 function handleKeydown(event: KeyboardEvent): void {
   if (event.key !== "Escape") {
     return;
@@ -157,11 +179,14 @@ function handleKeydown(event: KeyboardEvent): void {
 }
 
 onMounted(() => {
+  previouslyFocused = document.activeElement as HTMLElement | null;
+  cardElement.value?.focus();
   window.addEventListener("keydown", handleKeydown);
 });
 
 onUnmounted(() => {
   window.removeEventListener("keydown", handleKeydown);
+  previouslyFocused?.focus();
 });
 </script>
 
