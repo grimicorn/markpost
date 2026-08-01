@@ -27,7 +27,7 @@ vi.mock("../../app/composables/useRecords", () => ({
     void isoString;
     return "2m ago";
   },
-  formatSourceLabel: (source: string | null) => source ?? "unknown",
+  formatSourceLabel: (source: string | null) => `label:${source ?? "unknown"}`,
   sourceTypeIcon: () => "zap",
   STATUS_TONE_MAP: { synced: "ok", pending: "warn", error: "err" },
 }));

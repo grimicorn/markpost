@@ -13,6 +13,7 @@
       padding: 24px;
     "
     @mousedown="handleBackdropMousedown"
+    @mouseup="handleBackdropMouseup"
     @click="handleBackdropClick"
   >
     <div
@@ -155,17 +156,22 @@ const emit = defineEmits<{
 const cardElement = ref<HTMLElement | null>(null);
 let previouslyFocused: HTMLElement | null = null;
 
-// Only dismiss on a click that both started and ended on the backdrop, so a
-// text selection dragged out of the card and released over the overlay doesn't
-// close the modal mid-copy.
+// Only dismiss when both the press and the release land on the backdrop, so a
+// text selection dragged between the card and the overlay in either direction
+// doesn't close the modal mid-copy.
 let mousedownOnBackdrop = false;
+let mouseupOnBackdrop = false;
 
 function handleBackdropMousedown(event: MouseEvent): void {
   mousedownOnBackdrop = event.target === event.currentTarget;
 }
 
-function handleBackdropClick(event: MouseEvent): void {
-  if (!mousedownOnBackdrop || event.target !== event.currentTarget) {
+function handleBackdropMouseup(event: MouseEvent): void {
+  mouseupOnBackdrop = event.target === event.currentTarget;
+}
+
+function handleBackdropClick(): void {
+  if (!mousedownOnBackdrop || !mouseupOnBackdrop) {
     return;
   }
   emit("close");

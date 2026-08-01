@@ -114,6 +114,15 @@ describe("useRecordDetail", () => {
     expect(detail.isLoading.value).toBe(false);
   });
 
+  it("treats a rejection carrying a plain status of 404 as not found", async () => {
+    mockFetch.mockRejectedValue({ status: 404 });
+
+    const detail = useRecordDetail();
+    await detail.open("gone");
+
+    expect(detail.loadError.value).toContain("not found");
+  });
+
   it("encodes the uuid in the request path", async () => {
     mockFetch.mockResolvedValue({ data: null });
 

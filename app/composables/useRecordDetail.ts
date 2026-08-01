@@ -9,7 +9,14 @@ type RecordDetailResponse = {
 };
 
 function isNotFoundError(error: unknown): boolean {
-  return (error as { statusCode?: number })?.statusCode === NOT_FOUND_STATUS;
+  const candidate = error as {
+    statusCode?: number;
+    status?: number;
+    response?: { status?: number };
+  };
+  const status =
+    candidate?.statusCode ?? candidate?.status ?? candidate?.response?.status;
+  return status === NOT_FOUND_STATUS;
 }
 
 export async function fetchRecord(

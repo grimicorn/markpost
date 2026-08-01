@@ -157,6 +157,7 @@
               class="row"
               role="button"
               tabindex="0"
+              :aria-label="`Open record ${record.attributes.title}`"
               style="
                 padding: 13px 18px;
                 cursor: pointer;
@@ -357,7 +358,7 @@ const activeRecordUuid = computed(() => {
 });
 
 function openRecord(record: RecordResource): void {
-  navigateTo({
+  void navigateTo({
     path: INBOX_PATH,
     query: { ...route.query, [RECORD_QUERY_KEY]: record.attributes.uuid },
   });
@@ -367,7 +368,7 @@ function closeRecordDetail(): void {
   const query = { ...route.query };
   delete query[RECORD_QUERY_KEY];
   // Replace so pressing Back after closing doesn't reopen the modal.
-  navigateTo({ path: INBOX_PATH, query }, { replace: true });
+  void navigateTo({ path: INBOX_PATH, query }, { replace: true });
 }
 
 watch(

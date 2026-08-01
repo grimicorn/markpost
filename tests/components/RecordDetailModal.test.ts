@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 
 import RecordDetailModal from "../../app/components/RecordDetailModal.vue";
@@ -98,6 +98,7 @@ describe("RecordDetailModal", () => {
   it("emits close when the backdrop is clicked", async () => {
     const wrapper = mountModal();
     await wrapper.trigger("mousedown");
+    await wrapper.trigger("mouseup");
     await wrapper.trigger("click");
     expect(wrapper.emitted("close")).toBeTruthy();
   });
@@ -105,6 +106,7 @@ describe("RecordDetailModal", () => {
   it("does not emit close when the card is clicked", async () => {
     const wrapper = mountModal();
     await wrapper.find(".card").trigger("mousedown");
+    await wrapper.find(".card").trigger("mouseup");
     await wrapper.find(".card").trigger("click");
     expect(wrapper.emitted("close")).toBeFalsy();
   });
@@ -112,8 +114,37 @@ describe("RecordDetailModal", () => {
   it("does not emit close when a drag starts in the card and ends on the backdrop", async () => {
     const wrapper = mountModal();
     await wrapper.find(".card").trigger("mousedown");
+    await wrapper.trigger("mouseup");
     await wrapper.trigger("click");
     expect(wrapper.emitted("close")).toBeFalsy();
+  });
+
+  it("does not emit close when a drag starts on the backdrop and ends in the card", async () => {
+    const wrapper = mountModal();
+    await wrapper.trigger("mousedown");
+    await wrapper.find(".card").trigger("mouseup");
+    await wrapper.trigger("click");
+    expect(wrapper.emitted("close")).toBeFalsy();
+  });
+
+  it("stops listening for Escape and restores focus after unmount", async () => {
+    const opener = document.createElement("button");
+    document.body.appendChild(opener);
+    opener.focus();
+
+    const wrapper = mount(RecordDetailModal, {
+      attachTo: document.body,
+      props: { record: makeRecord(), isLoading: false, loadError: null },
+      global: { stubs },
+    });
+
+    wrapper.unmount();
+    expect(document.activeElement).toBe(opener);
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    expect(wrapper.emitted("close")).toBeFalsy();
+
+    opener.remove();
   });
 
   it("emits close when Escape is pressed", async () => {
