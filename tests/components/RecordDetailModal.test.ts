@@ -101,6 +101,24 @@ describe("RecordDetailModal", () => {
     expect(wrapper.emitted("close")).toBeTruthy();
   });
 
+  it("does not emit close when the card is clicked", async () => {
+    const wrapper = mountModal();
+    await wrapper.find(".card").trigger("click");
+    expect(wrapper.emitted("close")).toBeFalsy();
+  });
+
+  it("emits close when Escape is pressed", async () => {
+    const wrapper = mountModal();
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    expect(wrapper.emitted("close")).toBeTruthy();
+  });
+
+  it("ignores non-Escape keys", async () => {
+    const wrapper = mountModal();
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+    expect(wrapper.emitted("close")).toBeFalsy();
+  });
+
   it("matches the snapshot for a loaded record", () => {
     const wrapper = mountModal();
     expect(wrapper.html()).toMatchSnapshot();

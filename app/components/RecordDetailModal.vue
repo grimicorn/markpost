@@ -1,5 +1,8 @@
 <template>
   <div
+    role="dialog"
+    aria-modal="true"
+    aria-label="Record detail"
     style="
       position: fixed;
       inset: 0;
@@ -132,6 +135,7 @@ import {
   formatRelativeTime,
   formatSourceLabel,
   sourceTypeIcon,
+  STATUS_TONE_MAP,
   type RecordResource,
 } from "~/composables/useRecords";
 
@@ -145,14 +149,20 @@ const emit = defineEmits<{
   close: [];
 }>();
 
-const STATUS_TONE_MAP: Record<
-  string,
-  "" | "ok" | "warn" | "err" | "info" | "accent"
-> = {
-  synced: "ok",
-  pending: "warn",
-  error: "err",
-};
+function handleKeydown(event: KeyboardEvent): void {
+  if (event.key !== "Escape") {
+    return;
+  }
+  emit("close");
+}
+
+onMounted(() => {
+  window.addEventListener("keydown", handleKeydown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("keydown", handleKeydown);
+});
 </script>
 
 <style scoped>

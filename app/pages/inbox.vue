@@ -155,12 +155,16 @@
               v-for="record in records"
               :key="record.id"
               class="row"
+              role="button"
+              tabindex="0"
               style="
                 padding: 13px 18px;
                 cursor: pointer;
                 transition: background 0.1s;
               "
               @click="openRecord(record)"
+              @keydown.enter="openRecord(record)"
+              @keydown.space.prevent="openRecord(record)"
               @mouseenter="
                 ($event.currentTarget as HTMLElement).style.background =
                   'var(--bg-2)'
@@ -253,6 +257,7 @@ import {
   formatRelativeTime,
   formatSourceLabel,
   sourceTypeIcon,
+  STATUS_TONE_MAP,
   type RecordResource,
   type RecordStats,
 } from "~/composables/useRecords";
@@ -261,15 +266,6 @@ import { useRecordDetail } from "~/composables/useRecordDetail";
 definePageMeta({ middleware: "auth" });
 
 const RECORD_QUERY_KEY = "record";
-
-const STATUS_TONE_MAP: Record<
-  string,
-  "" | "ok" | "warn" | "err" | "info" | "accent"
-> = {
-  synced: "ok",
-  pending: "warn",
-  error: "err",
-};
 
 const filterOptions = [
   { value: "all", label: "all" },
@@ -360,11 +356,17 @@ const activeRecordUuid = computed(() => {
 });
 
 function openRecord(record: RecordResource): void {
-  navigateTo(`/inbox?${RECORD_QUERY_KEY}=${record.attributes.uuid}`);
+  navigateTo({
+    path: "/inbox",
+    query: { ...route.query, [RECORD_QUERY_KEY]: record.attributes.uuid },
+  });
 }
 
 function closeRecordDetail(): void {
-  navigateTo("/inbox");
+  const query = { ...route.query };
+  delete query[RECORD_QUERY_KEY];
+  // Replace so pressing Back after closing doesn't reopen the modal.
+  navigateTo({ path: "/inbox", query }, { replace: true });
 }
 
 watch(

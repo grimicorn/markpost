@@ -5,8 +5,42 @@ vi.stubGlobal("$fetch", mockFetch);
 
 import {
   formatRelativeTime,
+  formatSourceLabel,
+  sourceTypeIcon,
   fetchRecordStats,
 } from "../../app/composables/useRecords";
+
+describe("sourceTypeIcon", () => {
+  it("returns the mail icon for email sources", () => {
+    expect(sourceTypeIcon("email/inbound/gmail")).toBe("mail");
+  });
+
+  it("returns the zap icon for non-email sources", () => {
+    expect(sourceTypeIcon("webhook/github")).toBe("zap");
+  });
+
+  it("returns the zap icon for a null source", () => {
+    expect(sourceTypeIcon(null)).toBe("zap");
+  });
+});
+
+describe("formatSourceLabel", () => {
+  it("returns 'unknown' for a null source", () => {
+    expect(formatSourceLabel(null)).toBe("unknown");
+  });
+
+  it("returns the source unchanged when it has no slash", () => {
+    expect(formatSourceLabel("webhook")).toBe("webhook");
+  });
+
+  it("drops the type prefix for a single-slash source", () => {
+    expect(formatSourceLabel("webhook/github")).toBe("github");
+  });
+
+  it("joins remaining segments with a middot for a multi-slash source", () => {
+    expect(formatSourceLabel("email/inbound/gmail")).toBe("inbound · gmail");
+  });
+});
 
 describe("formatRelativeTime", () => {
   beforeEach(() => {

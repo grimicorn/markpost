@@ -98,6 +98,14 @@ export async function fetchRecordStats(): Promise<RecordStats | null> {
   }
 }
 
+export type BadgeTone = "" | "ok" | "warn" | "err" | "info" | "accent";
+
+export const STATUS_TONE_MAP: Record<string, BadgeTone> = {
+  synced: "ok",
+  pending: "warn",
+  error: "err",
+};
+
 export function sourceTypeIcon(source: string | null): string {
   if (!source) {
     return "zap";

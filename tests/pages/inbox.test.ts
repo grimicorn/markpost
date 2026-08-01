@@ -29,6 +29,7 @@ vi.mock("../../app/composables/useRecords", () => ({
   },
   formatSourceLabel: (source: string | null) => source ?? "unknown",
   sourceTypeIcon: () => "zap",
+  STATUS_TONE_MAP: { synced: "ok", pending: "warn", error: "err" },
 }));
 
 const detailRecordRef = ref<object | null>(null);
@@ -48,7 +49,13 @@ vi.mock("../../app/composables/useRecordDetail", () => ({
 }));
 
 const routeQueryRef = ref<Record<string, string>>({});
-vi.stubGlobal("useRoute", () => ({ query: routeQueryRef.value }));
+vi.stubGlobal("useRoute", () =>
+  reactive({
+    get query() {
+      return routeQueryRef.value;
+    },
+  }),
+);
 const mockNavigateTo = vi.fn();
 vi.stubGlobal("navigateTo", mockNavigateTo);
 
@@ -248,7 +255,10 @@ describe("inbox page", () => {
     const wrapper = mount(InboxPage, globalConfig);
     await flushPromises();
     await wrapper.find(".divide-y > .row").trigger("click");
-    expect(mockNavigateTo).toHaveBeenCalledWith("/inbox?record=row-uuid");
+    expect(mockNavigateTo).toHaveBeenCalledWith({
+      path: "/inbox",
+      query: { record: "row-uuid" },
+    });
   });
 
   it("opens the detail for the record query param on mount", async () => {
@@ -278,11 +288,58 @@ describe("inbox page", () => {
     expect(wrapper.find(".record-detail-modal").exists()).toBe(false);
   });
 
-  it("navigates back to /inbox when the detail modal is closed", async () => {
-    routeQueryRef.value = { record: "query-uuid" };
+  it("navigates back to /inbox without the record param when closed", async () => {
+    routeQueryRef.value = { record: "query-uuid", filter: "errors" };
     const wrapper = mount(InboxPage, globalConfig);
     await flushPromises();
     await wrapper.find(".record-detail-modal").trigger("click");
-    expect(mockNavigateTo).toHaveBeenCalledWith("/inbox");
+    expect(mockNavigateTo).toHaveBeenCalledWith(
+      { path: "/inbox", query: { filter: "errors" } },
+      { replace: true },
+    );
+  });
+
+  it("preserves existing query params when opening a record", async () => {
+    routeQueryRef.value = { filter: "errors" };
+    recordsRef.value = [makeRecord({ uuid: "row-uuid" })];
+    const wrapper = mount(InboxPage, globalConfig);
+    await flushPromises();
+    await wrapper.find(".divide-y > .row").trigger("click");
+    expect(mockNavigateTo).toHaveBeenCalledWith({
+      path: "/inbox",
+      query: { filter: "errors", record: "row-uuid" },
+    });
+  });
+
+  it("opens the detail when the record query param changes after mount", async () => {
+    mount(InboxPage, globalConfig);
+    await flushPromises();
+    expect(mockOpenDetail).not.toHaveBeenCalled();
+
+    routeQueryRef.value = { record: "late-uuid" };
+    await flushPromises();
+    expect(mockOpenDetail).toHaveBeenCalledWith("late-uuid");
+  });
+
+  it("closes the detail when the record query param is cleared after mount", async () => {
+    routeQueryRef.value = { record: "query-uuid" };
+    mount(InboxPage, globalConfig);
+    await flushPromises();
+    mockCloseDetail.mockClear();
+
+    routeQueryRef.value = {};
+    await flushPromises();
+    expect(mockCloseDetail).toHaveBeenCalled();
+  });
+
+  it("triggers the detail via keyboard when a row receives Enter", async () => {
+    recordsRef.value = [makeRecord({ uuid: "kbd-uuid" })];
+    const wrapper = mount(InboxPage, globalConfig);
+    await flushPromises();
+    await wrapper.find(".divide-y > .row").trigger("keydown.enter");
+    expect(mockNavigateTo).toHaveBeenCalledWith({
+      path: "/inbox",
+      query: { record: "kbd-uuid" },
+    });
   });
 });

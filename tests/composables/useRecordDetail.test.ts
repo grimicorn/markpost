@@ -101,6 +101,35 @@ describe("useRecordDetail", () => {
     expect(detail.isLoading.value).toBe(false);
   });
 
+  it("encodes the uuid in the request path", async () => {
+    mockFetch.mockResolvedValue({ data: null });
+
+    await fetchRecord("a/b?c");
+
+    expect(mockFetch).toHaveBeenCalledWith("/api/records/a%2Fb%3Fc");
+  });
+
+  it("drops a stale response when a newer open supersedes it", async () => {
+    const slowRecord = makeRecord({ uuid: "slow" });
+    const fastRecord = makeRecord({ uuid: "fast" });
+
+    let resolveSlow: (value: unknown) => void = () => {};
+    const slowPromise = new Promise((resolve) => {
+      resolveSlow = resolve;
+    });
+    mockFetch.mockReturnValueOnce(slowPromise);
+    mockFetch.mockResolvedValueOnce({ data: fastRecord });
+
+    const detail = useRecordDetail();
+    const slowOpen = detail.open("slow");
+    await detail.open("fast");
+
+    resolveSlow({ data: slowRecord });
+    await slowOpen;
+
+    expect(detail.record.value).toEqual(fastRecord);
+  });
+
   it("resets state on close", async () => {
     const record = makeRecord();
     mockFetch.mockResolvedValue({ data: record });
