@@ -155,11 +155,17 @@
               v-for="record in records"
               :key="record.id"
               class="row"
+              role="button"
+              tabindex="0"
+              :aria-label="`Open record ${record.attributes.title}`"
               style="
                 padding: 13px 18px;
                 cursor: pointer;
                 transition: background 0.1s;
               "
+              @click="openRecord(record)"
+              @keydown.enter="openRecord(record)"
+              @keydown.space.prevent="openRecord(record)"
               @mouseenter="
                 ($event.currentTarget as HTMLElement).style.background =
                   'var(--bg-2)'
@@ -234,6 +240,14 @@
         </div>
       </template>
     </div>
+
+    <RecordDetailModal
+      v-if="activeRecordUuid"
+      :record="detailRecord"
+      :is-loading="isDetailLoading"
+      :load-error="detailError"
+      @close="closeRecordDetail"
+    />
   </TheAppShell>
 </template>
 
@@ -242,19 +256,18 @@ import {
   useRecords,
   fetchRecordStats,
   formatRelativeTime,
+  formatSourceLabel,
+  sourceTypeIcon,
+  STATUS_TONE_MAP,
+  type RecordResource,
   type RecordStats,
 } from "~/composables/useRecords";
+import { useRecordDetail } from "~/composables/useRecordDetail";
 
 definePageMeta({ middleware: "auth" });
 
-const STATUS_TONE_MAP: Record<
-  string,
-  "" | "ok" | "warn" | "err" | "info" | "accent"
-> = {
-  synced: "ok",
-  pending: "warn",
-  error: "err",
-};
+const INBOX_PATH = "/inbox";
+const RECORD_QUERY_KEY = "record";
 
 const filterOptions = [
   { value: "all", label: "all" },
@@ -302,31 +315,6 @@ const statsDisplay = computed(() => [
   },
 ]);
 
-function sourceTypeIcon(source: string | null): string {
-  if (!source) {
-    return "zap";
-  }
-
-  if (source.startsWith("email/")) {
-    return "mail";
-  }
-
-  return "zap";
-}
-
-function formatSourceLabel(source: string | null): string {
-  if (!source) {
-    return "unknown";
-  }
-
-  const slashIndex = source.indexOf("/");
-  if (slashIndex === -1) {
-    return source;
-  }
-
-  return source.slice(slashIndex + 1).replaceAll("/", " · ");
-}
-
 async function refreshStats(): Promise<void> {
   const fetchedStats = await fetchRecordStats();
   if (fetchedStats !== null) {
@@ -351,6 +339,49 @@ async function syncNow(): Promise<void> {
     isSyncing.value = false;
   }
 }
+
+const route = useRoute();
+const {
+  record: detailRecord,
+  isLoading: isDetailLoading,
+  loadError: detailError,
+  open: openDetail,
+  close: closeDetail,
+} = useRecordDetail();
+
+const activeRecordUuid = computed(() => {
+  const value = route.query[RECORD_QUERY_KEY];
+  if (typeof value !== "string" || value.length === 0) {
+    return null;
+  }
+  return value;
+});
+
+function openRecord(record: RecordResource): void {
+  void navigateTo({
+    path: INBOX_PATH,
+    query: { ...route.query, [RECORD_QUERY_KEY]: record.attributes.uuid },
+  });
+}
+
+function closeRecordDetail(): void {
+  const query = { ...route.query };
+  delete query[RECORD_QUERY_KEY];
+  // Replace so pressing Back after closing doesn't reopen the modal.
+  void navigateTo({ path: INBOX_PATH, query }, { replace: true });
+}
+
+watch(
+  activeRecordUuid,
+  (uuid) => {
+    if (!uuid) {
+      closeDetail();
+      return;
+    }
+    void openDetail(uuid);
+  },
+  { immediate: true },
+);
 
 onMounted(async () => {
   await Promise.all([loadRecords(), refreshStats()]);

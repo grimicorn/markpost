@@ -27,7 +27,37 @@ vi.mock("../../app/composables/useRecords", () => ({
     void isoString;
     return "2m ago";
   },
+  formatSourceLabel: (source: string | null) => `label:${source ?? "unknown"}`,
+  sourceTypeIcon: () => "zap",
+  STATUS_TONE_MAP: { synced: "ok", pending: "warn", error: "err" },
 }));
+
+const detailRecordRef = ref<object | null>(null);
+const detailLoadingRef = ref(false);
+const detailErrorRef = ref<string | null>(null);
+const mockOpenDetail = vi.fn();
+const mockCloseDetail = vi.fn();
+
+vi.mock("../../app/composables/useRecordDetail", () => ({
+  useRecordDetail: () => ({
+    record: detailRecordRef,
+    isLoading: detailLoadingRef,
+    loadError: detailErrorRef,
+    open: mockOpenDetail,
+    close: mockCloseDetail,
+  }),
+}));
+
+const routeQueryRef = ref<Record<string, string>>({});
+vi.stubGlobal("useRoute", () =>
+  reactive({
+    get query() {
+      return routeQueryRef.value;
+    },
+  }),
+);
+const mockNavigateTo = vi.fn();
+vi.stubGlobal("navigateTo", mockNavigateTo);
 
 import InboxPage from "../../app/pages/inbox.vue";
 
@@ -55,6 +85,12 @@ const globalConfig = {
         template: "<div />",
         props: ["modelValue", "options"],
         emits: ["update:modelValue"],
+      },
+      RecordDetailModal: {
+        template:
+          '<div class="record-detail-modal" @click="$emit(\'close\')" />',
+        props: ["record", "isLoading", "loadError"],
+        emits: ["close"],
       },
     },
   },
@@ -96,6 +132,13 @@ describe("inbox page", () => {
     mockLoadRecords.mockResolvedValue(undefined);
     mockFetchRecordStats.mockReset();
     mockFetchRecordStats.mockResolvedValue(defaultStats);
+    detailRecordRef.value = null;
+    detailLoadingRef.value = false;
+    detailErrorRef.value = null;
+    routeQueryRef.value = {};
+    mockOpenDetail.mockReset();
+    mockCloseDetail.mockReset();
+    mockNavigateTo.mockReset();
   });
 
   it("calls loadRecords on mount", async () => {
@@ -205,5 +248,109 @@ describe("inbox page", () => {
     const wrapper = mount(InboxPage, globalConfig);
     await flushPromises();
     expect(wrapper.text()).toContain("—");
+  });
+
+  it("navigates to the record query param when a row is clicked", async () => {
+    recordsRef.value = [makeRecord({ uuid: "row-uuid" })];
+    const wrapper = mount(InboxPage, globalConfig);
+    await flushPromises();
+    await wrapper.find(".divide-y > .row").trigger("click");
+    expect(mockNavigateTo).toHaveBeenCalledWith({
+      path: "/inbox",
+      query: { record: "row-uuid" },
+    });
+  });
+
+  it("opens the detail for the record query param on mount", async () => {
+    routeQueryRef.value = { record: "query-uuid" };
+    mount(InboxPage, globalConfig);
+    await flushPromises();
+    expect(mockOpenDetail).toHaveBeenCalledWith("query-uuid");
+  });
+
+  it("does not open the detail when no record query param is present", async () => {
+    mount(InboxPage, globalConfig);
+    await flushPromises();
+    expect(mockOpenDetail).not.toHaveBeenCalled();
+    expect(mockCloseDetail).toHaveBeenCalled();
+  });
+
+  it("renders the detail modal when a record query param is present", async () => {
+    routeQueryRef.value = { record: "query-uuid" };
+    const wrapper = mount(InboxPage, globalConfig);
+    await flushPromises();
+    expect(wrapper.find(".record-detail-modal").exists()).toBe(true);
+  });
+
+  it("does not render the detail modal without a record query param", async () => {
+    const wrapper = mount(InboxPage, globalConfig);
+    await flushPromises();
+    expect(wrapper.find(".record-detail-modal").exists()).toBe(false);
+  });
+
+  it("navigates back to /inbox without the record param when closed", async () => {
+    routeQueryRef.value = { record: "query-uuid", filter: "errors" };
+    const wrapper = mount(InboxPage, globalConfig);
+    await flushPromises();
+    await wrapper.find(".record-detail-modal").trigger("click");
+    expect(mockNavigateTo).toHaveBeenCalledWith(
+      { path: "/inbox", query: { filter: "errors" } },
+      { replace: true },
+    );
+  });
+
+  it("preserves existing query params when opening a record", async () => {
+    routeQueryRef.value = { filter: "errors" };
+    recordsRef.value = [makeRecord({ uuid: "row-uuid" })];
+    const wrapper = mount(InboxPage, globalConfig);
+    await flushPromises();
+    await wrapper.find(".divide-y > .row").trigger("click");
+    expect(mockNavigateTo).toHaveBeenCalledWith({
+      path: "/inbox",
+      query: { filter: "errors", record: "row-uuid" },
+    });
+  });
+
+  it("opens the detail when the record query param changes after mount", async () => {
+    mount(InboxPage, globalConfig);
+    await flushPromises();
+    expect(mockOpenDetail).not.toHaveBeenCalled();
+
+    routeQueryRef.value = { record: "late-uuid" };
+    await flushPromises();
+    expect(mockOpenDetail).toHaveBeenCalledWith("late-uuid");
+  });
+
+  it("closes the detail when the record query param is cleared after mount", async () => {
+    routeQueryRef.value = { record: "query-uuid" };
+    mount(InboxPage, globalConfig);
+    await flushPromises();
+    mockCloseDetail.mockClear();
+
+    routeQueryRef.value = {};
+    await flushPromises();
+    expect(mockCloseDetail).toHaveBeenCalled();
+  });
+
+  it("triggers the detail via keyboard when a row receives Enter", async () => {
+    recordsRef.value = [makeRecord({ uuid: "kbd-uuid" })];
+    const wrapper = mount(InboxPage, globalConfig);
+    await flushPromises();
+    await wrapper.find(".divide-y > .row").trigger("keydown.enter");
+    expect(mockNavigateTo).toHaveBeenCalledWith({
+      path: "/inbox",
+      query: { record: "kbd-uuid" },
+    });
+  });
+
+  it("triggers the detail via keyboard when a row receives Space", async () => {
+    recordsRef.value = [makeRecord({ uuid: "kbd-uuid" })];
+    const wrapper = mount(InboxPage, globalConfig);
+    await flushPromises();
+    await wrapper.find(".divide-y > .row").trigger("keydown.space");
+    expect(mockNavigateTo).toHaveBeenCalledWith({
+      path: "/inbox",
+      query: { record: "kbd-uuid" },
+    });
   });
 });
