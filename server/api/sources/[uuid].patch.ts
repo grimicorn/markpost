@@ -110,7 +110,7 @@ export default defineEventHandler(async (event): Promise<SourceApiResponse> => {
     const attributes = body?.data?.attributes ?? {};
 
     if (attributes.routeFolder !== undefined) {
-      assertValidRouteFolder(attributes.routeFolder);
+      attributes.routeFolder = assertValidRouteFolder(attributes.routeFolder);
     }
 
     const payload = buildUpdatePayload(attributes);

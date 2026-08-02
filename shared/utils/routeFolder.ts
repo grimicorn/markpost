@@ -4,7 +4,9 @@
 // sync directory or point at an absolute location, so this contract rejects
 // traversal, absolute paths, and filesystem-hazardous characters. This is the
 // one place POST (server/api/sources/index.post.ts) and PATCH
-// (server/api/sources/[uuid].patch.ts) share so their rules can't drift.
+// (server/api/sources/[uuid].patch.ts) share so their safety rules can't drift.
+// Presence/required is still enforced separately on POST (routeFolder is
+// mandatory at creation but an optional field on PATCH).
 //
 // Scope: this validates values at write time only. Rows written before this
 // existed, and the CLI's own read path, are not covered here.
@@ -28,8 +30,9 @@ const TRAVERSAL_SEGMENT = /^\.{2,}$/;
 
 // Windows reserved device names. Writing to "CON", "NUL", "COM1", etc. (any
 // case, with or without an extension) targets a character device rather than a
-// file, so reject them as path components.
-const RESERVED_SEGMENT = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i;
+// file, so reject them as path components. Windows also treats the superscript
+// digits (COM¹/COM²/COM³) as their ASCII equivalents, so those are covered too.
+const RESERVED_SEGMENT = /^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(\.|$)/i;
 
 export type RouteFolderViolation =
   | "not-a-string"

@@ -37,15 +37,17 @@ function routeFolderError(violation: RouteFolderViolation): ApiError {
 }
 
 // Throws a 422 ApiError when routeFolder is not a safe relative path — the sole
-// routeFolder validation for both POST and PATCH, including the string-type
-// check, so the two endpoints can't drift.
-export function assertValidRouteFolder(value: unknown): void {
+// routeFolder safety validation for both POST and PATCH, including the
+// string-type check, so the two endpoints can't drift. Returns the NFC-
+// normalized value so callers persist exactly what was validated (an NFD input
+// would otherwise be stored with a combining mark the charset rule forbids).
+export function assertValidRouteFolder(value: unknown): string {
   if (typeof value !== "string") {
     throw routeFolderError("not-a-string");
   }
   const violation = routeFolderViolation(value);
-  if (violation === null) {
-    return;
+  if (violation !== null) {
+    throw routeFolderError(violation);
   }
-  throw routeFolderError(violation);
+  return value.normalize("NFC");
 }

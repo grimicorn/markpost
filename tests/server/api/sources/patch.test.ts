@@ -54,6 +54,22 @@ function stubUpdateResult(rows: unknown[]) {
   return { set, where, returning };
 }
 
+function expectRouteFolderError(detail: string) {
+  expect(mockCreateError).toHaveBeenCalledWith({
+    statusCode: 422,
+    data: {
+      errors: [
+        {
+          status: "422",
+          title: "Invalid Attribute",
+          detail,
+          source: { pointer: "/data/attributes/routeFolder" },
+        },
+      ],
+    },
+  });
+}
+
 beforeEach(() => {
   vi.stubGlobal("createError", mockCreateError);
   vi.stubGlobal("readBody", mockReadBody);
@@ -196,19 +212,7 @@ describe("PATCH /api/sources/:uuid", () => {
     await expect(handler(buildEvent(userId))).rejects.toMatchObject({
       statusCode: 422,
     });
-    expect(mockCreateError).toHaveBeenCalledWith({
-      statusCode: 422,
-      data: {
-        errors: [
-          {
-            status: "422",
-            title: "Invalid Attribute",
-            detail: "RouteFolder must be a string",
-            source: { pointer: "/data/attributes/routeFolder" },
-          },
-        ],
-      },
-    });
+    expectRouteFolderError("RouteFolder must be a string");
   });
 
   it("throws 422 when routeFolder contains path traversal", async () => {
@@ -218,19 +222,9 @@ describe("PATCH /api/sources/:uuid", () => {
     await expect(handler(buildEvent(userId))).rejects.toMatchObject({
       statusCode: 422,
     });
-    expect(mockCreateError).toHaveBeenCalledWith({
-      statusCode: 422,
-      data: {
-        errors: [
-          {
-            status: "422",
-            title: "Invalid Attribute",
-            detail: "RouteFolder must not contain path traversal segments (..)",
-            source: { pointer: "/data/attributes/routeFolder" },
-          },
-        ],
-      },
-    });
+    expectRouteFolderError(
+      "RouteFolder must not contain path traversal segments (..)",
+    );
   });
 
   it("throws 422 when routeFolder has a leading slash (absolute path)", async () => {
@@ -240,20 +234,9 @@ describe("PATCH /api/sources/:uuid", () => {
     await expect(handler(buildEvent(userId))).rejects.toMatchObject({
       statusCode: 422,
     });
-    expect(mockCreateError).toHaveBeenCalledWith({
-      statusCode: 422,
-      data: {
-        errors: [
-          {
-            status: "422",
-            title: "Invalid Attribute",
-            detail:
-              "RouteFolder must be a relative path — no leading slash or backslash",
-            source: { pointer: "/data/attributes/routeFolder" },
-          },
-        ],
-      },
-    });
+    expectRouteFolderError(
+      "RouteFolder must be a relative path — no leading slash or backslash",
+    );
   });
 
   it("throws 422 when routeFolder contains hazardous characters", async () => {
@@ -263,20 +246,9 @@ describe("PATCH /api/sources/:uuid", () => {
     await expect(handler(buildEvent(userId))).rejects.toMatchObject({
       statusCode: 422,
     });
-    expect(mockCreateError).toHaveBeenCalledWith({
-      statusCode: 422,
-      data: {
-        errors: [
-          {
-            status: "422",
-            title: "Invalid Attribute",
-            detail:
-              "RouteFolder may only contain letters, numbers, spaces, and . _ - /",
-            source: { pointer: "/data/attributes/routeFolder" },
-          },
-        ],
-      },
-    });
+    expectRouteFolderError(
+      "RouteFolder may only contain letters, numbers, spaces, and . _ - /",
+    );
   });
 
   it("throws 422 when a routeFolder segment is padded with whitespace", async () => {
@@ -286,20 +258,9 @@ describe("PATCH /api/sources/:uuid", () => {
     await expect(handler(buildEvent(userId))).rejects.toMatchObject({
       statusCode: 422,
     });
-    expect(mockCreateError).toHaveBeenCalledWith({
-      statusCode: 422,
-      data: {
-        errors: [
-          {
-            status: "422",
-            title: "Invalid Attribute",
-            detail:
-              "RouteFolder path segments must not be empty, padded with whitespace, or end in a dot",
-            source: { pointer: "/data/attributes/routeFolder" },
-          },
-        ],
-      },
-    });
+    expectRouteFolderError(
+      "RouteFolder path segments must not be empty, padded with whitespace, or end in a dot",
+    );
   });
 
   it("throws 422 when routeFolder is an empty string", async () => {
@@ -309,19 +270,7 @@ describe("PATCH /api/sources/:uuid", () => {
     await expect(handler(buildEvent(userId))).rejects.toMatchObject({
       statusCode: 422,
     });
-    expect(mockCreateError).toHaveBeenCalledWith({
-      statusCode: 422,
-      data: {
-        errors: [
-          {
-            status: "422",
-            title: "Invalid Attribute",
-            detail: "RouteFolder must not be empty",
-            source: { pointer: "/data/attributes/routeFolder" },
-          },
-        ],
-      },
-    });
+    expectRouteFolderError("RouteFolder must not be empty");
   });
 
   it("accepts a legitimate nested routeFolder", async () => {

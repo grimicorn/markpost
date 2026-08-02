@@ -63,6 +63,22 @@ function stubInsertResult(rows: unknown[]) {
   return { values, returning };
 }
 
+function expectRouteFolderError(detail: string) {
+  expect(mockCreateError).toHaveBeenCalledWith({
+    statusCode: 422,
+    data: {
+      errors: [
+        {
+          status: "422",
+          title: "Invalid Attribute",
+          detail,
+          source: { pointer: "/data/attributes/routeFolder" },
+        },
+      ],
+    },
+  });
+}
+
 beforeEach(() => {
   vi.stubGlobal("createError", mockCreateError);
   vi.stubGlobal("readBody", mockReadBody);
@@ -171,19 +187,7 @@ describe("POST /api/sources", () => {
     await expect(handler(buildEvent(userId))).rejects.toMatchObject({
       statusCode: 422,
     });
-    expect(mockCreateError).toHaveBeenCalledWith({
-      statusCode: 422,
-      data: {
-        errors: [
-          {
-            status: "422",
-            title: "Invalid Attribute",
-            detail: "RouteFolder is required",
-            source: { pointer: "/data/attributes/routeFolder" },
-          },
-        ],
-      },
-    });
+    expectRouteFolderError("RouteFolder is required");
   });
 
   it("throws 422 when routeFolder contains path traversal", async () => {
@@ -198,19 +202,9 @@ describe("POST /api/sources", () => {
     await expect(handler(buildEvent(userId))).rejects.toMatchObject({
       statusCode: 422,
     });
-    expect(mockCreateError).toHaveBeenCalledWith({
-      statusCode: 422,
-      data: {
-        errors: [
-          {
-            status: "422",
-            title: "Invalid Attribute",
-            detail: "RouteFolder must not contain path traversal segments (..)",
-            source: { pointer: "/data/attributes/routeFolder" },
-          },
-        ],
-      },
-    });
+    expectRouteFolderError(
+      "RouteFolder must not contain path traversal segments (..)",
+    );
   });
 
   it("throws 422 when routeFolder is an absolute path", async () => {
@@ -225,20 +219,9 @@ describe("POST /api/sources", () => {
     await expect(handler(buildEvent(userId))).rejects.toMatchObject({
       statusCode: 422,
     });
-    expect(mockCreateError).toHaveBeenCalledWith({
-      statusCode: 422,
-      data: {
-        errors: [
-          {
-            status: "422",
-            title: "Invalid Attribute",
-            detail:
-              "RouteFolder must be a relative path — no leading slash or backslash",
-            source: { pointer: "/data/attributes/routeFolder" },
-          },
-        ],
-      },
-    });
+    expectRouteFolderError(
+      "RouteFolder must be a relative path — no leading slash or backslash",
+    );
   });
 
   it("throws 422 when routeFolder contains hazardous characters", async () => {
@@ -253,20 +236,9 @@ describe("POST /api/sources", () => {
     await expect(handler(buildEvent(userId))).rejects.toMatchObject({
       statusCode: 422,
     });
-    expect(mockCreateError).toHaveBeenCalledWith({
-      statusCode: 422,
-      data: {
-        errors: [
-          {
-            status: "422",
-            title: "Invalid Attribute",
-            detail:
-              "RouteFolder may only contain letters, numbers, spaces, and . _ - /",
-            source: { pointer: "/data/attributes/routeFolder" },
-          },
-        ],
-      },
-    });
+    expectRouteFolderError(
+      "RouteFolder may only contain letters, numbers, spaces, and . _ - /",
+    );
   });
 
   it("accepts a legitimate nested routeFolder", async () => {
@@ -296,19 +268,7 @@ describe("POST /api/sources", () => {
     await expect(handler(buildEvent(userId))).rejects.toMatchObject({
       statusCode: 422,
     });
-    expect(mockCreateError).toHaveBeenCalledWith({
-      statusCode: 422,
-      data: {
-        errors: [
-          {
-            status: "422",
-            title: "Invalid Attribute",
-            detail: "RouteFolder must not be empty",
-            source: { pointer: "/data/attributes/routeFolder" },
-          },
-        ],
-      },
-    });
+    expectRouteFolderError("RouteFolder must not be empty");
   });
 
   it("throws 422 when routeFolder exceeds the max length", async () => {
@@ -323,19 +283,44 @@ describe("POST /api/sources", () => {
     await expect(handler(buildEvent(userId))).rejects.toMatchObject({
       statusCode: 422,
     });
-    expect(mockCreateError).toHaveBeenCalledWith({
+    expectRouteFolderError("RouteFolder must be at most 255 characters");
+  });
+
+  it("throws 422 when a routeFolder segment is a reserved device name", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        type: "webhook",
+        name: "My Webhook",
+        routeFolder: "notes/CON",
+      }),
+    );
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
       statusCode: 422,
-      data: {
-        errors: [
-          {
-            status: "422",
-            title: "Invalid Attribute",
-            detail: "RouteFolder must be at most 255 characters",
-            source: { pointer: "/data/attributes/routeFolder" },
-          },
-        ],
-      },
     });
+    expectRouteFolderError(
+      "RouteFolder must not use a reserved device name (CON, PRN, AUX, NUL, COM1-9, LPT1-9)",
+    );
+  });
+
+  it("persists the NFC-normalized routeFolder for an NFD input", async () => {
+    const nfd = `a${String.fromCharCode(0x006e, 0x0303)}o/notes`;
+    mockReadBody.mockResolvedValue(
+      buildBody({ type: "webhook", name: "My Webhook", routeFolder: nfd }),
+    );
+    const { values } = stubInsertResult([
+      { ...sampleSource, routeFolder: nfd.normalize("NFC") },
+    ]);
+
+    await handler(buildEvent(userId));
+
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({ routeFolder: nfd.normalize("NFC") }),
+    );
+    // The stored value must not carry the raw combining mark the charset forbids.
+    expect(values).not.toHaveBeenCalledWith(
+      expect.objectContaining({ routeFolder: nfd }),
+    );
   });
 
   it("throws 422 when type is not a recognised source type", async () => {

@@ -332,7 +332,7 @@ export default defineEventHandler(async (event): Promise<SourceApiResponse> => {
 
     const attributes = body.data.attributes as Required<CreateSourceAttributes>;
     validateAttributesOrThrow(attributes);
-    assertValidRouteFolder(attributes.routeFolder);
+    attributes.routeFolder = assertValidRouteFolder(attributes.routeFolder);
 
     const provider = deriveProvider(attributes);
     validateProviderSecretOrThrow(provider, attributes.providerSecret);
