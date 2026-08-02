@@ -54,6 +54,22 @@ function stubUpdateResult(rows: unknown[]) {
   return { set, where, returning };
 }
 
+function expectRouteFolderError(detail: string) {
+  expect(mockCreateError).toHaveBeenCalledWith({
+    statusCode: 422,
+    data: {
+      errors: [
+        {
+          status: "422",
+          title: "Invalid Attribute",
+          detail,
+          source: { pointer: "/data/attributes/routeFolder" },
+        },
+      ],
+    },
+  });
+}
+
 beforeEach(() => {
   vi.stubGlobal("createError", mockCreateError);
   vi.stubGlobal("readBody", mockReadBody);
@@ -196,19 +212,77 @@ describe("PATCH /api/sources/:uuid", () => {
     await expect(handler(buildEvent(userId))).rejects.toMatchObject({
       statusCode: 422,
     });
-    expect(mockCreateError).toHaveBeenCalledWith({
+    expectRouteFolderError("RouteFolder must be a string");
+  });
+
+  it("throws 422 when routeFolder contains path traversal", async () => {
+    mockGetRouterParam.mockReturnValue(validUuid);
+    mockReadBody.mockResolvedValue(buildBody({ routeFolder: "../../etc" }));
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
       statusCode: 422,
-      data: {
-        errors: [
-          {
-            status: "422",
-            title: "Invalid Attribute",
-            detail: "RouteFolder must be a string",
-            source: { pointer: "/data/attributes/routeFolder" },
-          },
-        ],
-      },
     });
+    expectRouteFolderError(
+      "RouteFolder must not contain path traversal segments (..)",
+    );
+  });
+
+  it("throws 422 when routeFolder has a leading slash (absolute path)", async () => {
+    mockGetRouterParam.mockReturnValue(validUuid);
+    mockReadBody.mockResolvedValue(buildBody({ routeFolder: "/etc/passwd" }));
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
+    expectRouteFolderError(
+      "RouteFolder must be a relative path — no leading slash or backslash",
+    );
+  });
+
+  it("throws 422 when routeFolder contains hazardous characters", async () => {
+    mockGetRouterParam.mockReturnValue(validUuid);
+    mockReadBody.mockResolvedValue(buildBody({ routeFolder: "notes\\work" }));
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
+    expectRouteFolderError(
+      "RouteFolder may only contain letters, numbers, spaces, and . _ - /",
+    );
+  });
+
+  it("throws 422 when a routeFolder segment is padded with whitespace", async () => {
+    mockGetRouterParam.mockReturnValue(validUuid);
+    mockReadBody.mockResolvedValue(buildBody({ routeFolder: "notes " }));
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
+    expectRouteFolderError(
+      "RouteFolder path segments must not be empty, padded with whitespace, or end in a dot",
+    );
+  });
+
+  it("throws 422 when routeFolder is an empty string", async () => {
+    mockGetRouterParam.mockReturnValue(validUuid);
+    mockReadBody.mockResolvedValue(buildBody({ routeFolder: "" }));
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
+    expectRouteFolderError("RouteFolder must not be empty");
+  });
+
+  it("accepts a legitimate nested routeFolder", async () => {
+    mockGetRouterParam.mockReturnValue(validUuid);
+    mockReadBody.mockResolvedValue(buildBody({ routeFolder: "notes/work" }));
+    const { set } = stubUpdateResult([
+      { ...sampleSource, routeFolder: "notes/work" },
+    ]);
+
+    await handler(buildEvent(userId));
+
+    expect(set).toHaveBeenCalledWith({ routeFolder: "notes/work" });
   });
 
   it("throws 404 when the source does not exist for the user", async () => {

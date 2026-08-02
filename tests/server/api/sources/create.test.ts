@@ -63,6 +63,22 @@ function stubInsertResult(rows: unknown[]) {
   return { values, returning };
 }
 
+function expectRouteFolderError(detail: string) {
+  expect(mockCreateError).toHaveBeenCalledWith({
+    statusCode: 422,
+    data: {
+      errors: [
+        {
+          status: "422",
+          title: "Invalid Attribute",
+          detail,
+          source: { pointer: "/data/attributes/routeFolder" },
+        },
+      ],
+    },
+  });
+}
+
 beforeEach(() => {
   vi.stubGlobal("createError", mockCreateError);
   vi.stubGlobal("readBody", mockReadBody);
@@ -171,19 +187,140 @@ describe("POST /api/sources", () => {
     await expect(handler(buildEvent(userId))).rejects.toMatchObject({
       statusCode: 422,
     });
-    expect(mockCreateError).toHaveBeenCalledWith({
+    expectRouteFolderError("RouteFolder is required");
+  });
+
+  it("throws 422 when routeFolder contains path traversal", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        type: "webhook",
+        name: "My Webhook",
+        routeFolder: "../../etc",
+      }),
+    );
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
       statusCode: 422,
-      data: {
-        errors: [
-          {
-            status: "422",
-            title: "Invalid Attribute",
-            detail: "RouteFolder is required",
-            source: { pointer: "/data/attributes/routeFolder" },
-          },
-        ],
-      },
     });
+    expectRouteFolderError(
+      "RouteFolder must not contain path traversal segments (..)",
+    );
+  });
+
+  it("throws 422 when routeFolder is an absolute path", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        type: "webhook",
+        name: "My Webhook",
+        routeFolder: "/etc/passwd",
+      }),
+    );
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
+    expectRouteFolderError(
+      "RouteFolder must be a relative path — no leading slash or backslash",
+    );
+  });
+
+  it("throws 422 when routeFolder contains hazardous characters", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        type: "webhook",
+        name: "My Webhook",
+        routeFolder: "notes\\work",
+      }),
+    );
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
+    expectRouteFolderError(
+      "RouteFolder may only contain letters, numbers, spaces, and . _ - /",
+    );
+  });
+
+  it("accepts a legitimate nested routeFolder", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        type: "webhook",
+        name: "My Webhook",
+        routeFolder: "notes/work",
+      }),
+    );
+    const { values } = stubInsertResult([
+      { ...sampleSource, routeFolder: "notes/work" },
+    ]);
+
+    await handler(buildEvent(userId));
+
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({ routeFolder: "notes/work" }),
+    );
+  });
+
+  it("throws 422 when routeFolder is whitespace-only (slips past the required check)", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({ type: "webhook", name: "My Webhook", routeFolder: "   " }),
+    );
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
+    expectRouteFolderError("RouteFolder must not be empty");
+  });
+
+  it("throws 422 when routeFolder exceeds the max length", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        type: "webhook",
+        name: "My Webhook",
+        routeFolder: "a".repeat(256),
+      }),
+    );
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
+    expectRouteFolderError("RouteFolder must be at most 255 characters");
+  });
+
+  it("throws 422 when a routeFolder segment is a reserved device name", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        type: "webhook",
+        name: "My Webhook",
+        routeFolder: "notes/CON",
+      }),
+    );
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
+    expectRouteFolderError(
+      "RouteFolder must not use a reserved device name (CON, PRN, AUX, NUL, COM1-9, LPT1-9)",
+    );
+  });
+
+  it("persists the NFC-normalized routeFolder for an NFD input", async () => {
+    const nfd = `a${String.fromCharCode(0x006e, 0x0303)}o/notes`;
+    mockReadBody.mockResolvedValue(
+      buildBody({ type: "webhook", name: "My Webhook", routeFolder: nfd }),
+    );
+    const { values } = stubInsertResult([
+      { ...sampleSource, routeFolder: nfd.normalize("NFC") },
+    ]);
+
+    await handler(buildEvent(userId));
+
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({ routeFolder: nfd.normalize("NFC") }),
+    );
+    // The stored value must not carry the raw combining mark the charset forbids.
+    expect(values).not.toHaveBeenCalledWith(
+      expect.objectContaining({ routeFolder: nfd }),
+    );
   });
 
   it("throws 422 when type is not a recognised source type", async () => {
