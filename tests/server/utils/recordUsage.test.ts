@@ -94,4 +94,12 @@ describe("countRecordsCreatedThisMonth", () => {
 
     await expect(countRecordsCreatedThisMonth(USER_ID)).resolves.toBe(15);
   });
+
+  it("throws on a non-numeric count rather than failing open on the enforcement path", async () => {
+    stubSelectResult("not-a-number");
+
+    await expect(countRecordsCreatedThisMonth(USER_ID)).rejects.toThrow(
+      /non-numeric record count/,
+    );
+  });
 });

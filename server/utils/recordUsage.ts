@@ -34,5 +34,16 @@ export async function countRecordsCreatedThisMonth(
     .from(records)
     .where(and(eq(records.userId, userId), gte(records.createdAt, monthStart)));
 
-  return Number(row?.total ?? 0);
+  const total = Number(row?.total ?? 0);
+
+  // Fail closed: a non-finite count must not read as "under the cap" on the
+  // enforcement path (NaN >= limit is false), so surface it instead of silently
+  // disabling the limit — matching the fail-closed posture in planLimits.ts.
+  if (!Number.isFinite(total)) {
+    throw new Error(
+      `Unexpected non-numeric record count for user ${userId}: ${String(row?.total)}`,
+    );
+  }
+
+  return total;
 }
