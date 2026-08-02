@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import {
-  isValidRouteFolder,
   routeFolderViolation,
   ROUTE_FOLDER_MAX_LENGTH,
 } from "#shared/utils/routeFolder";
@@ -14,11 +13,11 @@ describe("routeFolderViolation", () => {
     "a/b/c",
     "with space/sub_folder",
     "dot.in.name",
+    "año/notes",
   ];
 
   it.each(validFolders)("accepts the legitimate folder %j", (value) => {
     expect(routeFolderViolation(value)).toBeNull();
-    expect(isValidRouteFolder(value)).toBe(true);
   });
 
   it("rejects an empty or whitespace-only value", () => {
@@ -35,13 +34,7 @@ describe("routeFolderViolation", () => {
     ).toBeNull();
   });
 
-  const absolutePaths = [
-    "/etc/passwd",
-    "/notes",
-    "\\network\\share",
-    "C:/Windows",
-    "c:\\temp",
-  ];
+  const absolutePaths = ["/etc/passwd", "/notes", "\\network\\share"];
 
   it.each(absolutePaths)("rejects the absolute path %j", (value) => {
     expect(routeFolderViolation(value)).toBe("absolute");
@@ -53,6 +46,8 @@ describe("routeFolderViolation", () => {
     "../../etc",
     "notes/../../../etc",
     "a/b/..",
+    ".. /etc",
+    "..../etc",
   ];
 
   it.each(traversalPaths)("rejects the traversal path %j", (value) => {
@@ -67,6 +62,8 @@ describe("routeFolderViolation", () => {
     "notes?",
     "a\nb",
     "notes:colon",
+    "C:/Windows",
+    "c:\\temp",
   ];
 
   it.each(hazardousCharacters)(
@@ -76,7 +73,21 @@ describe("routeFolderViolation", () => {
     },
   );
 
-  it("treats a single dot segment as a valid relative path (not traversal)", () => {
-    expect(routeFolderViolation("./notes")).toBeNull();
+  const unsafeSegments = [
+    "./notes",
+    "notes.",
+    " notes",
+    "notes ",
+    "a/ b",
+    "a//b",
+    "notes/sub.",
+  ];
+
+  it.each(unsafeSegments)("rejects the unsafe segment in %j", (value) => {
+    expect(routeFolderViolation(value)).toBe("unsafe-segment");
+  });
+
+  it("reports the first violation in check order (absolute before traversal)", () => {
+    expect(routeFolderViolation("/etc/../passwd")).toBe("absolute");
   });
 });

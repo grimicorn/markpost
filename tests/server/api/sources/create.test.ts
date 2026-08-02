@@ -288,6 +288,56 @@ describe("POST /api/sources", () => {
     );
   });
 
+  it("throws 422 when routeFolder is whitespace-only (slips past the required check)", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({ type: "webhook", name: "My Webhook", routeFolder: "   " }),
+    );
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 422,
+      data: {
+        errors: [
+          {
+            status: "422",
+            title: "Invalid Attribute",
+            detail: "RouteFolder must not be empty",
+            source: { pointer: "/data/attributes/routeFolder" },
+          },
+        ],
+      },
+    });
+  });
+
+  it("throws 422 when routeFolder exceeds the max length", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        type: "webhook",
+        name: "My Webhook",
+        routeFolder: "a".repeat(256),
+      }),
+    );
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 422,
+      data: {
+        errors: [
+          {
+            status: "422",
+            title: "Invalid Attribute",
+            detail: "RouteFolder must be at most 255 characters",
+            source: { pointer: "/data/attributes/routeFolder" },
+          },
+        ],
+      },
+    });
+  });
+
   it("throws 422 when type is not a recognised source type", async () => {
     mockReadBody.mockResolvedValue(
       buildBody({

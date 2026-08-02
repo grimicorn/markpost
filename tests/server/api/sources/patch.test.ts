@@ -279,6 +279,28 @@ describe("PATCH /api/sources/:uuid", () => {
     });
   });
 
+  it("throws 422 when routeFolder is an empty string", async () => {
+    mockGetRouterParam.mockReturnValue(validUuid);
+    mockReadBody.mockResolvedValue(buildBody({ routeFolder: "" }));
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 422,
+      data: {
+        errors: [
+          {
+            status: "422",
+            title: "Invalid Attribute",
+            detail: "RouteFolder must not be empty",
+            source: { pointer: "/data/attributes/routeFolder" },
+          },
+        ],
+      },
+    });
+  });
+
   it("accepts a legitimate nested routeFolder", async () => {
     mockGetRouterParam.mockReturnValue(validUuid);
     mockReadBody.mockResolvedValue(buildBody({ routeFolder: "notes/work" }));

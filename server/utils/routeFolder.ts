@@ -13,6 +13,8 @@ const VIOLATION_DETAIL: Record<RouteFolderViolation, string> = {
   absolute:
     "RouteFolder must be a relative path — no leading slash, backslash, or drive letter",
   traversal: "RouteFolder must not contain path traversal segments (..)",
+  "unsafe-segment":
+    "RouteFolder path segments must not be empty, padded with whitespace, or end in a dot",
   "invalid-characters":
     "RouteFolder may only contain letters, numbers, spaces, and . _ - /",
 };
