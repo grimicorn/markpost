@@ -9,6 +9,13 @@
         @click="syncNow"
         >sync now</AppBtn
       >
+      <AppBtn
+        size="sm"
+        icon="download"
+        :disabled="isLoading || !!loadError"
+        @click="triggerRecordExportDownload"
+        >export all records</AppBtn
+      >
     </template>
 
     <div style="padding: 22px 26px 40px; max-width: 1080px">
@@ -258,6 +265,7 @@ import {
   formatRelativeTime,
   formatSourceLabel,
   sourceTypeIcon,
+  triggerRecordExportDownload,
   STATUS_TONE_MAP,
   type RecordResource,
   type RecordStats,
