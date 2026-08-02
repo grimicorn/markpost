@@ -24,7 +24,7 @@ vi.mock("../../app/composables/useBillingSettings", () => ({
 import SetBilling from "../../app/components/settings/SetBilling.vue";
 
 const TRIALING_USAGE: BillingUsage = {
-  recordsSyncedThisMonth: 284,
+  recordsCreatedThisMonth: 284,
   connectedSourceCount: 2,
   plan: "pro",
   status: "trialing",

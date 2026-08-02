@@ -96,7 +96,7 @@ function makeRecord(overrides: Partial<RecordResource["attributes"]> = {}) {
 }
 
 const trialingUsage: BillingUsage = {
-  recordsSyncedThisMonth: 284,
+  recordsCreatedThisMonth: 284,
   connectedSourceCount: 2,
   plan: "pro",
   status: "trialing",
@@ -187,7 +187,7 @@ describe("TheAppShell", () => {
 
     it("hides days-left and the progress bar for an active (non-trial) plan", async () => {
       mockFetchBillingUsage.mockResolvedValue({
-        recordsSyncedThisMonth: 284,
+        recordsCreatedThisMonth: 284,
         connectedSourceCount: 2,
         plan: "pro",
         status: "active",

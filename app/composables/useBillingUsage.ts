@@ -9,7 +9,7 @@ export type BillingStatus =
   "active" | "trialing" | "past_due" | "canceled" | "incomplete";
 
 export type BillingUsage = {
-  recordsSyncedThisMonth: number;
+  recordsCreatedThisMonth: number;
   connectedSourceCount: number;
   plan: BillingPlan;
   status: BillingStatus;
@@ -123,15 +123,15 @@ export function deriveBillingCtaLabel(
 // Pro has no cap. Both live in shared/utils/planLimits.ts so there is exactly
 // one copy of the numbers.
 
-export function describeRecordsSyncedHint(
+export function describeRecordsCreatedHint(
   plan: BillingPlan,
-  recordsSyncedThisMonth: number,
+  recordsCreatedThisMonth: number,
 ): string {
   if (plan === "pro") {
-    return `${recordsSyncedThisMonth} of unlimited on Pro.`;
+    return `${recordsCreatedThisMonth} of unlimited on Pro.`;
   }
 
-  return `${recordsSyncedThisMonth} of ${HOBBY_MONTHLY_RECORD_LIMIT} on Hobby.`;
+  return `${recordsCreatedThisMonth} of ${HOBBY_MONTHLY_RECORD_LIMIT} on Hobby.`;
 }
 
 export function describeConnectedSourcesHint(

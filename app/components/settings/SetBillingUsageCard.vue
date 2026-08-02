@@ -3,9 +3,9 @@
     <h3 class="h3" style="margin-top: 28px">Usage this month</h3>
     <div class="card" style="margin-top: 14px; padding: 4px 22px">
       <div class="divide-y">
-        <SetRow label="Records synced" :hint="recordsSyncedHint">
+        <SetRow label="Records created" :hint="recordsCreatedHint">
           <span class="mono" style="font-size: 13px">{{
-            recordsSyncedLabel
+            recordsCreatedLabel
           }}</span>
         </SetRow>
         <SetRow label="Connected sources" :hint="connectedSourcesHint">
@@ -21,7 +21,7 @@
 <script setup lang="ts">
 import SetRow from "./SetRow.vue";
 import {
-  describeRecordsSyncedHint,
+  describeRecordsCreatedHint,
   describeConnectedSourcesHint,
   type BillingUsage,
 } from "../../composables/useBillingUsage";
@@ -30,21 +30,21 @@ const props = defineProps<{
   usage: BillingUsage | null;
 }>();
 
-const recordsSyncedLabel = computed(
-  () => props.usage?.recordsSyncedThisMonth ?? "…",
+const recordsCreatedLabel = computed(
+  () => props.usage?.recordsCreatedThisMonth ?? "…",
 );
 
 const connectedSourcesLabel = computed(
   () => props.usage?.connectedSourceCount ?? "…",
 );
 
-const recordsSyncedHint = computed(() => {
+const recordsCreatedHint = computed(() => {
   if (!props.usage) {
     return undefined;
   }
-  return describeRecordsSyncedHint(
+  return describeRecordsCreatedHint(
     props.usage.plan,
-    props.usage.recordsSyncedThisMonth,
+    props.usage.recordsCreatedThisMonth,
   );
 });
 
