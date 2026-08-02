@@ -1,7 +1,7 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`inbox page > matches snapshot in empty state 1`] = `
-"<div active="inbox" crumb="WORKSPACE / DAN'S VAULT" title="Inbox"><button class="app-btn">sync now</button>
+"<div active="inbox" crumb="WORKSPACE / DAN'S VAULT" title="Inbox"><button class="app-btn">sync now</button><button class="app-btn">export all records</button>
   <div style="padding: 22px 26px 40px; max-width: 1080px;">
     <!--v-if-->
     <!--v-if-->
@@ -42,7 +42,7 @@ exports[`inbox page > matches snapshot in empty state 1`] = `
 `;
 
 exports[`inbox page > matches snapshot in error state 1`] = `
-"<div active="inbox" crumb="WORKSPACE / DAN'S VAULT" title="Inbox"><button class="app-btn">sync now</button>
+"<div active="inbox" crumb="WORKSPACE / DAN'S VAULT" title="Inbox"><button class="app-btn">sync now</button><button class="app-btn" disabled="">export all records</button>
   <div style="padding: 22px 26px 40px; max-width: 1080px;">
     <!--v-if-->
     <!--v-if-->
@@ -82,7 +82,7 @@ exports[`inbox page > matches snapshot in error state 1`] = `
 `;
 
 exports[`inbox page > matches snapshot in loading state 1`] = `
-"<div active="inbox" crumb="WORKSPACE / DAN'S VAULT" title="Inbox"><button class="app-btn">sync now</button>
+"<div active="inbox" crumb="WORKSPACE / DAN'S VAULT" title="Inbox"><button class="app-btn">sync now</button><button class="app-btn" disabled="">export all records</button>
   <div style="padding: 22px 26px 40px; max-width: 1080px;">
     <!--v-if-->
     <!--v-if-->
@@ -121,7 +121,7 @@ exports[`inbox page > matches snapshot in loading state 1`] = `
 `;
 
 exports[`inbox page > matches snapshot with records 1`] = `
-"<div active="inbox" crumb="WORKSPACE / DAN'S VAULT" title="Inbox"><button class="app-btn">sync now</button>
+"<div active="inbox" crumb="WORKSPACE / DAN'S VAULT" title="Inbox"><button class="app-btn">sync now</button><button class="app-btn">export all records</button>
   <div style="padding: 22px 26px 40px; max-width: 1080px;">
     <!--v-if-->
     <!--v-if-->

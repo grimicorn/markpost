@@ -45,6 +45,12 @@ type StatsResponse = {
   data: RecordStats;
 };
 
+const RECORDS_EXPORT_URL = "/api/records/export";
+
+export function triggerRecordExportDownload(): void {
+  window.location.href = RECORDS_EXPORT_URL;
+}
+
 export type RecordFilterValue = "all" | "webhook" | "email" | "errors";
 
 type FetchFilters = {

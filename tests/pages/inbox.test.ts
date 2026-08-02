@@ -11,6 +11,7 @@ const filterRef = ref("all");
 
 const mockLoadRecords = vi.fn();
 const mockFetchRecordStats = vi.fn();
+const mockTriggerRecordExport = vi.fn();
 
 vi.mock("../../app/composables/useRecords", () => ({
   useRecords: () => ({
@@ -29,6 +30,9 @@ vi.mock("../../app/composables/useRecords", () => ({
   },
   formatSourceLabel: (source: string | null) => `label:${source ?? "unknown"}`,
   sourceTypeIcon: () => "zap",
+  get triggerRecordExportDownload() {
+    return mockTriggerRecordExport;
+  },
   STATUS_TONE_MAP: { synced: "ok", pending: "warn", error: "err" },
 }));
 
@@ -132,6 +136,7 @@ describe("inbox page", () => {
     mockLoadRecords.mockResolvedValue(undefined);
     mockFetchRecordStats.mockReset();
     mockFetchRecordStats.mockResolvedValue(defaultStats);
+    mockTriggerRecordExport.mockReset();
     detailRecordRef.value = null;
     detailLoadingRef.value = false;
     detailErrorRef.value = null;
@@ -207,6 +212,16 @@ describe("inbox page", () => {
     const wrapper = mount(InboxPage, globalConfig);
     await flushPromises();
     expect(wrapper.findAll(".app-badge")).toHaveLength(2);
+  });
+
+  it("triggers the record export when the export button is clicked", async () => {
+    const wrapper = mount(InboxPage, globalConfig);
+    await flushPromises();
+    const exportButton = wrapper
+      .findAll(".app-btn")
+      .find((button) => button.text() === "export all records");
+    await exportButton?.trigger("click");
+    expect(mockTriggerRecordExport).toHaveBeenCalledOnce();
   });
 
   it("shows success toast after sync now when no load error", async () => {
