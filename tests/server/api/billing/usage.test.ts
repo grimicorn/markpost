@@ -8,18 +8,15 @@ vi.mock("../../../../server/db", () => ({
   getDb: () => ({ select: selectMock }),
 }));
 
+// Pass-through drizzle stubs — this suite exercises the endpoint's wiring
+// (auth, response shape, subscription handling). The monthly record count's
+// query shape (createdAt not syncedAt, scoped to the user) is asserted where it
+// lives, in tests/server/utils/recordUsage.test.ts.
 vi.mock("drizzle-orm", () => ({
+  and: (...conditions: unknown[]) => ({ and: conditions }),
   count: (expr?: unknown) => ({ count: expr }),
   eq: (column: unknown, value: unknown) => ({ eq: { column, value } }),
   gte: (column: unknown, value: unknown) => ({ gte: { column, value } }),
-  isNotNull: (column: unknown) => ({ isNotNull: column }),
-  sql: Object.assign(
-    (strings: TemplateStringsArray, ...values: unknown[]) => ({
-      strings,
-      values,
-    }),
-    { raw: (str: string) => str },
-  ),
 }));
 
 vi.mock("../../../../server/utils/billing", async () => {
@@ -86,6 +83,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 describe("GET /api/billing/usage", () => {
@@ -99,14 +97,14 @@ describe("GET /api/billing/usage", () => {
     });
   });
 
-  it("returns recordsSyncedThisMonth and connectedSourceCount", async () => {
+  it("returns recordsCreatedThisMonth and connectedSourceCount", async () => {
     stubSelectSequence([[{ total: 42 }], [{ total: 3 }]]);
 
     const response = await handler(buildEvent(USER_ID));
 
     expect(response).toMatchObject({
       data: {
-        recordsSyncedThisMonth: 42,
+        recordsCreatedThisMonth: 42,
         connectedSourceCount: 3,
       },
     });
@@ -119,7 +117,7 @@ describe("GET /api/billing/usage", () => {
 
     expect(response).toMatchObject({
       data: {
-        recordsSyncedThisMonth: 0,
+        recordsCreatedThisMonth: 0,
         connectedSourceCount: 0,
       },
     });
@@ -132,7 +130,7 @@ describe("GET /api/billing/usage", () => {
 
     expect(response).toMatchObject({
       data: {
-        recordsSyncedThisMonth: 0,
+        recordsCreatedThisMonth: 0,
         connectedSourceCount: 0,
       },
     });
@@ -145,7 +143,7 @@ describe("GET /api/billing/usage", () => {
 
     expect(response).toMatchObject({
       data: {
-        recordsSyncedThisMonth: 15,
+        recordsCreatedThisMonth: 15,
         connectedSourceCount: 2,
       },
     });
@@ -210,8 +208,6 @@ describe("GET /api/billing/usage", () => {
         trialPercentElapsed: 71,
       },
     });
-
-    vi.useRealTimers();
   });
 
   it("does not compute trial progress when status is trialing but trialEndsAt is null", async () => {

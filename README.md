@@ -94,7 +94,7 @@ Billing is handled via [Stripe](https://stripe.com). The integration consists of
 | `/api/billing/checkout` | POST   | Clerk / API token       | Creates a Stripe Checkout session for upgrading to Pro. Returns `{ data: { url } }` — redirect the user to this URL.                                                                                                                                  |
 | `/api/billing/portal`   | POST   | Clerk / API token       | Creates a Stripe Customer Portal session for managing an existing subscription. Returns `{ data: { url } }`. Requires the user to have an existing Stripe customer ID (i.e. they have completed at least one Checkout session).                       |
 | `/api/billing/webhook`  | POST   | None (Stripe signature) | Receives Stripe lifecycle events (`customer.subscription.created/updated/deleted`, `checkout.session.completed`) and updates the local `subscriptions` table. The Stripe-Signature header is verified on every request using `STRIPE_WEBHOOK_SECRET`. |
-| `/api/billing/usage`    | GET    | Clerk / API token       | Returns the number of records synced this month and the number of connected sources.                                                                                                                                                                  |
+| `/api/billing/usage`    | GET    | Clerk / API token       | Returns the number of records created this month (the same metric the Hobby monthly cap enforces) and the number of connected sources.                                                                                                                |
 
 ### Required environment variables
 

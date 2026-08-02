@@ -16,6 +16,7 @@ import {
   validateProviderSecretOrThrow,
 } from "../../utils/providerSecret";
 import { sourceSerializer, type SourceApiResponse } from "../../utils/response";
+import { assertValidRouteFolder } from "../../utils/routeFolder";
 import { apiValidate, type AttributeRule } from "../../utils/validate";
 import { isSourceType, SOURCE_TYPES } from "#shared/utils/sourceTypes";
 
@@ -224,6 +225,7 @@ export default defineEventHandler(async (event): Promise<SourceApiResponse> => {
 
     const attributes = body.data.attributes as Required<CreateSourceAttributes>;
     validateAttributesOrThrow(attributes);
+    attributes.routeFolder = assertValidRouteFolder(attributes.routeFolder);
 
     const suppliedSecret = normalizeSuppliedSecret(attributes.providerSecret);
     const provider = deriveProvider(attributes);

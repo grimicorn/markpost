@@ -5,6 +5,7 @@ import type { ApiRequest } from "../../types/api.types";
 import { requireUser } from "../../utils/auth";
 import { ApiError, apiErrorHandler } from "../../utils/errors";
 import { sourceSerializer, type SourceApiResponse } from "../../utils/response";
+import { assertValidRouteFolder } from "../../utils/routeFolder";
 import { sourceNotFoundError } from "../../utils/sourceErrors";
 import { invalidUuidError, isValidUuid } from "../../utils/uuid";
 
@@ -32,20 +33,6 @@ function emptyUpdateError(): ApiError {
         title: "Invalid Attribute",
         detail: "At least one of routeFolder or fieldMapping must be provided.",
         source: { pointer: "/data/attributes" },
-      },
-    ],
-    422,
-  );
-}
-
-function routeFolderTypeError(): ApiError {
-  return new ApiError(
-    [
-      {
-        status: "422",
-        title: "Invalid Attribute",
-        detail: "RouteFolder must be a string",
-        source: { pointer: "/data/attributes/routeFolder" },
       },
     ],
     422,
@@ -96,11 +83,8 @@ export default defineEventHandler(async (event): Promise<SourceApiResponse> => {
     const body = (await readBody(event)) as PatchSourceBody;
     const attributes = body?.data?.attributes ?? {};
 
-    if (
-      attributes.routeFolder !== undefined &&
-      typeof attributes.routeFolder !== "string"
-    ) {
-      throw routeFolderTypeError();
+    if (attributes.routeFolder !== undefined) {
+      attributes.routeFolder = assertValidRouteFolder(attributes.routeFolder);
     }
 
     const payload = buildUpdatePayload(attributes);
