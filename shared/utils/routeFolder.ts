@@ -15,6 +15,8 @@ export const ROUTE_FOLDER_MAX_LENGTH = 255;
 // enough for nested folders like "notes/work", accented names like "año", and
 // the existing "05-stripe/" convention. Everything else (backslashes, colons,
 // null bytes, control characters, glob/shell metacharacters) is rejected.
+// Values are NFC-normalized first, so a macOS-style NFD "año" is accepted
+// rather than rejected for its combining mark.
 const ALLOWED_ROUTE_FOLDER = /^[\p{L}\p{N} ._\-/]+$/u;
 
 const PATH_SEPARATOR = "/";
@@ -24,12 +26,19 @@ const PATH_SEPARATOR = "/";
 // to ".." — comparison is done against the trimmed component to catch that.
 const TRAVERSAL_SEGMENT = /^\.{2,}$/;
 
+// Windows reserved device names. Writing to "CON", "NUL", "COM1", etc. (any
+// case, with or without an extension) targets a character device rather than a
+// file, so reject them as path components.
+const RESERVED_SEGMENT = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i;
+
 export type RouteFolderViolation =
+  | "not-a-string"
   | "empty"
   | "too-long"
   | "absolute"
   | "traversal"
   | "unsafe-segment"
+  | "reserved-name"
   | "invalid-characters";
 
 function isAbsolutePath(value: string): boolean {
@@ -68,28 +77,37 @@ function hasUnsafeSegment(value: string): boolean {
   );
 }
 
+function hasReservedSegment(value: string): boolean {
+  return segments(value).some((segment) => RESERVED_SEGMENT.test(segment));
+}
+
 // Returns the first violation found, or null when the value is a safe relative
 // path. Callers map the violation to their own error shape.
 export function routeFolderViolation(
   value: string,
 ): RouteFolderViolation | null {
-  if (value.trim() === "") {
+  const normalized = value.normalize("NFC");
+
+  if (normalized.trim() === "") {
     return "empty";
   }
-  if (value.length > ROUTE_FOLDER_MAX_LENGTH) {
+  if (normalized.length > ROUTE_FOLDER_MAX_LENGTH) {
     return "too-long";
   }
-  if (isAbsolutePath(value)) {
+  if (isAbsolutePath(normalized)) {
     return "absolute";
   }
-  if (!ALLOWED_ROUTE_FOLDER.test(value)) {
+  if (!ALLOWED_ROUTE_FOLDER.test(normalized)) {
     return "invalid-characters";
   }
-  if (hasTraversalSegment(value)) {
+  if (hasTraversalSegment(normalized)) {
     return "traversal";
   }
-  if (hasUnsafeSegment(value)) {
+  if (hasUnsafeSegment(normalized)) {
     return "unsafe-segment";
+  }
+  if (hasReservedSegment(normalized)) {
+    return "reserved-name";
   }
   return null;
 }

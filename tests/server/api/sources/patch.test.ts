@@ -248,7 +248,7 @@ describe("PATCH /api/sources/:uuid", () => {
             status: "422",
             title: "Invalid Attribute",
             detail:
-              "RouteFolder must be a relative path — no leading slash, backslash, or drive letter",
+              "RouteFolder must be a relative path — no leading slash or backslash",
             source: { pointer: "/data/attributes/routeFolder" },
           },
         ],
@@ -272,6 +272,29 @@ describe("PATCH /api/sources/:uuid", () => {
             title: "Invalid Attribute",
             detail:
               "RouteFolder may only contain letters, numbers, spaces, and . _ - /",
+            source: { pointer: "/data/attributes/routeFolder" },
+          },
+        ],
+      },
+    });
+  });
+
+  it("throws 422 when a routeFolder segment is padded with whitespace", async () => {
+    mockGetRouterParam.mockReturnValue(validUuid);
+    mockReadBody.mockResolvedValue(buildBody({ routeFolder: "notes " }));
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 422,
+      data: {
+        errors: [
+          {
+            status: "422",
+            title: "Invalid Attribute",
+            detail:
+              "RouteFolder path segments must not be empty, padded with whitespace, or end in a dot",
             source: { pointer: "/data/attributes/routeFolder" },
           },
         ],

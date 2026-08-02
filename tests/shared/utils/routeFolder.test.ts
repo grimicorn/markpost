@@ -4,6 +4,10 @@ import {
   ROUTE_FOLDER_MAX_LENGTH,
 } from "#shared/utils/routeFolder";
 
+// NFD form of "ano" with a combining tilde on the n (U+006E U+0303). macOS
+// emits this form; it must validate the same as its NFC equivalent.
+const NFD_ACCENTED = `a${String.fromCharCode(0x006e, 0x0303)}o/notes`;
+
 describe("routeFolderViolation", () => {
   const validFolders = [
     "notes",
@@ -14,6 +18,7 @@ describe("routeFolderViolation", () => {
     "with space/sub_folder",
     "dot.in.name",
     "año/notes",
+    NFD_ACCENTED,
   ];
 
   it.each(validFolders)("accepts the legitimate folder %j", (value) => {
@@ -85,6 +90,20 @@ describe("routeFolderViolation", () => {
 
   it.each(unsafeSegments)("rejects the unsafe segment in %j", (value) => {
     expect(routeFolderViolation(value)).toBe("unsafe-segment");
+  });
+
+  const reservedNames = [
+    "CON",
+    "con",
+    "nul",
+    "notes/CON",
+    "COM1",
+    "lpt9",
+    "CON.md",
+  ];
+
+  it.each(reservedNames)("rejects the reserved device name %j", (value) => {
+    expect(routeFolderViolation(value)).toBe("reserved-name");
   });
 
   it("reports the first violation in check order (absolute before traversal)", () => {

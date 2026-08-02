@@ -233,7 +233,7 @@ describe("POST /api/sources", () => {
             status: "422",
             title: "Invalid Attribute",
             detail:
-              "RouteFolder must be a relative path — no leading slash, backslash, or drive letter",
+              "RouteFolder must be a relative path — no leading slash or backslash",
             source: { pointer: "/data/attributes/routeFolder" },
           },
         ],

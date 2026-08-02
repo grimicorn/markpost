@@ -65,20 +65,6 @@ function emptyUpdateError(): ApiError {
   );
 }
 
-function routeFolderTypeError(): ApiError {
-  return new ApiError(
-    [
-      {
-        status: "422",
-        title: "Invalid Attribute",
-        detail: "RouteFolder must be a string",
-        source: { pointer: "/data/attributes/routeFolder" },
-      },
-    ],
-    422,
-  );
-}
-
 function buildUpdatePayload(
   attributes: PatchSourceAttributes,
 ): SourceUpdatePayload {
@@ -124,9 +110,6 @@ export default defineEventHandler(async (event): Promise<SourceApiResponse> => {
     const attributes = body?.data?.attributes ?? {};
 
     if (attributes.routeFolder !== undefined) {
-      if (typeof attributes.routeFolder !== "string") {
-        throw routeFolderTypeError();
-      }
       assertValidRouteFolder(attributes.routeFolder);
     }
 
