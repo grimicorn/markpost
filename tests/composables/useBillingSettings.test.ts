@@ -8,7 +8,7 @@ const mockFetch = vi.fn();
 vi.stubGlobal("$fetch", mockFetch);
 
 const SAMPLE_USAGE = {
-  recordsSyncedThisMonth: 284,
+  recordsCreatedThisMonth: 284,
   connectedSourceCount: 2,
   plan: "pro" as const,
   status: "trialing" as const,

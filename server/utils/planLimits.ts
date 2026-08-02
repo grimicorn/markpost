@@ -1,11 +1,12 @@
-import { and, count, eq, gte } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import { getDb } from "../db";
-import { records, sources, type SubscriptionPlan } from "../db/schema";
+import { sources, type SubscriptionPlan } from "../db/schema";
 import {
   HOBBY_CONNECTED_SOURCE_LIMIT,
   HOBBY_MONTHLY_RECORD_LIMIT,
 } from "#shared/utils/planLimits";
 import { findSubscriptionByUserId } from "./billing";
+import { countRecordsCreatedThisMonth } from "./recordUsage";
 import { ApiError } from "./errors";
 
 // A user with no subscription row is treated the same as an explicit Hobby
@@ -70,42 +71,6 @@ async function assertWithinLimit(check: LimitCheck): Promise<void> {
   }
 }
 
-function startOfMonthUtc(now: Date = new Date()): Date {
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-}
-
-// Counts every record created this month, not just synced ones. Webhook
-// ingestion (server/api/hooks/[slug].post.ts) inserts records without ever
-// setting syncedAt, so gating on syncedAt (as the usage.get.ts display metric
-// does) would let that write path bypass the cap entirely.
-//
-// @todo this createdAt-based count is intentionally a different (stricter,
-// harder to bypass) metric than the syncedAt-based "recordsSyncedThisMonth"
-// shown on the billing usage dashboard (server/api/billing/usage.get.ts). A
-// Hobby user can therefore be blocked here while the dashboard still shows
-// them under 100 synced. Reconciling that — e.g. surfacing a
-// recordsCreatedThisMonth stat on BillingUsage so the UI matches what's
-// enforced — is a dashboard/API contract change beyond this issue's scope
-// (server-side write-path enforcement); track it as a follow-up.
-//
-// This counts current rows, so a deleted record frees up quota within the
-// same month (the cap tracks "records currently attributed to this month",
-// not a strictly monotonic creation counter). Records have no delete-tracking
-// column to distinguish "never existed" from "created and later removed", so
-// a stricter monotonic counter would need a separate ledger — out of scope
-// here; this still closes the unlimited-creation bug the issue reports.
-async function countRecordsCreatedThisMonth(userId: string): Promise<number> {
-  const db = getDb();
-  const monthStart = startOfMonthUtc();
-
-  const [row] = await db
-    .select({ total: count() })
-    .from(records)
-    .where(and(eq(records.userId, userId), gte(records.createdAt, monthStart)));
-
-  return Number(row?.total ?? 0);
-}
-
 async function countConnectedSources(userId: string): Promise<number> {
   const db = getDb();
 
@@ -123,9 +88,9 @@ export async function assertWithinRecordLimit(userId: string): Promise<void> {
   await assertWithinLimit({
     userId,
     limit: HOBBY_MONTHLY_RECORD_LIMIT,
-    // "records per month" (not "records synced per month"): the count below
-    // includes not-yet-synced records too, so the wording must not imply the
-    // narrower syncedAt-based metric shown on the billing usage dashboard.
+    // "records per month": counts every record created this month (including
+    // not-yet-synced ones), the same metric the billing usage dashboard now
+    // displays via countRecordsCreatedThisMonth (server/utils/recordUsage.ts).
     limitDescription: `${HOBBY_MONTHLY_RECORD_LIMIT} records per month`,
     countCurrent: countRecordsCreatedThisMonth,
   });

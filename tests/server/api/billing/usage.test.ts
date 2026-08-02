@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { H3Event } from "h3";
+import { records } from "../../../../server/db/schema";
 
 const selectMock = vi.fn();
 const mockFindSubscriptionByUserId = vi.fn();
@@ -8,18 +9,25 @@ vi.mock("../../../../server/db", () => ({
   getDb: () => ({ select: selectMock }),
 }));
 
+// Spy-wrapped (not just pass-through) so a test can assert *which* column the
+// monthly record count filters on — this is what proves the dashboard now
+// counts by createdAt rather than syncedAt (issue #130), matching enforcement.
+const andMock = vi.fn((...conditions: unknown[]) => ({ and: conditions }));
+const countMock = vi.fn((expr?: unknown) => ({ count: expr }));
+const eqMock = vi.fn((column: unknown, value: unknown) => ({
+  eq: { column, value },
+}));
+const gteMock = vi.fn((column: unknown, value: unknown) => ({
+  gte: { column, value },
+}));
+const isNotNullMock = vi.fn((column: unknown) => ({ isNotNull: column }));
+
 vi.mock("drizzle-orm", () => ({
-  count: (expr?: unknown) => ({ count: expr }),
-  eq: (column: unknown, value: unknown) => ({ eq: { column, value } }),
-  gte: (column: unknown, value: unknown) => ({ gte: { column, value } }),
-  isNotNull: (column: unknown) => ({ isNotNull: column }),
-  sql: Object.assign(
-    (strings: TemplateStringsArray, ...values: unknown[]) => ({
-      strings,
-      values,
-    }),
-    { raw: (str: string) => str },
-  ),
+  and: (...args: unknown[]) => andMock(...args),
+  count: (expr?: unknown) => countMock(expr),
+  eq: (column: unknown, value: unknown) => eqMock(column, value),
+  gte: (column: unknown, value: unknown) => gteMock(column, value),
+  isNotNull: (column: unknown) => isNotNullMock(column),
 }));
 
 vi.mock("../../../../server/utils/billing", async () => {
@@ -79,6 +87,11 @@ beforeEach(() => {
   stubRequireUser(USER_ID);
   mockCreateError.mockClear();
   selectMock.mockReset();
+  andMock.mockClear();
+  countMock.mockClear();
+  eqMock.mockClear();
+  gteMock.mockClear();
+  isNotNullMock.mockClear();
   mockFindSubscriptionByUserId.mockReset();
   mockFindSubscriptionByUserId.mockResolvedValue(null);
 });
@@ -99,14 +112,14 @@ describe("GET /api/billing/usage", () => {
     });
   });
 
-  it("returns recordsSyncedThisMonth and connectedSourceCount", async () => {
+  it("returns recordsCreatedThisMonth and connectedSourceCount", async () => {
     stubSelectSequence([[{ total: 42 }], [{ total: 3 }]]);
 
     const response = await handler(buildEvent(USER_ID));
 
     expect(response).toMatchObject({
       data: {
-        recordsSyncedThisMonth: 42,
+        recordsCreatedThisMonth: 42,
         connectedSourceCount: 3,
       },
     });
@@ -119,7 +132,7 @@ describe("GET /api/billing/usage", () => {
 
     expect(response).toMatchObject({
       data: {
-        recordsSyncedThisMonth: 0,
+        recordsCreatedThisMonth: 0,
         connectedSourceCount: 0,
       },
     });
@@ -132,7 +145,7 @@ describe("GET /api/billing/usage", () => {
 
     expect(response).toMatchObject({
       data: {
-        recordsSyncedThisMonth: 0,
+        recordsCreatedThisMonth: 0,
         connectedSourceCount: 0,
       },
     });
@@ -145,7 +158,7 @@ describe("GET /api/billing/usage", () => {
 
     expect(response).toMatchObject({
       data: {
-        recordsSyncedThisMonth: 15,
+        recordsCreatedThisMonth: 15,
         connectedSourceCount: 2,
       },
     });
@@ -230,5 +243,35 @@ describe("GET /api/billing/usage", () => {
         trialPercentElapsed: null,
       },
     });
+  });
+
+  it("counts the monthly records by createdAt scoped to the user and current month (so a record created this month but not yet synced is included)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-18T15:30:00Z"));
+    stubSelectSequence([[{ total: 7 }], [{ total: 0 }]]);
+
+    const response = await handler(buildEvent(USER_ID));
+
+    expect(response.data.recordsCreatedThisMonth).toBe(7);
+    expect(eqMock).toHaveBeenCalledWith(records.userId, USER_ID);
+    expect(gteMock).toHaveBeenCalledWith(
+      records.createdAt,
+      new Date(Date.UTC(2026, 6, 1)),
+    );
+
+    vi.useRealTimers();
+  });
+
+  it("never filters the monthly record count by syncedAt (a record created last month but synced this month is excluded)", async () => {
+    stubSelectSequence([[{ total: 3 }], [{ total: 0 }]]);
+
+    await handler(buildEvent(USER_ID));
+
+    expect(gteMock).toHaveBeenCalledWith(records.createdAt, expect.any(Date));
+    expect(gteMock).not.toHaveBeenCalledWith(
+      records.syncedAt,
+      expect.any(Date),
+    );
+    expect(isNotNullMock).not.toHaveBeenCalled();
   });
 });

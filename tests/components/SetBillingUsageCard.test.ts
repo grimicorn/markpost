@@ -16,7 +16,7 @@ const globalConfig = {
 };
 
 const PRO_USAGE: BillingUsage = {
-  recordsSyncedThisMonth: 284,
+  recordsCreatedThisMonth: 284,
   connectedSourceCount: 2,
   plan: "pro",
   status: "active",
@@ -26,7 +26,7 @@ const PRO_USAGE: BillingUsage = {
 };
 
 const HOBBY_USAGE: BillingUsage = {
-  recordsSyncedThisMonth: 42,
+  recordsCreatedThisMonth: 42,
   connectedSourceCount: 1,
   plan: "hobby",
   status: "active",
@@ -52,7 +52,7 @@ describe("SetBillingUsageCard", () => {
     expect(wrapper.html()).toMatchSnapshot();
   });
 
-  it("renders the real records synced count", () => {
+  it("renders the real records created count", () => {
     const wrapper = mount(SetBillingUsageCard, {
       ...globalConfig,
       props: { usage: PRO_USAGE },
@@ -74,7 +74,7 @@ describe("SetBillingUsageCard", () => {
       props: { usage: PRO_USAGE },
     });
     expect(
-      wrapper.find('[data-label="Records synced"]').attributes()["data-hint"],
+      wrapper.find('[data-label="Records created"]').attributes()["data-hint"],
     ).toBe("284 of unlimited on Pro.");
     expect(
       wrapper.find('[data-label="Connected sources"]').attributes()[
@@ -89,7 +89,7 @@ describe("SetBillingUsageCard", () => {
       props: { usage: HOBBY_USAGE },
     });
     expect(
-      wrapper.find('[data-label="Records synced"]').attributes()["data-hint"],
+      wrapper.find('[data-label="Records created"]').attributes()["data-hint"],
     ).toBe("42 of 100 on Hobby.");
     expect(
       wrapper.find('[data-label="Connected sources"]').attributes()[
@@ -105,7 +105,7 @@ describe("SetBillingUsageCard", () => {
     });
     expect(wrapper.text()).toContain("…");
     expect(
-      wrapper.find('[data-label="Records synced"]').attributes()["data-hint"],
+      wrapper.find('[data-label="Records created"]').attributes()["data-hint"],
     ).toBeUndefined();
   });
 });

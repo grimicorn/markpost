@@ -26,7 +26,7 @@ const globalConfig = {
 };
 
 const TRIALING_USAGE: BillingUsage = {
-  recordsSyncedThisMonth: 284,
+  recordsCreatedThisMonth: 284,
   connectedSourceCount: 2,
   plan: "pro",
   status: "trialing",
@@ -36,7 +36,7 @@ const TRIALING_USAGE: BillingUsage = {
 };
 
 const ACTIVE_USAGE: BillingUsage = {
-  recordsSyncedThisMonth: 5000,
+  recordsCreatedThisMonth: 5000,
   connectedSourceCount: 4,
   plan: "pro",
   status: "active",
@@ -46,7 +46,7 @@ const ACTIVE_USAGE: BillingUsage = {
 };
 
 const HOBBY_USAGE: BillingUsage = {
-  recordsSyncedThisMonth: 12,
+  recordsCreatedThisMonth: 12,
   connectedSourceCount: 1,
   plan: "hobby",
   status: "active",

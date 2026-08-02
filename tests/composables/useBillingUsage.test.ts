@@ -8,7 +8,7 @@ import {
   derivePlanBadge,
   describeBillingState,
   deriveBillingCtaLabel,
-  describeRecordsSyncedHint,
+  describeRecordsCreatedHint,
   describeConnectedSourcesHint,
   describeTrialStatus,
 } from "../../app/composables/useBillingUsage";
@@ -20,7 +20,7 @@ describe("fetchBillingUsage", () => {
 
   it("returns usage data on success", async () => {
     const usageData = {
-      recordsSyncedThisMonth: 284,
+      recordsCreatedThisMonth: 284,
       connectedSourceCount: 2,
       plan: "pro" as const,
       status: "trialing" as const,
@@ -151,15 +151,15 @@ describe("deriveBillingCtaLabel", () => {
   });
 });
 
-describe("describeRecordsSyncedHint", () => {
+describe("describeRecordsCreatedHint", () => {
   it("shows unlimited on the Pro plan", () => {
-    expect(describeRecordsSyncedHint("pro", 284)).toBe(
+    expect(describeRecordsCreatedHint("pro", 284)).toBe(
       "284 of unlimited on Pro.",
     );
   });
 
   it("shows the monthly cap on the Hobby plan", () => {
-    expect(describeRecordsSyncedHint("hobby", 42)).toBe("42 of 100 on Hobby.");
+    expect(describeRecordsCreatedHint("hobby", 42)).toBe("42 of 100 on Hobby.");
   });
 });
 
