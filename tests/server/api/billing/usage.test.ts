@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { H3Event } from "h3";
-import { records } from "../../../../server/db/schema";
 
 const selectMock = vi.fn();
 const mockFindSubscriptionByUserId = vi.fn();
@@ -9,25 +8,15 @@ vi.mock("../../../../server/db", () => ({
   getDb: () => ({ select: selectMock }),
 }));
 
-// Spy-wrapped (not just pass-through) so a test can assert *which* column the
-// monthly record count filters on — this is what proves the dashboard now
-// counts by createdAt rather than syncedAt (issue #130), matching enforcement.
-const andMock = vi.fn((...conditions: unknown[]) => ({ and: conditions }));
-const countMock = vi.fn((expr?: unknown) => ({ count: expr }));
-const eqMock = vi.fn((column: unknown, value: unknown) => ({
-  eq: { column, value },
-}));
-const gteMock = vi.fn((column: unknown, value: unknown) => ({
-  gte: { column, value },
-}));
-const isNotNullMock = vi.fn((column: unknown) => ({ isNotNull: column }));
-
+// Pass-through drizzle stubs — this suite exercises the endpoint's wiring
+// (auth, response shape, subscription handling). The monthly record count's
+// query shape (createdAt not syncedAt, scoped to the user) is asserted where it
+// lives, in tests/server/utils/recordUsage.test.ts.
 vi.mock("drizzle-orm", () => ({
-  and: (...args: unknown[]) => andMock(...args),
-  count: (expr?: unknown) => countMock(expr),
-  eq: (column: unknown, value: unknown) => eqMock(column, value),
-  gte: (column: unknown, value: unknown) => gteMock(column, value),
-  isNotNull: (column: unknown) => isNotNullMock(column),
+  and: (...conditions: unknown[]) => ({ and: conditions }),
+  count: (expr?: unknown) => ({ count: expr }),
+  eq: (column: unknown, value: unknown) => ({ eq: { column, value } }),
+  gte: (column: unknown, value: unknown) => ({ gte: { column, value } }),
 }));
 
 vi.mock("../../../../server/utils/billing", async () => {
@@ -87,11 +76,6 @@ beforeEach(() => {
   stubRequireUser(USER_ID);
   mockCreateError.mockClear();
   selectMock.mockReset();
-  andMock.mockClear();
-  countMock.mockClear();
-  eqMock.mockClear();
-  gteMock.mockClear();
-  isNotNullMock.mockClear();
   mockFindSubscriptionByUserId.mockReset();
   mockFindSubscriptionByUserId.mockResolvedValue(null);
 });
@@ -242,42 +226,5 @@ describe("GET /api/billing/usage", () => {
         trialPercentElapsed: null,
       },
     });
-  });
-
-  it("counts the monthly records with a single createdAt+user predicate (a record created this month but not yet synced is included)", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-07-18T15:30:00Z"));
-    stubSelectSequence([[{ total: 7 }], [{ total: 0 }]]);
-
-    const response = await handler(buildEvent(USER_ID));
-
-    expect(response.data.recordsCreatedThisMonth).toBe(7);
-    // Assert the composed where-clause, not just that eq/gte were each called
-    // (eqMock also fires for the connected-source count in the same request):
-    // this pins the count to *this* user AND the current month together.
-    expect(andMock).toHaveBeenCalledWith(
-      { eq: { column: records.userId, value: USER_ID } },
-      {
-        gte: {
-          column: records.createdAt,
-          value: new Date(Date.UTC(2026, 6, 1)),
-        },
-      },
-    );
-  });
-
-  it("builds the monthly record count without any syncedAt predicate (a record created last month but synced this month is excluded)", async () => {
-    stubSelectSequence([[{ total: 3 }], [{ total: 0 }]]);
-
-    await handler(buildEvent(USER_ID));
-
-    expect(gteMock).toHaveBeenCalledWith(records.createdAt, expect.any(Date));
-    expect(gteMock).not.toHaveBeenCalledWith(
-      records.syncedAt,
-      expect.any(Date),
-    );
-    // The prior syncedAt-based dashboard query used isNotNull(records.syncedAt);
-    // its absence here proves the switch to a pure createdAt count.
-    expect(isNotNullMock).not.toHaveBeenCalled();
   });
 });
