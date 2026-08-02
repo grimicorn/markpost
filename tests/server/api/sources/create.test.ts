@@ -431,6 +431,51 @@ describe("POST /api/sources", () => {
       expect(insertMock).not.toHaveBeenCalled();
     });
 
+    it("treats providerSecret: null as absent for a webhook source (stores null, no error)", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "webhook",
+          name: "My Webhook",
+          routeFolder: "99-incoming/",
+          providerSecret: null,
+        }),
+      );
+      const { values } = stubInsertResult([sampleSource]);
+
+      await handler(buildEvent(userId));
+
+      const insertedValues = (
+        values.mock.calls[0] as [Record<string, unknown>]
+      )[0];
+      expect(insertedValues.providerSecret).toBeNull();
+    });
+
+    it("treats providerSecret: null as absent for stripe — reports the required error, not a type error", async () => {
+      mockReadBody.mockResolvedValue(
+        buildBody({
+          type: "stripe",
+          name: "My Stripe Source",
+          routeFolder: "99-incoming/",
+          providerSecret: null,
+        }),
+      );
+
+      await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+        statusCode: 422,
+      });
+      expect(mockCreateError).toHaveBeenCalledWith({
+        statusCode: 422,
+        data: {
+          errors: [
+            expect.objectContaining({
+              detail: expect.stringContaining("providerSecret is required"),
+            }),
+          ],
+        },
+      });
+      expect(insertMock).not.toHaveBeenCalled();
+    });
+
     it("does not derive a provider for the generic webhook type", async () => {
       mockReadBody.mockResolvedValue(
         buildBody({

@@ -5,7 +5,8 @@ import type { ApiRequest } from "../../types/api.types";
 import { requireUser } from "../../utils/auth";
 import { ApiError, apiErrorHandler } from "../../utils/errors";
 import { sourceSerializer, type SourceApiResponse } from "../../utils/response";
-import { isValidUuid } from "../../utils/uuid";
+import { sourceNotFoundError } from "../../utils/sourceErrors";
+import { invalidUuidError, isValidUuid } from "../../utils/uuid";
 
 type PatchSourceAttributes = {
   routeFolder?: string;
@@ -22,33 +23,6 @@ type SourceUpdatePayload = {
   routeFolder?: string;
   fieldMapping?: unknown;
 };
-
-function invalidUuidError(): ApiError {
-  return new ApiError(
-    [
-      {
-        status: "400",
-        title: "Invalid Parameter",
-        detail: "The uuid parameter is missing or malformed.",
-        source: { parameter: "uuid" },
-      },
-    ],
-    400,
-  );
-}
-
-function notFoundError(): ApiError {
-  return new ApiError(
-    [
-      {
-        status: "404",
-        title: "Not Found",
-        detail: "No source was found for the given uuid.",
-      },
-    ],
-    404,
-  );
-}
 
 function emptyUpdateError(): ApiError {
   return new ApiError(
@@ -138,7 +112,7 @@ export default defineEventHandler(async (event): Promise<SourceApiResponse> => {
     const updated = await updateUserSource(userId, sourceUuid, payload);
 
     if (!updated) {
-      throw notFoundError();
+      throw sourceNotFoundError();
     }
 
     return { data: sourceSerializer(updated) };

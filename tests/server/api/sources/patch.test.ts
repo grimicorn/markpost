@@ -136,10 +136,10 @@ describe("PATCH /api/sources/:uuid", () => {
   });
 
   it("ignores provider and providerSecret in the request body — PATCH cannot change either", async () => {
-    // There is no rotate/re-verify flow yet: provider identity and its secret
-    // are fixed at creation. If PATCH ever needs to accept these, it must
-    // validate them the same way index.post.ts does, not silently pass them
-    // through a payload[key] = value loop.
+    // Provider identity is fixed at creation, and PATCH never touches the
+    // secret either — rotating a secret is a separate action with its own
+    // reveal-once semantics (POST /api/sources/:uuid/rotate-secret). PATCH
+    // stays a plain routeFolder/fieldMapping update.
     mockGetRouterParam.mockReturnValue(validUuid);
     mockReadBody.mockResolvedValue(
       buildBody({
