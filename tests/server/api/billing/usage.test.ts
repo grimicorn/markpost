@@ -99,6 +99,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 describe("GET /api/billing/usage", () => {
@@ -223,8 +224,6 @@ describe("GET /api/billing/usage", () => {
         trialPercentElapsed: 71,
       },
     });
-
-    vi.useRealTimers();
   });
 
   it("does not compute trial progress when status is trialing but trialEndsAt is null", async () => {
@@ -245,7 +244,7 @@ describe("GET /api/billing/usage", () => {
     });
   });
 
-  it("counts the monthly records by createdAt scoped to the user and current month (so a record created this month but not yet synced is included)", async () => {
+  it("counts the monthly records with a single createdAt+user predicate (a record created this month but not yet synced is included)", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-18T15:30:00Z"));
     stubSelectSequence([[{ total: 7 }], [{ total: 0 }]]);
@@ -253,16 +252,21 @@ describe("GET /api/billing/usage", () => {
     const response = await handler(buildEvent(USER_ID));
 
     expect(response.data.recordsCreatedThisMonth).toBe(7);
-    expect(eqMock).toHaveBeenCalledWith(records.userId, USER_ID);
-    expect(gteMock).toHaveBeenCalledWith(
-      records.createdAt,
-      new Date(Date.UTC(2026, 6, 1)),
+    // Assert the composed where-clause, not just that eq/gte were each called
+    // (eqMock also fires for the connected-source count in the same request):
+    // this pins the count to *this* user AND the current month together.
+    expect(andMock).toHaveBeenCalledWith(
+      { eq: { column: records.userId, value: USER_ID } },
+      {
+        gte: {
+          column: records.createdAt,
+          value: new Date(Date.UTC(2026, 6, 1)),
+        },
+      },
     );
-
-    vi.useRealTimers();
   });
 
-  it("never filters the monthly record count by syncedAt (a record created last month but synced this month is excluded)", async () => {
+  it("builds the monthly record count without any syncedAt predicate (a record created last month but synced this month is excluded)", async () => {
     stubSelectSequence([[{ total: 3 }], [{ total: 0 }]]);
 
     await handler(buildEvent(USER_ID));
@@ -272,6 +276,8 @@ describe("GET /api/billing/usage", () => {
       records.syncedAt,
       expect.any(Date),
     );
+    // The prior syncedAt-based dashboard query used isNotNull(records.syncedAt);
+    // its absence here proves the switch to a pure createdAt count.
     expect(isNotNullMock).not.toHaveBeenCalled();
   });
 });

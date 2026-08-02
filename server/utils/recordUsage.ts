@@ -5,7 +5,8 @@ import { records } from "../db/schema";
 // Start of the current calendar month in UTC. Records are attributed to a month
 // by createdAt, so both the enforced cap (server/utils/planLimits.ts) and the
 // displayed usage (server/api/billing/usage.get.ts) resolve the boundary here.
-export function startOfMonthUtc(now: Date = new Date()): Date {
+function startOfMonthUtc(): Date {
+  const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 }
 

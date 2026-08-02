@@ -28,10 +28,9 @@ type BillingUsageApiResponse = {
 const DEFAULT_PLAN: SubscriptionPlan = "hobby";
 const DEFAULT_STATUS: SubscriptionStatus = "active";
 
-async function fetchConnectedSourceCount(
-  db: ReturnType<typeof getDb>,
-  userId: string,
-): Promise<number> {
+async function fetchConnectedSourceCount(userId: string): Promise<number> {
+  const db = getDb();
+
   const rows = await db
     .select({ total: count() })
     .from(sources)
@@ -77,12 +76,11 @@ export default defineEventHandler(
   async (event): Promise<BillingUsageApiResponse> => {
     try {
       const userId = requireUser(event);
-      const db = getDb();
 
       const [recordsCreatedThisMonth, connectedSourceCount, subscription] =
         await Promise.all([
           countRecordsCreatedThisMonth(userId),
-          fetchConnectedSourceCount(db, userId),
+          fetchConnectedSourceCount(userId),
           findSubscriptionByUserId(userId),
         ]);
 
