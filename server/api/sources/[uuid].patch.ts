@@ -5,6 +5,7 @@ import type { ApiRequest } from "../../types/api.types";
 import { requireUser } from "../../utils/auth";
 import { ApiError, apiErrorHandler } from "../../utils/errors";
 import { sourceSerializer, type SourceApiResponse } from "../../utils/response";
+import { assertValidRouteFolder } from "../../utils/routeFolder";
 import { isValidUuid } from "../../utils/uuid";
 
 type PatchSourceAttributes = {
@@ -122,11 +123,11 @@ export default defineEventHandler(async (event): Promise<SourceApiResponse> => {
     const body = (await readBody(event)) as PatchSourceBody;
     const attributes = body?.data?.attributes ?? {};
 
-    if (
-      attributes.routeFolder !== undefined &&
-      typeof attributes.routeFolder !== "string"
-    ) {
-      throw routeFolderTypeError();
+    if (attributes.routeFolder !== undefined) {
+      if (typeof attributes.routeFolder !== "string") {
+        throw routeFolderTypeError();
+      }
+      assertValidRouteFolder(attributes.routeFolder);
     }
 
     const payload = buildUpdatePayload(attributes);

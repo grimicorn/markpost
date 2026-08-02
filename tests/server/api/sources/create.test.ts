@@ -186,6 +186,108 @@ describe("POST /api/sources", () => {
     });
   });
 
+  it("throws 422 when routeFolder contains path traversal", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        type: "webhook",
+        name: "My Webhook",
+        routeFolder: "../../etc",
+      }),
+    );
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 422,
+      data: {
+        errors: [
+          {
+            status: "422",
+            title: "Invalid Attribute",
+            detail: "RouteFolder must not contain path traversal segments (..)",
+            source: { pointer: "/data/attributes/routeFolder" },
+          },
+        ],
+      },
+    });
+  });
+
+  it("throws 422 when routeFolder is an absolute path", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        type: "webhook",
+        name: "My Webhook",
+        routeFolder: "/etc/passwd",
+      }),
+    );
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 422,
+      data: {
+        errors: [
+          {
+            status: "422",
+            title: "Invalid Attribute",
+            detail:
+              "RouteFolder must be a relative path — no leading slash, backslash, or drive letter",
+            source: { pointer: "/data/attributes/routeFolder" },
+          },
+        ],
+      },
+    });
+  });
+
+  it("throws 422 when routeFolder contains hazardous characters", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        type: "webhook",
+        name: "My Webhook",
+        routeFolder: "notes\\work",
+      }),
+    );
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 422,
+      data: {
+        errors: [
+          {
+            status: "422",
+            title: "Invalid Attribute",
+            detail:
+              "RouteFolder may only contain letters, numbers, spaces, and . _ - /",
+            source: { pointer: "/data/attributes/routeFolder" },
+          },
+        ],
+      },
+    });
+  });
+
+  it("accepts a legitimate nested routeFolder", async () => {
+    mockReadBody.mockResolvedValue(
+      buildBody({
+        type: "webhook",
+        name: "My Webhook",
+        routeFolder: "notes/work",
+      }),
+    );
+    const { values } = stubInsertResult([
+      { ...sampleSource, routeFolder: "notes/work" },
+    ]);
+
+    await handler(buildEvent(userId));
+
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({ routeFolder: "notes/work" }),
+    );
+  });
+
   it("throws 422 when type is not a recognised source type", async () => {
     mockReadBody.mockResolvedValue(
       buildBody({

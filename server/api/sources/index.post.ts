@@ -16,6 +16,7 @@ import {
   normalizeProvider,
 } from "../../utils/signatureVerifier";
 import { sourceSerializer, type SourceApiResponse } from "../../utils/response";
+import { assertValidRouteFolder } from "../../utils/routeFolder";
 import { apiValidate, type AttributeRule } from "../../utils/validate";
 import { isSourceType, SOURCE_TYPES } from "#shared/utils/sourceTypes";
 
@@ -331,6 +332,7 @@ export default defineEventHandler(async (event): Promise<SourceApiResponse> => {
 
     const attributes = body.data.attributes as Required<CreateSourceAttributes>;
     validateAttributesOrThrow(attributes);
+    assertValidRouteFolder(attributes.routeFolder);
 
     const provider = deriveProvider(attributes);
     validateProviderSecretOrThrow(provider, attributes.providerSecret);

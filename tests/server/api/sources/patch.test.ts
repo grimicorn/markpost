@@ -211,6 +211,86 @@ describe("PATCH /api/sources/:uuid", () => {
     });
   });
 
+  it("throws 422 when routeFolder contains path traversal", async () => {
+    mockGetRouterParam.mockReturnValue(validUuid);
+    mockReadBody.mockResolvedValue(buildBody({ routeFolder: "../../etc" }));
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 422,
+      data: {
+        errors: [
+          {
+            status: "422",
+            title: "Invalid Attribute",
+            detail: "RouteFolder must not contain path traversal segments (..)",
+            source: { pointer: "/data/attributes/routeFolder" },
+          },
+        ],
+      },
+    });
+  });
+
+  it("throws 422 when routeFolder has a leading slash (absolute path)", async () => {
+    mockGetRouterParam.mockReturnValue(validUuid);
+    mockReadBody.mockResolvedValue(buildBody({ routeFolder: "/etc/passwd" }));
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 422,
+      data: {
+        errors: [
+          {
+            status: "422",
+            title: "Invalid Attribute",
+            detail:
+              "RouteFolder must be a relative path — no leading slash, backslash, or drive letter",
+            source: { pointer: "/data/attributes/routeFolder" },
+          },
+        ],
+      },
+    });
+  });
+
+  it("throws 422 when routeFolder contains hazardous characters", async () => {
+    mockGetRouterParam.mockReturnValue(validUuid);
+    mockReadBody.mockResolvedValue(buildBody({ routeFolder: "notes\\work" }));
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 422,
+    });
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 422,
+      data: {
+        errors: [
+          {
+            status: "422",
+            title: "Invalid Attribute",
+            detail:
+              "RouteFolder may only contain letters, numbers, spaces, and . _ - /",
+            source: { pointer: "/data/attributes/routeFolder" },
+          },
+        ],
+      },
+    });
+  });
+
+  it("accepts a legitimate nested routeFolder", async () => {
+    mockGetRouterParam.mockReturnValue(validUuid);
+    mockReadBody.mockResolvedValue(buildBody({ routeFolder: "notes/work" }));
+    const { set } = stubUpdateResult([
+      { ...sampleSource, routeFolder: "notes/work" },
+    ]);
+
+    await handler(buildEvent(userId));
+
+    expect(set).toHaveBeenCalledWith({ routeFolder: "notes/work" });
+  });
+
   it("throws 404 when the source does not exist for the user", async () => {
     mockGetRouterParam.mockReturnValue(validUuid);
     mockReadBody.mockResolvedValue(
