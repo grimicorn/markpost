@@ -197,6 +197,16 @@ export function useSources() {
     providerSecret?: string,
   ): Promise<SourceResource> {
     const rotated = await rotateSourceSecret(uuid, providerSecret);
+    // Fail loud rather than reporting a rotation the list never reflected: if
+    // the entry vanished between opening the flow and the response (a parallel
+    // loadSources replacing the array, a delete in another tab), the caller
+    // would otherwise advance to the reveal step over stale state.
+    const index = sources.value.findIndex(
+      (source) => source.attributes.uuid === uuid,
+    );
+    if (index === -1) {
+      throw new Error(`Rotated source ${uuid} is no longer in the list`);
+    }
     // Same rule as addSource: the reactive list backs SourceCard, which must
     // never retain the one-time revealed secret. Refresh the entry from the
     // response but null the secret out.

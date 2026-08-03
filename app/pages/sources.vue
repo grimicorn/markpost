@@ -139,6 +139,7 @@
       v-if="rotateState"
       :rotate-state="rotateState"
       :submitting="isRotatingSecret"
+      :error="rotateError"
       @close="closeRotateModal"
       @rotate="rotateSource"
     />
@@ -200,10 +201,11 @@ const isAddingSource = ref(false);
 // Same guard for rotation (see RotateSecretModal's `submitting` prop).
 const isRotatingSecret = ref(false);
 
-// The transient add/remove/rotate failures share one dismissible-banner shape.
-// Each is cleared when its own action restarts, so more than one can be visible
-// at once if two different actions have failed; they render through a single
-// list rather than three near-identical blocks.
+// The transient add/remove failures share one dismissible-banner shape. Each is
+// cleared when its own action restarts, so both can be visible at once if the
+// two actions have each failed; they render through a single list rather than
+// two near-identical blocks. (Rotate errors show inside RotateSecretModal
+// instead — its scrim would otherwise bury a page-level banner.)
 const actionErrors = computed(() =>
   [
     {
@@ -217,12 +219,6 @@ const actionErrors = computed(() =>
       title: "Failed to remove source",
       message: removeError.value,
       clear: () => (removeError.value = null),
-    },
-    {
-      key: "rotate",
-      title: "Failed to rotate secret",
-      message: rotateError.value,
-      clear: () => (rotateError.value = null),
     },
   ].filter((actionError) => actionError.message !== null),
 );
@@ -337,6 +333,7 @@ const closeRotateModal = () => {
     return;
   }
   rotateState.value = null;
+  rotateError.value = null;
 };
 
 const rotateSource = async (providerSecret?: string) => {
@@ -350,7 +347,7 @@ const rotateSource = async (providerSecret?: string) => {
 
   try {
     const rotated = await rotateSecret(source.uuid, providerSecret);
-    showRotateResult(rotated.attributes.providerSecret);
+    showRotateResult(source.uuid, rotated.attributes.providerSecret);
   } catch (rotationError) {
     // Log only the message: the raw ofetch error carries `options.body`, which
     // on the manual-secret path is the plaintext secret the user just pasted —
@@ -361,7 +358,7 @@ const rotateSource = async (providerSecret?: string) => {
     );
     // Leave the modal open on its confirm step (mirrors addSource's failure
     // handling) so a manual-secret provider keeps the value the user pasted;
-    // the banner reports the failure and they can retry.
+    // RotateSecretModal shows this error inline so they can retry.
     rotateError.value = "Failed to rotate secret. Please try again.";
   } finally {
     isRotatingSecret.value = false;
@@ -373,10 +370,17 @@ const rotateSource = async (providerSecret?: string) => {
 // value, so there is nothing new to show — just confirm it took effect. Keying
 // the step on the provider (not merely on whether a secret came back) fails
 // loud: if a generated provider's one-time secret is ever missing from the
-// response, the rotation already happened server-side, so show an error rather
-// than a false "updated" that hides an unrecoverable, now-401ing secret.
-function showRotateResult(revealSecret: string | null | undefined): void {
-  if (!rotateState.value) {
+// response, the rotation already happened server-side, so keep the modal on its
+// confirm step with an error rather than a false "updated" that hides an
+// unrecoverable, now-401ing secret.
+function showRotateResult(
+  expectedUuid: string,
+  revealSecret: string | null | undefined,
+): void {
+  // The flow may have been retargeted to another source mid-request; only act
+  // when the modal still holds the source this result belongs to, so we never
+  // show source A's secret under source B's name.
+  if (!rotateState.value || rotateState.value.source.uuid !== expectedUuid) {
     return;
   }
 
@@ -385,7 +389,6 @@ function showRotateResult(revealSecret: string | null | undefined): void {
   );
 
   if (expectsReveal && !revealSecret) {
-    rotateState.value = null;
     rotateError.value =
       "The secret was rotated but its new value was not returned. Rotate again to get a usable secret.";
     return;
@@ -394,7 +397,10 @@ function showRotateResult(revealSecret: string | null | undefined): void {
   rotateState.value = {
     ...rotateState.value,
     step: expectsReveal ? "reveal" : "done",
-    revealSecret: revealSecret ?? null,
+    // Never park the manual provider's echoed-back secret in reactive state:
+    // the done step renders no reveal panel, so it would only sit exposed to
+    // devtools/state serializers for no benefit.
+    revealSecret: expectsReveal ? (revealSecret ?? null) : null,
   };
 }
 

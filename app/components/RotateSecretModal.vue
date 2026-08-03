@@ -47,6 +47,14 @@
 
       <!-- step: confirm -->
       <div v-if="rotateState.step === 'confirm'" style="padding: 24px">
+        <AppAlert
+          v-if="error"
+          tone="err"
+          title="Rotation failed"
+          style="margin-bottom: 14px"
+        >
+          {{ error }}
+        </AppAlert>
         <AppAlert tone="warn" title="This replaces the current secret">
           Rotating {{ warningDetail }} Deliveries verified with the old secret
           will be rejected until the new one is in place.
@@ -138,8 +146,11 @@ const props = withDefaults(
     // double-click firing two rotations, the second of which would win and
     // leave the first-revealed secret already replaced and unrecoverable.
     submitting?: boolean;
+    // A rotation failure, shown in the confirm step so the retry feedback sits
+    // with the retry control rather than behind the modal's scrim.
+    error?: string | null;
   }>(),
-  { submitting: false },
+  { submitting: false, error: null },
 );
 
 const emit = defineEmits<{

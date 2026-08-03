@@ -243,7 +243,8 @@ describe("useSources", () => {
         },
       });
       mockFetch.mockResolvedValue({ data: rotated });
-      const { rotateSecret } = useSources();
+      const { sources, rotateSecret } = useSources();
+      sources.value = [makeSourceResource({ id: "attributes-uuid" })];
 
       const result = await rotateSecret("attributes-uuid");
 
@@ -272,7 +273,8 @@ describe("useSources", () => {
         },
       });
       mockFetch.mockResolvedValue({ data: rotated });
-      const { rotateSecret } = useSources();
+      const { sources, rotateSecret } = useSources();
+      sources.value = [makeSourceResource({ id: "attributes-uuid" })];
 
       await rotateSecret("attributes-uuid", "whsec_new_value");
 
@@ -328,6 +330,17 @@ describe("useSources", () => {
       const { rotateSecret } = useSources();
       await expect(rotateSecret("attributes-uuid")).rejects.toThrow(
         "Server returned no data",
+      );
+    });
+
+    it("throws when the rotated source is no longer in the list", async () => {
+      const rotated = makeSourceResource({ id: "gone" });
+      rotated.attributes.uuid = "gone";
+      mockFetch.mockResolvedValue({ data: rotated });
+      const { sources, rotateSecret } = useSources();
+      sources.value = [];
+      await expect(rotateSecret("gone")).rejects.toThrow(
+        "no longer in the list",
       );
     });
 

@@ -67,7 +67,7 @@ const globalConfig = {
       RotateSecretModal: {
         template:
           '<div class="rotate-modal"><button class="rotate-confirm" @click="$emit(\'rotate\', undefined)" /><button class="rotate-confirm-secret" @click="$emit(\'rotate\', \'whsec_new\')" /><button class="rotate-close" @click="$emit(\'close\')" /></div>',
-        props: ["rotateState", "submitting"],
+        props: ["rotateState", "submitting", "error"],
         emits: ["close", "rotate"],
       },
     },
@@ -279,11 +279,13 @@ describe("sources page", () => {
       const wrapper = mount(SourcesPage, globalConfig);
 
       await wrapper.find(".rotate-trigger").trigger("click");
+      const modal = wrapper.findComponent(".rotate-modal");
       await wrapper.find(".rotate-confirm").trigger("click");
       await flushPromises();
 
-      expect(wrapper.find(".rotate-modal").exists()).toBe(false);
-      expect(wrapper.text()).toContain("new value was not returned");
+      // Stays on confirm (never reveal/done) with the error shown inline.
+      expect(modal.props("rotateState")).toMatchObject({ step: "confirm" });
+      expect(modal.props("error")).toContain("new value was not returned");
     });
 
     it("moves to the done step when the rotation reveals nothing (manual provider)", async () => {
@@ -301,19 +303,21 @@ describe("sources page", () => {
       expect(modal.props("rotateState")).toMatchObject({ step: "done" });
     });
 
-    it("keeps the modal open and shows an error banner when rotation fails", async () => {
+    it("keeps the modal open and routes the failure into the modal's error prop", async () => {
       // Mirrors addSource: a transient failure must not tear down the modal, or
-      // a manual-secret provider loses the value the user just pasted.
+      // a manual-secret provider loses the value the user just pasted. The error
+      // goes into the modal (not a page banner the modal's scrim would bury).
       sourcesRef.value = [makeProviderSource()];
       mockRotateSecret.mockRejectedValue(new Error("rotate failed"));
       const wrapper = mount(SourcesPage, globalConfig);
 
       await wrapper.find(".rotate-trigger").trigger("click");
+      const modal = wrapper.findComponent(".rotate-modal");
       await wrapper.find(".rotate-confirm").trigger("click");
       await flushPromises();
 
       expect(wrapper.find(".rotate-modal").exists()).toBe(true);
-      expect(wrapper.text()).toContain("Failed to rotate secret");
+      expect(modal.props("error")).toContain("Failed to rotate secret");
     });
 
     it("ignores a close emitted while a rotation is in flight, still reaching the reveal step", async () => {

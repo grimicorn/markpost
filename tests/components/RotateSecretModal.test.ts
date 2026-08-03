@@ -167,6 +167,18 @@ describe("RotateSecretModal", () => {
     expect(wrapper.text()).not.toContain("copy secret");
   });
 
+  it("renders a rotation error inline in the confirm step", () => {
+    const wrapper = mount(RotateSecretModal, {
+      ...globalConfig,
+      props: {
+        ...confirmState("github", "GitHub"),
+        error: "Failed to rotate secret. Please try again.",
+      },
+    });
+    expect(wrapper.text()).toContain("Rotation failed");
+    expect(wrapper.text()).toContain("Failed to rotate secret");
+  });
+
   it("disables rotate and emits nothing while submitting", async () => {
     const wrapper = mount(RotateSecretModal, {
       ...globalConfig,
