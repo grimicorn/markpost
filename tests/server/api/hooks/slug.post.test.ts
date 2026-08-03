@@ -7,7 +7,10 @@ import {
   spyConsoleError,
 } from "../../helpers";
 import { ApiError } from "../../../../server/utils/errors";
-import { MAX_WEBHOOK_BODY_BYTES } from "../../../../server/utils/webhookBodyLimit";
+import {
+  CONTENT_LENGTH_HEADER,
+  MAX_WEBHOOK_BODY_BYTES,
+} from "../../../../server/utils/webhookBodyLimit";
 import { hashSharedSecret } from "../../../../server/utils/signatureVerifier";
 import { SHARED_SECRET_HEADER } from "#shared/utils/webhookSecrets";
 
@@ -864,22 +867,31 @@ describe("POST /api/hooks/[slug]", () => {
   describe("payload size limit", () => {
     function stubContentLengthHeader(value: string): void {
       mockGetHeader.mockImplementation((_event: unknown, name: string) =>
-        name === "content-length" ? value : undefined,
+        name === CONTENT_LENGTH_HEADER ? value : undefined,
       );
     }
 
-    it("returns 413 by Content-Length before reading the body, without inserting", async () => {
-      stubSourceOnly([sampleSource]);
+    it("returns 413 by Content-Length before the source lookup or reading the body", async () => {
       stubContentLengthHeader(String(MAX_WEBHOOK_BODY_BYTES + 1));
 
       await expect(handler(buildEvent())).rejects.toMatchObject({
         statusCode: 413,
       });
-      expect(mockCreateError).toHaveBeenCalledWith(
-        expect.objectContaining({ statusCode: 413 }),
-      );
-      // Rejected on the declared length: the body is never buffered and no
-      // record is inserted or throttle budget spent.
+      expect(mockCreateError).toHaveBeenCalledWith({
+        statusCode: 413,
+        data: {
+          errors: [
+            {
+              status: "413",
+              title: "Payload Too Large",
+              detail: expect.stringContaining(String(MAX_WEBHOOK_BODY_BYTES)),
+            },
+          ],
+        },
+      });
+      // Rejected on the declared length before doing any work: no source lookup,
+      // no body buffering, no throttle budget spent, no record inserted.
+      expect(selectMock).not.toHaveBeenCalled();
       expect(mockReadRawBody).not.toHaveBeenCalled();
       expect(mockRecordWebhookHit).not.toHaveBeenCalled();
       expect(insertMock).not.toHaveBeenCalled();

@@ -16,11 +16,11 @@ import { recordWebhookHit } from "../../utils/webhookThrottle";
 import {
   assertBodyWithinLimit,
   assertContentLengthWithinLimit,
+  CONTENT_LENGTH_HEADER,
 } from "../../utils/webhookBodyLimit";
 import { SHARED_SECRET_HEADER } from "#shared/utils/webhookSecrets";
 
 const DEFAULT_FILENAME_TEMPLATE = "{{date}}-{{slug}}.md";
-const CONTENT_LENGTH_HEADER = "content-length";
 const RECORD_STATUS_PENDING = "pending";
 const RECORD_STATUS_ERROR = "error";
 const EVENT_KIND_OK = "ok";

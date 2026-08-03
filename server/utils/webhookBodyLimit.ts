@@ -8,6 +8,8 @@ import { ApiError } from "./errors";
 // events, Zapier/Shortcuts posts) while rejecting abuse.
 export const MAX_WEBHOOK_BODY_BYTES = 1_048_576;
 
+export const CONTENT_LENGTH_HEADER = "content-length";
+
 function payloadTooLargeError(): ApiError {
   return new ApiError(
     [

@@ -7,18 +7,25 @@ import {
 } from "../../../server/utils/webhookBodyLimit";
 
 function expectPayloadTooLarge(run: () => void): void {
-  expect(run).toThrowError(
-    expect.objectContaining({ statusCode: 413 }) as unknown as Error,
-  );
+  let thrown: unknown;
 
   try {
     run();
   } catch (error) {
-    expect(error).toBeInstanceOf(ApiError);
-    return;
+    thrown = error;
   }
 
-  throw new Error("expected a 413 ApiError to be thrown");
+  expect(thrown).toBeInstanceOf(ApiError);
+  expect(thrown).toMatchObject({
+    statusCode: 413,
+    errors: [
+      {
+        status: "413",
+        title: "Payload Too Large",
+        detail: expect.stringContaining(String(MAX_WEBHOOK_BODY_BYTES)),
+      },
+    ],
+  });
 }
 
 describe("assertContentLengthWithinLimit", () => {
