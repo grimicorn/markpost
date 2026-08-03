@@ -1,13 +1,11 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../../db";
-import { users, type SubscriptionStatus } from "../../db/schema";
+import { users } from "../../db/schema";
 import { requireUser } from "../../utils/auth";
 import { deleteClerkUser } from "../../utils/clerk";
 import { apiErrorHandler, ApiError } from "../../utils/errors";
 import { findSubscriptionByUserId } from "../../utils/billing";
 import { cancelSubscription } from "../../services/stripe";
-
-const CANCELED_STATUS: SubscriptionStatus = "canceled";
 
 function billingUnavailableError(): ApiError {
   return new ApiError(
@@ -26,18 +24,18 @@ function billingUnavailableError(): ApiError {
 // Cancels the customer's live Stripe subscription before any local state is
 // wiped. The subscriptions row holds the id we need and is deleted by the
 // users-row cascade below, so once that runs we can no longer reconcile — a
-// Pro user would keep being charged. A genuine Stripe failure here aborts the
-// whole delete (fail closed) so we never remove the account while billing is
-// still live.
-async function cancelActiveSubscription(userId: string): Promise<void> {
+// Pro user would keep being charged. The Stripe service owns the "is this still
+// live" decision (it no-ops on already-cancelled/missing subscriptions); a
+// genuine Stripe failure aborts the whole delete (fail closed) so we never
+// remove the account while billing is still live. Returns the subscription id
+// we acted on (or null) so the caller can flag an irreversible partial failure.
+async function cancelActiveSubscription(
+  userId: string,
+): Promise<string | null> {
   const subscription = await findSubscriptionByUserId(userId);
 
   if (!subscription?.stripeSubscriptionId) {
-    return;
-  }
-
-  if (subscription.status === CANCELED_STATUS) {
-    return;
+    return null;
   }
 
   try {
@@ -50,6 +48,8 @@ async function cancelActiveSubscription(userId: string): Promise<void> {
     });
     throw billingUnavailableError();
   }
+
+  return subscription.stripeSubscriptionId;
 }
 
 async function deleteAllUserData(userId: string): Promise<void> {
@@ -59,15 +59,35 @@ async function deleteAllUserData(userId: string): Promise<void> {
   await getDb().delete(users).where(eq(users.userId, userId));
 }
 
+// Deletes local app data then the Clerk identity. If this fails after the
+// Stripe subscription was already cancelled, the account is left live with a
+// dead subscription — log it loudly so support can reconcile, then rethrow.
+async function deleteUserRecords(
+  userId: string,
+  canceledSubscriptionId: string | null,
+): Promise<void> {
+  try {
+    // Delete app data before the Clerk identity: the users-row delete is
+    // idempotent, so a retry after a Clerk failure safely no-ops the DB side.
+    await deleteAllUserData(userId);
+    await deleteClerkUser(userId);
+  } catch (error) {
+    if (canceledSubscriptionId) {
+      console.error(
+        "[account/delete] subscription cancelled but account deletion failed; reconcile manually",
+        { userId, canceledSubscriptionId },
+      );
+    }
+    throw error;
+  }
+}
+
 export default defineEventHandler(
   async (event): Promise<{ meta: { deleted: true } }> => {
     try {
       const userId = requireUser(event);
-      await cancelActiveSubscription(userId);
-      // Delete app data before the Clerk identity: the users-row delete is
-      // idempotent, so a retry after a Clerk failure safely no-ops the DB side.
-      await deleteAllUserData(userId);
-      await deleteClerkUser(userId);
+      const canceledSubscriptionId = await cancelActiveSubscription(userId);
+      await deleteUserRecords(userId, canceledSubscriptionId);
       return { meta: { deleted: true } };
     } catch (error) {
       return apiErrorHandler(error);

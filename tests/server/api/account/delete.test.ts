@@ -74,7 +74,7 @@ describe("DELETE /api/account", () => {
     deleteMock.mockImplementation(() => ({ where: usersWhere }));
     mockDeleteClerkUser.mockResolvedValue(undefined);
     mockFindSubscriptionByUserId.mockResolvedValue(null);
-    mockCancelSubscription.mockResolvedValue({ alreadyGone: false });
+    mockCancelSubscription.mockResolvedValue(undefined);
   });
 
   it("throws 401 when the request is unauthenticated", async () => {
@@ -159,7 +159,7 @@ describe("DELETE /api/account", () => {
     expect(mockCancelSubscription).not.toHaveBeenCalled();
   });
 
-  it("skips Stripe when the subscription is already canceled", async () => {
+  it("delegates the terminal-status decision to the Stripe service (calls it even for a locally-canceled row)", async () => {
     mockFindSubscriptionByUserId.mockResolvedValueOnce({
       status: "canceled",
       stripeSubscriptionId: "sub_dead_1",
@@ -167,7 +167,7 @@ describe("DELETE /api/account", () => {
 
     await handler(buildEvent("user_123"));
 
-    expect(mockCancelSubscription).not.toHaveBeenCalled();
+    expect(mockCancelSubscription).toHaveBeenCalledWith("sub_dead_1");
   });
 
   it("aborts the delete when Stripe cancellation genuinely fails", async () => {
@@ -182,5 +182,22 @@ describe("DELETE /api/account", () => {
     });
     expect(deleteMock).not.toHaveBeenCalled();
     expect(mockDeleteClerkUser).not.toHaveBeenCalled();
+  });
+
+  it("logs for manual reconciliation when the delete fails after a successful cancel", async () => {
+    mockFindSubscriptionByUserId.mockResolvedValueOnce({
+      status: "active",
+      stripeSubscriptionId: "sub_live_1",
+    });
+    usersWhere.mockRejectedValueOnce(new Error("db error"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(handler(buildEvent("user_123"))).rejects.toThrow();
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("reconcile manually"),
+      expect.objectContaining({ canceledSubscriptionId: "sub_live_1" }),
+    );
+    errorSpy.mockRestore();
   });
 });
