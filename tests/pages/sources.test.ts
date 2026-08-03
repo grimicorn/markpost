@@ -66,7 +66,7 @@ const globalConfig = {
       },
       RotateSecretModal: {
         template:
-          '<div class="rotate-modal"><button class="rotate-confirm" @click="$emit(\'rotate\', undefined)" /><button class="rotate-close" @click="$emit(\'close\')" /></div>',
+          '<div class="rotate-modal"><button class="rotate-confirm" @click="$emit(\'rotate\', undefined)" /><button class="rotate-confirm-secret" @click="$emit(\'rotate\', \'whsec_new\')" /><button class="rotate-close" @click="$emit(\'close\')" /></div>',
         props: ["rotateState", "submitting"],
         emits: ["close", "rotate"],
       },
@@ -257,6 +257,33 @@ describe("sources page", () => {
         step: "reveal",
         revealSecret: "fresh-generated-secret",
       });
+    });
+
+    it("passes a manual secret through to rotateSecret", async () => {
+      sourcesRef.value = [makeProviderSource("stripe", "uuid-stripe")];
+      mockRotateSecret.mockResolvedValue(
+        makeProviderSource("stripe", "uuid-stripe"),
+      );
+      const wrapper = mount(SourcesPage, globalConfig);
+      await wrapper.find(".rotate-trigger").trigger("click");
+      await wrapper.find(".rotate-confirm-secret").trigger("click");
+      await flushPromises();
+      expect(mockRotateSecret).toHaveBeenCalledWith("uuid-stripe", "whsec_new");
+    });
+
+    it("surfaces an error instead of a false success when a generated provider reveals nothing", async () => {
+      sourcesRef.value = [makeProviderSource()];
+      const rotated = makeProviderSource();
+      rotated.attributes.providerSecret = null;
+      mockRotateSecret.mockResolvedValue(rotated);
+      const wrapper = mount(SourcesPage, globalConfig);
+
+      await wrapper.find(".rotate-trigger").trigger("click");
+      await wrapper.find(".rotate-confirm").trigger("click");
+      await flushPromises();
+
+      expect(wrapper.find(".rotate-modal").exists()).toBe(false);
+      expect(wrapper.text()).toContain("new value was not returned");
     });
 
     it("moves to the done step when the rotation reveals nothing (manual provider)", async () => {

@@ -7,6 +7,7 @@ import {
 import {
   GITHUB_PROVIDER,
   MANUAL_SECRET_PROVIDER_IDS,
+  ROTATABLE_PROVIDER_IDS,
   SECRET_BACKED_PROVIDER_IDS,
   SHARED_SECRET_HEADER,
   SHARED_SECRET_PROVIDER_IDS,
@@ -60,11 +61,10 @@ export const MANUAL_SECRET_PROVIDERS = MANUAL_SECRET_PROVIDER_IDS;
 
 // Every provider identity the backend knows how to verify at all — used to
 // reject an unrecognized `provider` string at source-creation time rather
-// than accepting it and permanently 401ing every delivery afterward.
-export const KNOWN_PROVIDERS = [
-  ...MANUAL_SECRET_PROVIDERS,
-  ...SECRET_BACKED_PROVIDERS,
-] as const;
+// than accepting it and permanently 401ing every delivery afterward. This is
+// exactly the set with a rotatable secret, so it re-exports the shared list
+// the rotate-secret UI gates on rather than re-composing the union here.
+export const KNOWN_PROVIDERS = ROTATABLE_PROVIDER_IDS;
 
 export function isSecretBackedProvider(
   provider: string,

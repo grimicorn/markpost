@@ -147,7 +147,10 @@
 
 <script setup lang="ts">
 import { useSources } from "~/composables/useSources";
-import { isRotatableProvider } from "#shared/utils/webhookSecrets";
+import {
+  isManualSecretProviderId,
+  isRotatableProvider,
+} from "#shared/utils/webhookSecrets";
 import type { RotateState } from "~/types/rotateSecret";
 
 definePageMeta({ middleware: "auth" });
@@ -197,9 +200,10 @@ const isAddingSource = ref(false);
 // Same guard for rotation (see RotateSecretModal's `submitting` prop).
 const isRotatingSecret = ref(false);
 
-// The transient add/remove/rotate failures share one dismissible-banner shape;
-// only ever one is set at a time (they're mutually exclusive user actions), so
-// they render through a single list rather than three near-identical blocks.
+// The transient add/remove/rotate failures share one dismissible-banner shape.
+// Each is cleared when its own action restarts, so more than one can be visible
+// at once if two different actions have failed; they render through a single
+// list rather than three near-identical blocks.
 const actionErrors = computed(() =>
   [
     {
@@ -224,6 +228,13 @@ const actionErrors = computed(() =>
 );
 
 onMounted(fetchInitialSources);
+
+// ofetch errors carry the request `options` (including the plaintext request
+// body) as expandable own-properties, so create/rotate errors that touch a
+// secret must log only the message, never the raw error object.
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 async function fetchInitialSources(): Promise<void> {
   try {
@@ -268,7 +279,7 @@ const addSource = async (folder: string, providerSecret?: string) => {
     });
     showRevealStepIfSecretGenerated(choice, created.attributes.providerSecret);
   } catch (createError) {
-    console.error("[sources] addSource error:", createError);
+    console.error("[sources] addSource error:", toErrorMessage(createError));
     addError.value = "Failed to add source. Please try again.";
   } finally {
     isAddingSource.value = false;
@@ -341,7 +352,13 @@ const rotateSource = async (providerSecret?: string) => {
     const rotated = await rotateSecret(source.uuid, providerSecret);
     showRotateResult(rotated.attributes.providerSecret);
   } catch (rotationError) {
-    console.error("[sources] rotateSource error:", rotationError);
+    // Log only the message: the raw ofetch error carries `options.body`, which
+    // on the manual-secret path is the plaintext secret the user just pasted —
+    // logging the whole object would expose it in devtools and error reporters.
+    console.error(
+      "[sources] rotateSource error:",
+      toErrorMessage(rotationError),
+    );
     // Leave the modal open on its confirm step (mirrors addSource's failure
     // handling) so a manual-secret provider keeps the value the user pasted;
     // the banner reports the failure and they can retry.
@@ -353,15 +370,30 @@ const rotateSource = async (providerSecret?: string) => {
 
 // Generated-secret providers (github/zapier/shortcuts) get a fresh secret back
 // to reveal exactly once; manual-secret providers (stripe) supplied their own
-// value, so there is nothing new to show — just confirm it took effect.
+// value, so there is nothing new to show — just confirm it took effect. Keying
+// the step on the provider (not merely on whether a secret came back) fails
+// loud: if a generated provider's one-time secret is ever missing from the
+// response, the rotation already happened server-side, so show an error rather
+// than a false "updated" that hides an unrecoverable, now-401ing secret.
 function showRotateResult(revealSecret: string | null | undefined): void {
   if (!rotateState.value) {
     return;
   }
 
+  const expectsReveal = !isManualSecretProviderId(
+    rotateState.value.source.provider,
+  );
+
+  if (expectsReveal && !revealSecret) {
+    rotateState.value = null;
+    rotateError.value =
+      "The secret was rotated but its new value was not returned. Rotate again to get a usable secret.";
+    return;
+  }
+
   rotateState.value = {
     ...rotateState.value,
-    step: revealSecret ? "reveal" : "done",
+    step: expectsReveal ? "reveal" : "done",
     revealSecret: revealSecret ?? null,
   };
 }
