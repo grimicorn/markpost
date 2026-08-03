@@ -73,10 +73,20 @@ export async function createCheckoutSession(
 }
 
 // Stripe returns this error code when the subscription no longer exists (it
-// was already deleted, or the id is stale). Cancelling something that's already
-// gone is a no-op, not a failure — we must not block account deletion on it.
+// was already deleted, or the id is stale). A retrieve/cancel against something
+// that's already gone is a no-op, not a failure — it must not block account
+// deletion.
 const STRIPE_RESOURCE_MISSING_CODE = "resource_missing";
 const STRIPE_NOT_FOUND_STATUS = 404;
+
+// Terminal Stripe statuses can't be cancelled again — attempting it raises a
+// 400. Treat a subscription already in one of these as "nothing live to
+// cancel" so a stale local row (e.g. a delayed subscription.deleted webhook)
+// never wedges account deletion.
+const TERMINAL_SUBSCRIPTION_STATUSES = new Set<Stripe.Subscription.Status>([
+  "canceled",
+  "incomplete_expired",
+]);
 
 function isSubscriptionAlreadyGone(error: unknown): boolean {
   if (!(error instanceof Stripe.errors.StripeError)) {
@@ -89,31 +99,32 @@ function isSubscriptionAlreadyGone(error: unknown): boolean {
   );
 }
 
-export type CancelSubscriptionResult = {
-  // true when Stripe had no live subscription to cancel (already gone). Callers
-  // can treat this as success without proving a fresh cancellation happened.
-  alreadyGone: boolean;
-};
-
-// Cancels a live subscription immediately. Swallows only the "already gone"
-// case so account deletion isn't blocked by a stale id; any other Stripe error
-// (network, auth, a subscription that genuinely failed to cancel) propagates so
-// we never silently leave a customer billed.
+// Cancels a live subscription immediately. Retrieves first so a subscription
+// Stripe already considers terminal (already-cancelled, expired) resolves as a
+// no-op rather than triggering Stripe's 400 on a repeat cancel. A missing
+// subscription (404) is likewise treated as already gone. Any other Stripe
+// error (network, auth) propagates so we never silently leave a customer billed.
 export async function cancelSubscription(
   subscriptionId: string,
-): Promise<CancelSubscriptionResult> {
+): Promise<void> {
   const stripe = getStripeClient();
 
+  let subscription: Stripe.Subscription;
   try {
-    await stripe.subscriptions.cancel(subscriptionId);
-    return { alreadyGone: false };
+    subscription = await stripe.subscriptions.retrieve(subscriptionId);
   } catch (error) {
     if (isSubscriptionAlreadyGone(error)) {
-      return { alreadyGone: true };
+      return;
     }
 
     throw error;
   }
+
+  if (TERMINAL_SUBSCRIPTION_STATUSES.has(subscription.status)) {
+    return;
+  }
+
+  await stripe.subscriptions.cancel(subscriptionId);
 }
 
 export type CustomerPortalOptions = {
