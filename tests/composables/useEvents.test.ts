@@ -1,7 +1,15 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockFetch = vi.fn();
 vi.stubGlobal("$fetch", mockFetch);
+
+const { mockDownloadExport } = vi.hoisted(() => ({
+  mockDownloadExport: vi.fn(),
+}));
+
+vi.mock("../../app/utils/exportDownload", () => ({
+  downloadExport: mockDownloadExport,
+}));
 
 import {
   eventToLogRow,
@@ -65,28 +73,20 @@ describe("eventToLogRow", () => {
 });
 
 describe("triggerExportDownload", () => {
-  let originalLocation: Location;
-
   beforeEach(() => {
-    originalLocation = window.location;
-    Object.defineProperty(window, "location", {
-      value: { href: "" },
-      writable: true,
-      configurable: true,
-    });
+    mockDownloadExport.mockReset();
   });
 
-  afterEach(() => {
-    Object.defineProperty(window, "location", {
-      value: originalLocation,
-      writable: true,
-      configurable: true,
-    });
-  });
+  it("downloads the activity export and returns the outcome", async () => {
+    mockDownloadExport.mockResolvedValue({ status: "truncated" });
 
-  it("sets window.location.href to the export URL", () => {
-    triggerExportDownload();
-    expect(window.location.href).toBe("/api/events/export");
+    const outcome = await triggerExportDownload();
+
+    expect(mockDownloadExport).toHaveBeenCalledWith(
+      "/api/events/export",
+      "markpost-activity.json",
+    );
+    expect(outcome).toEqual({ status: "truncated" });
   });
 });
 

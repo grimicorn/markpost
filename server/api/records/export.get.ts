@@ -6,8 +6,11 @@ import { apiErrorHandler } from "../../utils/errors";
 import {
   buildRecordExport,
   RECORD_EXPORT_FETCH_LIMIT,
-  RECORD_EXPORT_FILENAME,
 } from "../../utils/recordExport";
+import {
+  EXPORT_TRUNCATED_HEADER,
+  RECORDS_EXPORT_FILENAME,
+} from "#shared/utils/export";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -27,12 +30,16 @@ export default defineEventHandler(async (event) => {
     setHeader(
       event,
       "Content-Disposition",
-      `attachment; filename="${RECORD_EXPORT_FILENAME}"`,
+      `attachment; filename="${RECORDS_EXPORT_FILENAME}"`,
     );
     // Full dump of the user's private record bodies; keep it out of shared
     // browser/proxy caches so it isn't recoverable after logout.
     setHeader(event, "Cache-Control", "no-store, private");
-    setHeader(event, "X-Export-Truncated", String(exportPayload.isTruncated));
+    setHeader(
+      event,
+      EXPORT_TRUNCATED_HEADER,
+      String(exportPayload.isTruncated),
+    );
 
     return exportPayload.rows;
   } catch (error) {
