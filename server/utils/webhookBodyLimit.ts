@@ -35,7 +35,10 @@ export function assertContentLengthWithinLimit(
 
   const declaredBytes = Number(contentLengthHeader);
 
-  if (!Number.isFinite(declaredBytes)) {
+  // Content-Length is a non-negative integer per RFC 9110; anything else
+  // (negative, fractional, hex, NaN) is not a value we can trust as the strict
+  // guard, so defer to the post-read byte check rather than acting on it.
+  if (!Number.isSafeInteger(declaredBytes) || declaredBytes < 0) {
     return;
   }
 

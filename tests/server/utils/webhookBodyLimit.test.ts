@@ -37,6 +37,13 @@ describe("assertContentLengthWithinLimit", () => {
     expect(() => assertContentLengthWithinLimit("not-a-number")).not.toThrow();
   });
 
+  it.each(["-1", "1.5", "Infinity"])(
+    "defers to the byte check for an invalid Content-Length (%s)",
+    (header) => {
+      expect(() => assertContentLengthWithinLimit(header)).not.toThrow();
+    },
+  );
+
   it("passes when the declared length is exactly the maximum", () => {
     expect(() =>
       assertContentLengthWithinLimit(String(MAX_WEBHOOK_BODY_BYTES)),

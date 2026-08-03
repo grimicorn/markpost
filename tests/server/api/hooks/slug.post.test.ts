@@ -920,7 +920,7 @@ describe("POST /api/hooks/[slug]", () => {
       expect(insertMock).not.toHaveBeenCalled();
     });
 
-    it("ingests a body at exactly the byte maximum", async () => {
+    it("ingests a body at exactly the byte maximum, passing both checks", async () => {
       const filler = "x".repeat(
         MAX_WEBHOOK_BODY_BYTES - JSON.stringify({ content: "" }).length,
       );
@@ -930,6 +930,9 @@ describe("POST /api/hooks/[slug]", () => {
       stubSourceAndSettings([sampleSource]);
       stubInsertRecord(sampleRecord);
       stubUpdateStats();
+      // An honest Content-Length at the exact cap must pass (the guard rejects
+      // strictly greater), then the byte check at the same boundary must pass too.
+      stubContentLengthHeader(String(MAX_WEBHOOK_BODY_BYTES));
       mockReadRawBody.mockResolvedValue(rawBody);
 
       const response = await handler(buildEvent());
