@@ -15,26 +15,17 @@
         </AppAlert>
       </div>
 
-      <!-- transient error banners (add/remove failures — do not gate list) -->
+      <!-- transient action error banners (add/remove/rotate — do not gate list) -->
       <AppAlert
-        v-if="addError"
+        v-for="actionError in actionErrors"
+        :key="actionError.key"
         tone="err"
-        title="Failed to add source"
+        :title="actionError.title"
         :closeable="true"
         style="margin-bottom: 14px"
-        @close="addError = null"
+        @close="actionError.clear()"
       >
-        {{ addError }}
-      </AppAlert>
-      <AppAlert
-        v-if="removeError"
-        tone="err"
-        title="Failed to remove source"
-        :closeable="true"
-        style="margin-bottom: 14px"
-        @close="removeError = null"
-      >
-        {{ removeError }}
+        {{ actionError.message }}
       </AppAlert>
 
       <!-- loading state -->
@@ -100,6 +91,7 @@
             :key="source.attributes.uuid"
             :source="source"
             @remove="onRemoveRequested"
+            @rotate="onRotateRequested"
           />
 
           <button
@@ -142,6 +134,14 @@
       @confirm="confirmRemove"
       @cancel="cancelRemove"
     />
+
+    <RotateSecretModal
+      v-if="rotateState"
+      :rotate-state="rotateState"
+      :submitting="isRotatingSecret"
+      @close="rotateState = null"
+      @rotate="rotateSource"
+    />
   </TheAppShell>
 </template>
 
@@ -173,22 +173,65 @@ interface ModalState {
   revealSecret?: string | null;
 }
 
+interface RotateSource {
+  uuid: string;
+  provider: string;
+  name: string;
+}
+
+interface RotateState {
+  step: "confirm" | "reveal" | "done";
+  source: RotateSource;
+  revealSecret?: string | null;
+}
+
 const {
   sources,
   isLoading,
   loadSources,
   removeSource,
   addSource: addSourceToList,
+  rotateSecret,
 } = useSources();
 
 const modalState = ref<ModalState | null>(null);
+const rotateState = ref<RotateState | null>(null);
 const pendingRemoveUuid = ref<string | null>(null);
 const loadError = ref<string | null>(null);
 const addError = ref<string | null>(null);
 const removeError = ref<string | null>(null);
+const rotateError = ref<string | null>(null);
 // Guards against a double-click on "add source" firing two create requests
 // (see AddSourceModal's `submitting` prop).
 const isAddingSource = ref(false);
+// Same guard for rotation (see RotateSecretModal's `submitting` prop).
+const isRotatingSecret = ref(false);
+
+// The transient add/remove/rotate failures share one dismissible-banner shape;
+// only ever one is set at a time (they're mutually exclusive user actions), so
+// they render through a single list rather than three near-identical blocks.
+const actionErrors = computed(() =>
+  [
+    {
+      key: "add",
+      title: "Failed to add source",
+      message: addError.value,
+      clear: () => (addError.value = null),
+    },
+    {
+      key: "remove",
+      title: "Failed to remove source",
+      message: removeError.value,
+      clear: () => (removeError.value = null),
+    },
+    {
+      key: "rotate",
+      title: "Failed to rotate secret",
+      message: rotateError.value,
+      clear: () => (rotateError.value = null),
+    },
+  ].filter((actionError) => actionError.message !== null),
+);
 
 onMounted(fetchInitialSources);
 
@@ -263,6 +306,61 @@ function showRevealStepIfSecretGenerated(
     choice,
     folder: DEFAULT_ROUTE_FOLDER,
     revealSecret: providerSecret,
+  };
+}
+
+const onRotateRequested = (uuid: string) => {
+  const source = sources.value.find(
+    (candidate) => candidate.attributes.uuid === uuid,
+  );
+  if (!source?.attributes.provider) {
+    return;
+  }
+
+  rotateError.value = null;
+  rotateState.value = {
+    step: "confirm",
+    source: {
+      uuid,
+      provider: source.attributes.provider,
+      name: source.attributes.name,
+    },
+  };
+};
+
+const rotateSource = async (providerSecret?: string) => {
+  if (!rotateState.value || isRotatingSecret.value) {
+    return;
+  }
+
+  const { source } = rotateState.value;
+  rotateError.value = null;
+  isRotatingSecret.value = true;
+
+  try {
+    const rotated = await rotateSecret(source.uuid, providerSecret);
+    showRotateResult(rotated.attributes.providerSecret);
+  } catch (rotationError) {
+    console.error("[sources] rotateSource error:", rotationError);
+    rotateState.value = null;
+    rotateError.value = "Failed to rotate secret. Please try again.";
+  } finally {
+    isRotatingSecret.value = false;
+  }
+};
+
+// Generated-secret providers (github/zapier/shortcuts) get a fresh secret back
+// to reveal exactly once; manual-secret providers (stripe) supplied their own
+// value, so there is nothing new to show — just confirm it took effect.
+function showRotateResult(revealSecret: string | null | undefined): void {
+  if (!rotateState.value) {
+    return;
+  }
+
+  rotateState.value = {
+    ...rotateState.value,
+    step: revealSecret ? "reveal" : "done",
+    revealSecret: revealSecret ?? null,
   };
 }
 
