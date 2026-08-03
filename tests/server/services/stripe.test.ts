@@ -111,7 +111,7 @@ describe("cancelSubscription", () => {
     );
   });
 
-  it("treats an already-gone error raised by cancel (retrieve/cancel race) as a no-op", async () => {
+  it("treats a resource_missing error raised by cancel (retrieve/cancel race) as a no-op", async () => {
     mockRetrieve.mockResolvedValueOnce({
       id: SUBSCRIPTION_ID,
       status: "active",
@@ -124,11 +124,22 @@ describe("cancelSubscription", () => {
     expect(mockCancel).toHaveBeenCalledWith(SUBSCRIPTION_ID);
   });
 
-  it("rethrows a real Stripe error raised by cancel", async () => {
-    mockRetrieve.mockResolvedValueOnce({
-      id: SUBSCRIPTION_ID,
-      status: "active",
-    });
+  it("treats a 400 repeat-cancel as a no-op when a re-check shows the subscription went terminal", async () => {
+    mockRetrieve
+      .mockResolvedValueOnce({ id: SUBSCRIPTION_ID, status: "active" })
+      .mockResolvedValueOnce({ id: SUBSCRIPTION_ID, status: "canceled" });
+    mockCancel.mockRejectedValueOnce(
+      new MockStripeError({ code: "invalid_request_error", statusCode: 400 }),
+    );
+
+    await expect(cancelSubscription(SUBSCRIPTION_ID)).resolves.toBeUndefined();
+    expect(mockRetrieve).toHaveBeenCalledTimes(2);
+  });
+
+  it("rethrows a real Stripe error raised by cancel when a re-check shows it is still live", async () => {
+    mockRetrieve
+      .mockResolvedValueOnce({ id: SUBSCRIPTION_ID, status: "active" })
+      .mockResolvedValueOnce({ id: SUBSCRIPTION_ID, status: "active" });
     mockCancel.mockRejectedValueOnce(
       new MockStripeError({ code: "api_error", statusCode: 500 }),
     );

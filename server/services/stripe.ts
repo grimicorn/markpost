@@ -90,15 +90,24 @@ const TERMINAL_SUBSCRIPTION_STATUSES = new Set<Stripe.Subscription.Status>([
 
 // A `resource_missing`/404 isn't only "already deleted" — it also fires when a
 // misconfigured key (e.g. test-mode against live ids) can't see the
-// subscription, which would fail open and keep billing the customer. Log it so
-// the skipped-cancel path is observable rather than silent.
-function warnAlreadyGone(subscriptionId: string): void {
+// subscription, which would fail open and keep billing the customer. Log the
+// error metadata (including Stripe's requestId) so the skipped-cancel path is
+// observable and traceable rather than silent.
+function warnAlreadyGone(
+  subscriptionId: string,
+  error: Stripe.errors.StripeError,
+): void {
   console.warn("[stripe] subscription already gone; skipped cancel", {
     subscriptionId,
+    code: error.code,
+    statusCode: error.statusCode,
+    requestId: error.requestId,
   });
 }
 
-function isSubscriptionAlreadyGone(error: unknown): boolean {
+function isSubscriptionAlreadyGone(
+  error: unknown,
+): error is Stripe.errors.StripeError {
   if (!(error instanceof Stripe.errors.StripeError)) {
     return false;
   }
@@ -109,40 +118,53 @@ function isSubscriptionAlreadyGone(error: unknown): boolean {
   );
 }
 
+// Resolves true when the subscription is already terminal or no longer exists —
+// either way there is nothing live to cancel. Swallows a missing/404 retrieve
+// as "gone"; any other retrieve error propagates.
+async function isNothingToCancel(
+  stripe: Stripe,
+  subscriptionId: string,
+): Promise<boolean> {
+  try {
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    return TERMINAL_SUBSCRIPTION_STATUSES.has(subscription.status);
+  } catch (error) {
+    if (isSubscriptionAlreadyGone(error)) {
+      warnAlreadyGone(subscriptionId, error);
+      return true;
+    }
+
+    throw error;
+  }
+}
+
 // Cancels a live subscription immediately. Retrieves first so a subscription
-// Stripe already considers terminal (already-cancelled, expired) resolves as a
-// no-op rather than triggering Stripe's 400 on a repeat cancel. A missing
-// subscription (404) is likewise treated as already gone. Any other Stripe
-// error (network, auth) propagates so we never silently leave a customer billed.
+// Stripe already considers terminal (already-cancelled, expired) or missing
+// resolves as a no-op rather than triggering Stripe's 400/404 on cancel. Any
+// other Stripe error (network, auth) propagates so we never silently leave a
+// customer billed.
 export async function cancelSubscription(
   subscriptionId: string,
 ): Promise<void> {
   const stripe = getStripeClient();
 
-  let subscription: Stripe.Subscription;
-  try {
-    subscription = await stripe.subscriptions.retrieve(subscriptionId);
-  } catch (error) {
-    if (isSubscriptionAlreadyGone(error)) {
-      warnAlreadyGone(subscriptionId);
-      return;
-    }
-
-    throw error;
-  }
-
-  if (TERMINAL_SUBSCRIPTION_STATUSES.has(subscription.status)) {
+  if (await isNothingToCancel(stripe, subscriptionId)) {
     return;
   }
 
-  // Guard the cancel too: retrieve and cancel aren't atomic, so the
-  // subscription can reach a terminal state between the two calls (portal
-  // cancel, dunning, trial expiry). A now-gone subscription is still a no-op.
   try {
     await stripe.subscriptions.cancel(subscriptionId);
   } catch (error) {
     if (isSubscriptionAlreadyGone(error)) {
-      warnAlreadyGone(subscriptionId);
+      warnAlreadyGone(subscriptionId, error);
+      return;
+    }
+
+    // Retrieve and cancel aren't atomic: the subscription can reach a terminal
+    // state between the two (portal cancel, dunning, trial expiry), and the
+    // repeat-cancel then errors (a 400, not a 404). Re-check state before
+    // treating it as a real failure so the race resolves as the no-op it is.
+    if (await isNothingToCancel(stripe, subscriptionId)) {
       return;
     }
 
