@@ -16,7 +16,9 @@ vi.mock("drizzle-orm", () => ({
   ilike: (column: unknown, pattern: unknown) => ({
     ilike: { column, pattern },
   }),
-  like: (column: unknown, pattern: unknown) => ({ like: { column, pattern } }),
+  inArray: (column: unknown, subquery: unknown) => ({
+    inArray: { column, subquery },
+  }),
   lt: (column: unknown, value: unknown) => ({ lt: { column, value } }),
   or: (...conditions: unknown[]) => ({ or: conditions }),
   SQL: class {},
@@ -51,17 +53,27 @@ function stubSelectResults(countRow: unknown, pageRows: unknown[]) {
   const pageWhere = vi.fn(() => ({ orderBy: pageOrderBy }));
   const pageFrom = vi.fn(() => ({ where: pageWhere }));
 
-  let callCount = 0;
-  selectMock.mockImplementation(() => {
-    callCount++;
-    if (callCount === 1) {
+  // The source-type filter builds a subquery via db.select({ uuid }); it is
+  // passed to inArray, never awaited, so it only needs to be chainable.
+  const sourceSubWhere = vi.fn(() => ({ __sourceSubquery: true }));
+  const sourceSubFrom = vi.fn(() => ({ where: sourceSubWhere }));
+
+  // Route by the selected columns instead of call order: the source-type
+  // subquery adds extra db.select() calls, so a call-count heuristic would
+  // misroute the count/page queries whenever filter[source] is set.
+  selectMock.mockImplementation((columns?: Record<string, unknown>) => {
+    if (columns && "uuid" in columns) {
+      return { from: sourceSubFrom };
+    }
+
+    if (columns && "value" in columns) {
       return { from: countFrom };
     }
 
     return { from: pageFrom };
   });
 
-  return { countWhere, pageWhere };
+  return { countWhere, pageWhere, sourceSubWhere };
 }
 
 function stubRequireUser(returnedUserId: string | undefined) {
@@ -148,6 +160,29 @@ describe("GET /api/records", () => {
     ]);
   });
 
+  type SourceIdInArrayCondition = {
+    inArray: { column: { name?: string }; subquery: unknown };
+  };
+
+  // The source-type filter must key off records.sourceId (a FK into sources),
+  // never the free-text records.source display name. Find the inArray
+  // condition and confirm it targets the source_id column.
+  function findSourceIdInArray(
+    conditions: unknown[],
+  ): SourceIdInArrayCondition | undefined {
+    return conditions.find((condition) => {
+      if (typeof condition !== "object" || condition === null) {
+        return false;
+      }
+      if (!("inArray" in condition)) {
+        return false;
+      }
+
+      const column = (condition as SourceIdInArrayCondition).inArray.column;
+      return column?.name === "source_id";
+    }) as SourceIdInArrayCondition | undefined;
+  }
+
   it("uses the first value when filter[source] is repeated in the query string", async () => {
     queryParams = { "filter[source]": ["webhook", "email"] };
     const { countWhere } = stubSelectResults({ value: 0 }, []);
@@ -155,39 +190,73 @@ describe("GET /api/records", () => {
     await handler(buildEvent(userId));
 
     const whereArg = countWhere.mock.calls[0]?.[0] as { and: unknown[] };
-    const conditions = whereArg.and;
-    const hasWebhookLikeCondition = conditions.some(
-      (condition) =>
-        typeof condition === "object" &&
-        condition !== null &&
-        "like" in condition &&
-        (condition as { like: { pattern: unknown } }).like.pattern ===
-          "webhook/%",
-    );
-    expect(hasWebhookLikeCondition).toBe(true);
+    expect(findSourceIdInArray(whereArg.and)).toBeDefined();
   });
 
   it.each(SOURCE_TYPES)(
-    "applies a LIKE filter when filter[source]=%s",
+    "filters by sources.type via records.sourceId when filter[source]=%s",
     async (sourceType) => {
       queryParams = { "filter[source]": sourceType };
-      const { countWhere } = stubSelectResults({ value: 0 }, []);
+      const { countWhere, sourceSubWhere } = stubSelectResults(
+        { value: 0 },
+        [],
+      );
 
       await handler(buildEvent(userId));
 
       const whereArg = countWhere.mock.calls[0]?.[0] as { and: unknown[] };
-      const conditions = whereArg.and;
-      const hasLikeCondition = conditions.some(
+      expect(findSourceIdInArray(whereArg.and)).toBeDefined();
+
+      // The subquery that resolves matching source uuids must constrain
+      // sources.type to the requested type (scoped to the user).
+      const subConditions = (
+        sourceSubWhere.mock.calls[0]?.[0] as { and: unknown[] }
+      ).and;
+      const hasTypeCondition = subConditions.some(
         (condition) =>
           typeof condition === "object" &&
           condition !== null &&
-          "like" in condition &&
-          (condition as { like: { pattern: unknown } }).like.pattern ===
-            `${sourceType}/%`,
+          "eq" in condition &&
+          (condition as { eq: { column: { name?: string }; value: unknown } })
+            .eq.column?.name === "type" &&
+          (condition as { eq: { value: unknown } }).eq.value === sourceType,
       );
-      expect(hasLikeCondition).toBe(true);
+      expect(hasTypeCondition).toBe(true);
     },
   );
+
+  it("applies the source-type filter to the page query, not just the count query", async () => {
+    queryParams = { "filter[source]": "webhook" };
+    const { pageWhere } = stubSelectResults({ value: 0 }, []);
+
+    await handler(buildEvent(userId));
+
+    const pageWhereArg = pageWhere.mock.calls[0]?.[0] as { and: unknown[] };
+    expect(findSourceIdInArray(pageWhereArg.and)).toBeDefined();
+  });
+
+  // Regression guard for the original bug: type filtering matched
+  // `like(records.source, "webhook/%")`, but ingest stores the source's
+  // display name in records.source (no type prefix), so it matched nothing.
+  it("does not filter on the free-text records.source column", async () => {
+    queryParams = { "filter[source]": "webhook" };
+    const { countWhere } = stubSelectResults({ value: 0 }, []);
+
+    await handler(buildEvent(userId));
+
+    const whereArg = countWhere.mock.calls[0]?.[0] as { and: unknown[] };
+    const hasSourceNameCondition = whereArg.and.some(
+      (condition) =>
+        typeof condition === "object" &&
+        condition !== null &&
+        ("like" in condition || "ilike" in condition) &&
+        ((condition as { like?: { column: { name?: string } } }).like?.column
+          ?.name === "source" ||
+          (condition as { ilike?: { column: { name?: string } } }).ilike?.column
+            ?.name === "source"),
+    );
+    expect(hasSourceNameCondition).toBe(false);
+  });
 
   it("ignores an empty filter[source] value rather than treating it as invalid", async () => {
     queryParams = { "filter[source]": "" };
