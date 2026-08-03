@@ -72,6 +72,50 @@ export async function createCheckoutSession(
   return { url: session.url };
 }
 
+// Stripe returns this error code when the subscription no longer exists (it
+// was already deleted, or the id is stale). Cancelling something that's already
+// gone is a no-op, not a failure — we must not block account deletion on it.
+const STRIPE_RESOURCE_MISSING_CODE = "resource_missing";
+const STRIPE_NOT_FOUND_STATUS = 404;
+
+function isSubscriptionAlreadyGone(error: unknown): boolean {
+  if (!(error instanceof Stripe.errors.StripeError)) {
+    return false;
+  }
+
+  return (
+    error.code === STRIPE_RESOURCE_MISSING_CODE ||
+    error.statusCode === STRIPE_NOT_FOUND_STATUS
+  );
+}
+
+export type CancelSubscriptionResult = {
+  // true when Stripe had no live subscription to cancel (already gone). Callers
+  // can treat this as success without proving a fresh cancellation happened.
+  alreadyGone: boolean;
+};
+
+// Cancels a live subscription immediately. Swallows only the "already gone"
+// case so account deletion isn't blocked by a stale id; any other Stripe error
+// (network, auth, a subscription that genuinely failed to cancel) propagates so
+// we never silently leave a customer billed.
+export async function cancelSubscription(
+  subscriptionId: string,
+): Promise<CancelSubscriptionResult> {
+  const stripe = getStripeClient();
+
+  try {
+    await stripe.subscriptions.cancel(subscriptionId);
+    return { alreadyGone: false };
+  } catch (error) {
+    if (isSubscriptionAlreadyGone(error)) {
+      return { alreadyGone: true };
+    }
+
+    throw error;
+  }
+}
+
 export type CustomerPortalOptions = {
   customerId: string;
   returnUrl: string;
