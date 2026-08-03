@@ -2,39 +2,13 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "../../db";
 import { sources } from "../../db/schema";
 import { requireUser } from "../../utils/auth";
-import { ApiError, apiErrorHandler } from "../../utils/errors";
-import { isValidUuid } from "../../utils/uuid";
+import { apiErrorHandler } from "../../utils/errors";
+import { sourceNotFoundError } from "../../utils/sourceErrors";
+import { invalidUuidError, isValidUuid } from "../../utils/uuid";
 
 type DeleteSourceResponse = {
   meta: { deleted: number };
 };
-
-function invalidUuidError(): ApiError {
-  return new ApiError(
-    [
-      {
-        status: "400",
-        title: "Invalid Parameter",
-        detail: "The uuid parameter is missing or malformed.",
-        source: { parameter: "uuid" },
-      },
-    ],
-    400,
-  );
-}
-
-function notFoundError(): ApiError {
-  return new ApiError(
-    [
-      {
-        status: "404",
-        title: "Not Found",
-        detail: "No source was found for the given uuid.",
-      },
-    ],
-    404,
-  );
-}
 
 async function deleteUserSource(
   userId: string,
@@ -63,7 +37,7 @@ export default defineEventHandler(
       const deletedCount = await deleteUserSource(userId, sourceUuid);
 
       if (deletedCount === 0) {
-        throw notFoundError();
+        throw sourceNotFoundError();
       }
 
       return { meta: { deleted: deletedCount } };
