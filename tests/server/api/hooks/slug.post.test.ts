@@ -7,6 +7,7 @@ import {
   spyConsoleError,
 } from "../../helpers";
 import { ApiError } from "../../../../server/utils/errors";
+import { MAX_WEBHOOK_BODY_BYTES } from "../../../../server/utils/webhookBodyLimit";
 import { hashSharedSecret } from "../../../../server/utils/signatureVerifier";
 import { SHARED_SECRET_HEADER } from "#shared/utils/webhookSecrets";
 
@@ -857,6 +858,71 @@ describe("POST /api/hooks/[slug]", () => {
         statusCode: 429,
       });
       expect(mockRecordWebhookHit).toHaveBeenCalledWith(SOURCE_UUID);
+    });
+  });
+
+  describe("payload size limit", () => {
+    function stubContentLengthHeader(value: string): void {
+      mockGetHeader.mockImplementation((_event: unknown, name: string) =>
+        name === "content-length" ? value : undefined,
+      );
+    }
+
+    it("returns 413 by Content-Length before reading the body, without inserting", async () => {
+      stubSourceOnly([sampleSource]);
+      stubContentLengthHeader(String(MAX_WEBHOOK_BODY_BYTES + 1));
+
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 413,
+      });
+      expect(mockCreateError).toHaveBeenCalledWith(
+        expect.objectContaining({ statusCode: 413 }),
+      );
+      // Rejected on the declared length: the body is never buffered and no
+      // record is inserted or throttle budget spent.
+      expect(mockReadRawBody).not.toHaveBeenCalled();
+      expect(mockRecordWebhookHit).not.toHaveBeenCalled();
+      expect(insertMock).not.toHaveBeenCalled();
+    });
+
+    it("returns 413 on the actual byte count when Content-Length is absent", async () => {
+      stubSourceOnly([sampleSource]);
+      mockGetHeader.mockReturnValue(undefined);
+      mockReadRawBody.mockResolvedValue("a".repeat(MAX_WEBHOOK_BODY_BYTES + 1));
+
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 413,
+      });
+      expect(insertMock).not.toHaveBeenCalled();
+      expect(mockRecordWebhookHit).not.toHaveBeenCalled();
+    });
+
+    it("returns 413 on the real byte count when Content-Length understates the body", async () => {
+      stubSourceOnly([sampleSource]);
+      stubContentLengthHeader("10");
+      mockReadRawBody.mockResolvedValue("a".repeat(MAX_WEBHOOK_BODY_BYTES + 1));
+
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 413,
+      });
+      expect(insertMock).not.toHaveBeenCalled();
+    });
+
+    it("ingests a body at exactly the byte maximum", async () => {
+      const filler = "x".repeat(
+        MAX_WEBHOOK_BODY_BYTES - JSON.stringify({ content: "" }).length,
+      );
+      const rawBody = JSON.stringify({ content: filler });
+      expect(Buffer.byteLength(rawBody, "utf8")).toBe(MAX_WEBHOOK_BODY_BYTES);
+
+      stubSourceAndSettings([sampleSource]);
+      stubInsertRecord(sampleRecord);
+      stubUpdateStats();
+      mockReadRawBody.mockResolvedValue(rawBody);
+
+      const response = await handler(buildEvent());
+
+      expect202Success(response, mockSetResponseStatus, sampleRecord.uuid);
     });
   });
 });
