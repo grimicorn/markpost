@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mount } from "@vue/test-utils";
 
 import RecordDetailModal from "../../app/components/RecordDetailModal.vue";
@@ -68,6 +68,15 @@ function mountModal(props: Record<string, unknown> = {}) {
 }
 
 describe("RecordDetailModal", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-01T12:00:00Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("renders the record title and content", () => {
     const wrapper = mountModal();
     expect(wrapper.text()).toContain("Test Record");
