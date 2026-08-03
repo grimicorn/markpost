@@ -177,7 +177,9 @@ describe("DELETE /api/account", () => {
     });
     mockCancelSubscription.mockRejectedValueOnce(new Error("stripe down"));
 
-    await expect(handler(buildEvent("user_123"))).rejects.toThrow();
+    await expect(handler(buildEvent("user_123"))).rejects.toMatchObject({
+      statusCode: 503,
+    });
     expect(deleteMock).not.toHaveBeenCalled();
     expect(mockDeleteClerkUser).not.toHaveBeenCalled();
   });
