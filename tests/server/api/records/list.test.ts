@@ -20,6 +20,10 @@ vi.mock("drizzle-orm", () => ({
   inArray: (column: unknown, subquery: unknown) => ({
     inArray: { column, subquery },
   }),
+  // Kept in the factory (even though the handler no longer calls it) so the
+  // "does not filter on records.source" regression guard can detect a
+  // reintroduced like(records.source, …) instead of throwing on undefined.
+  like: (column: unknown, pattern: unknown) => ({ like: { column, pattern } }),
   lt: (column: unknown, value: unknown) => ({ lt: { column, value } }),
   or: (...conditions: unknown[]) => ({ or: conditions }),
   SQL: class {},
@@ -219,6 +223,27 @@ describe("GET /api/records", () => {
     );
   }
 
+  // The cursor predicate is `or(lt(createdAt), and(...))`; detect it by the
+  // lt(records.createdAt) branch so a change that drops the cursor from a
+  // query fails loudly.
+  function hasCursorPredicate(conditions: unknown[]): boolean {
+    return conditions.some(
+      (condition) =>
+        typeof condition === "object" &&
+        condition !== null &&
+        "or" in condition &&
+        Array.isArray((condition as { or: unknown[] }).or) &&
+        (condition as { or: unknown[] }).or.some(
+          (branch) =>
+            typeof branch === "object" &&
+            branch !== null &&
+            "lt" in branch &&
+            (branch as { lt: { column: unknown } }).lt.column ===
+              records.createdAt,
+        ),
+    );
+  }
+
   it("uses the first value when filter[source] is repeated in the query string", async () => {
     queryParams = { "filter[source]": ["webhook", "email"] };
     const { countWhere } = stubSelectResults({ value: 0 }, []);
@@ -283,6 +308,8 @@ describe("GET /api/records", () => {
         ((condition as { like?: { column: unknown } }).like?.column ===
           records.source ||
           (condition as { ilike?: { column: unknown } }).ilike?.column ===
+            records.source ||
+          (condition as { eq?: { column: unknown } }).eq?.column ===
             records.source),
     );
     expect(hasSourceNameCondition).toBe(false);
@@ -490,24 +517,37 @@ describe("GET /api/records", () => {
     const pageConditions = (pageWhere.mock.calls[0]?.[0] as { and: unknown[] })
       .and;
 
-    const hasCursorPredicate = (conditions: unknown[]) =>
-      conditions.some(
-        (condition) =>
-          typeof condition === "object" &&
-          condition !== null &&
-          "or" in condition &&
-          Array.isArray((condition as { or: unknown[] }).or) &&
-          (condition as { or: unknown[] }).or.some(
-            (branch) =>
-              typeof branch === "object" &&
-              branch !== null &&
-              "lt" in branch &&
-              (branch as { lt: { column: unknown } }).lt.column ===
-                records.createdAt,
-          ),
-      );
-
     expect(hasCursorPredicate(pageConditions)).toBe(true);
+    expect(hasCursorPredicate(countConditions)).toBe(false);
+  });
+
+  // Page 2 of a filtered list is the realistic case: the page query must carry
+  // BOTH the source-type filter and the cursor, while the count query carries
+  // the filter (for an accurate unpaginated total) but not the cursor.
+  it("combines the source-type filter with the cursor on the page query", async () => {
+    queryParams = { "filter[source]": "webhook", "page[after]": "cursor-uuid" };
+    const cursorRow = {
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+      uuid: "cursor-uuid",
+    };
+    const { countWhere, pageWhere } = stubSelectResults(
+      { value: 5 },
+      [],
+      cursorRow,
+    );
+
+    await handler(buildEvent(userId));
+
+    const countConditions = (
+      countWhere.mock.calls[0]?.[0] as { and: unknown[] }
+    ).and;
+    const pageConditions = (pageWhere.mock.calls[0]?.[0] as { and: unknown[] })
+      .and;
+
+    expect(findSourceIdInArray(pageConditions)).toBeDefined();
+    expect(hasCursorPredicate(pageConditions)).toBe(true);
+
+    expect(findSourceIdInArray(countConditions)).toBeDefined();
     expect(hasCursorPredicate(countConditions)).toBe(false);
   });
 });
