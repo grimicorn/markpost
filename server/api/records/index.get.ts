@@ -122,7 +122,7 @@ function validateSourceFilter(
 // to the same user so it is self-contained. A record with a NULL `sourceId`
 // (e.g. created directly via the records API without a source) matches no
 // type, which is correct.
-function sourceTypeCondition(
+export function sourceTypeCondition(
   db: Database,
   userId: string,
   sourceType: SourceType,

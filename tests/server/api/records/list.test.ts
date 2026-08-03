@@ -94,7 +94,7 @@ function stubSelectResults(
     return { from: pageFrom };
   });
 
-  return { countWhere, pageWhere, sourceSubWhere, cursorWhere };
+  return { countWhere, pageWhere, sourceSubFrom, sourceSubWhere, cursorWhere };
 }
 
 function stubRequireUser(returnedUserId: string | undefined) {
@@ -258,7 +258,7 @@ describe("GET /api/records", () => {
     "filters by sources.type via records.sourceId when filter[source]=%s",
     async (sourceType) => {
       queryParams = { "filter[source]": sourceType };
-      const { countWhere, sourceSubWhere } = stubSelectResults(
+      const { countWhere, sourceSubFrom, sourceSubWhere } = stubSelectResults(
         { value: 0 },
         [],
       );
@@ -267,6 +267,11 @@ describe("GET /api/records", () => {
 
       const whereArg = countWhere.mock.calls[0]?.[0] as { and: unknown[] };
       expect(findSourceIdInArray(whereArg.and)).toBeDefined();
+
+      // The subquery must read from the sources table and project its uuid —
+      // reading records or projecting a different column would break the IN.
+      expect(sourceSubFrom).toHaveBeenCalledWith(sources);
+      expect(selectMock).toHaveBeenCalledWith({ uuid: sources.uuid });
 
       // The subquery that resolves matching source uuids must constrain
       // sources.type to the requested type AND scope to the requesting user,
