@@ -111,6 +111,19 @@ describe("cancelSubscription", () => {
     );
   });
 
+  it("treats an already-gone error raised by cancel (retrieve/cancel race) as a no-op", async () => {
+    mockRetrieve.mockResolvedValueOnce({
+      id: SUBSCRIPTION_ID,
+      status: "active",
+    });
+    mockCancel.mockRejectedValueOnce(
+      new MockStripeError({ code: "resource_missing" }),
+    );
+
+    await expect(cancelSubscription(SUBSCRIPTION_ID)).resolves.toBeUndefined();
+    expect(mockCancel).toHaveBeenCalledWith(SUBSCRIPTION_ID);
+  });
+
   it("rethrows a real Stripe error raised by cancel", async () => {
     mockRetrieve.mockResolvedValueOnce({
       id: SUBSCRIPTION_ID,

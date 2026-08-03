@@ -88,6 +88,16 @@ const TERMINAL_SUBSCRIPTION_STATUSES = new Set<Stripe.Subscription.Status>([
   "incomplete_expired",
 ]);
 
+// A `resource_missing`/404 isn't only "already deleted" — it also fires when a
+// misconfigured key (e.g. test-mode against live ids) can't see the
+// subscription, which would fail open and keep billing the customer. Log it so
+// the skipped-cancel path is observable rather than silent.
+function warnAlreadyGone(subscriptionId: string): void {
+  console.warn("[stripe] subscription already gone; skipped cancel", {
+    subscriptionId,
+  });
+}
+
 function isSubscriptionAlreadyGone(error: unknown): boolean {
   if (!(error instanceof Stripe.errors.StripeError)) {
     return false;
@@ -114,6 +124,7 @@ export async function cancelSubscription(
     subscription = await stripe.subscriptions.retrieve(subscriptionId);
   } catch (error) {
     if (isSubscriptionAlreadyGone(error)) {
+      warnAlreadyGone(subscriptionId);
       return;
     }
 
@@ -124,7 +135,19 @@ export async function cancelSubscription(
     return;
   }
 
-  await stripe.subscriptions.cancel(subscriptionId);
+  // Guard the cancel too: retrieve and cancel aren't atomic, so the
+  // subscription can reach a terminal state between the two calls (portal
+  // cancel, dunning, trial expiry). A now-gone subscription is still a no-op.
+  try {
+    await stripe.subscriptions.cancel(subscriptionId);
+  } catch (error) {
+    if (isSubscriptionAlreadyGone(error)) {
+      warnAlreadyGone(subscriptionId);
+      return;
+    }
+
+    throw error;
+  }
 }
 
 export type CustomerPortalOptions = {
