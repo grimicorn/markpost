@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { H3Event } from "h3";
 import { SOURCE_TYPES } from "../../../../shared/utils/sourceTypes";
+import { records, sources } from "../../../../server/db/schema";
 
 const selectMock = vi.fn();
 
@@ -44,7 +45,11 @@ function buildEvent(contextUserId: string | undefined): H3Event {
   return { context: { userId: contextUserId } } as unknown as H3Event;
 }
 
-function stubSelectResults(countRow: unknown, pageRows: unknown[]) {
+function stubSelectResults(
+  countRow: unknown,
+  pageRows: unknown[],
+  cursorRow: unknown = null,
+) {
   const countWhere = vi.fn(() => Promise.resolve([countRow]));
   const countFrom = vi.fn(() => ({ where: countWhere }));
 
@@ -53,15 +58,27 @@ function stubSelectResults(countRow: unknown, pageRows: unknown[]) {
   const pageWhere = vi.fn(() => ({ orderBy: pageOrderBy }));
   const pageFrom = vi.fn(() => ({ where: pageWhere }));
 
+  // Cursor lookup selects { createdAt, uuid }; keep it distinct from the
+  // source subquery (which selects { uuid } only) by checking createdAt first.
+  const cursorLimit = vi.fn(() =>
+    Promise.resolve(cursorRow ? [cursorRow] : []),
+  );
+  const cursorWhere = vi.fn(() => ({ limit: cursorLimit }));
+  const cursorFrom = vi.fn(() => ({ where: cursorWhere }));
+
   // The source-type filter builds a subquery via db.select({ uuid }); it is
   // passed to inArray, never awaited, so it only needs to be chainable.
   const sourceSubWhere = vi.fn(() => ({ __sourceSubquery: true }));
   const sourceSubFrom = vi.fn(() => ({ where: sourceSubWhere }));
 
   // Route by the selected columns instead of call order: the source-type
-  // subquery adds extra db.select() calls, so a call-count heuristic would
-  // misroute the count/page queries whenever filter[source] is set.
+  // subquery and cursor lookup add extra db.select() calls, so a call-count
+  // heuristic would misroute the count/page queries.
   selectMock.mockImplementation((columns?: Record<string, unknown>) => {
+    if (columns && "createdAt" in columns) {
+      return { from: cursorFrom };
+    }
+
     if (columns && "uuid" in columns) {
       return { from: sourceSubFrom };
     }
@@ -73,7 +90,7 @@ function stubSelectResults(countRow: unknown, pageRows: unknown[]) {
     return { from: pageFrom };
   });
 
-  return { countWhere, pageWhere, sourceSubWhere };
+  return { countWhere, pageWhere, sourceSubWhere, cursorWhere };
 }
 
 function stubRequireUser(returnedUserId: string | undefined) {
@@ -161,12 +178,13 @@ describe("GET /api/records", () => {
   });
 
   type SourceIdInArrayCondition = {
-    inArray: { column: { name?: string }; subquery: unknown };
+    inArray: { column: unknown; subquery: unknown };
   };
 
   // The source-type filter must key off records.sourceId (a FK into sources),
   // never the free-text records.source display name. Find the inArray
-  // condition and confirm it targets the source_id column.
+  // condition and confirm it targets the sourceId column (compared by column
+  // object, not name, so a schema rename can't silently pass this).
   function findSourceIdInArray(
     conditions: unknown[],
   ): SourceIdInArrayCondition | undefined {
@@ -178,9 +196,27 @@ describe("GET /api/records", () => {
         return false;
       }
 
-      const column = (condition as SourceIdInArrayCondition).inArray.column;
-      return column?.name === "source_id";
+      return (
+        (condition as SourceIdInArrayCondition).inArray.column ===
+        records.sourceId
+      );
     }) as SourceIdInArrayCondition | undefined;
+  }
+
+  function hasEqCondition(
+    conditions: unknown[],
+    column: unknown,
+    value: unknown,
+  ): boolean {
+    return conditions.some(
+      (condition) =>
+        typeof condition === "object" &&
+        condition !== null &&
+        "eq" in condition &&
+        (condition as { eq: { column: unknown; value: unknown } }).eq.column ===
+          column &&
+        (condition as { eq: { value: unknown } }).eq.value === value,
+    );
   }
 
   it("uses the first value when filter[source] is repeated in the query string", async () => {
@@ -208,20 +244,15 @@ describe("GET /api/records", () => {
       expect(findSourceIdInArray(whereArg.and)).toBeDefined();
 
       // The subquery that resolves matching source uuids must constrain
-      // sources.type to the requested type (scoped to the user).
+      // sources.type to the requested type AND scope to the requesting user,
+      // so it never leaks another user's source uuids into the IN clause.
       const subConditions = (
         sourceSubWhere.mock.calls[0]?.[0] as { and: unknown[] }
       ).and;
-      const hasTypeCondition = subConditions.some(
-        (condition) =>
-          typeof condition === "object" &&
-          condition !== null &&
-          "eq" in condition &&
-          (condition as { eq: { column: { name?: string }; value: unknown } })
-            .eq.column?.name === "type" &&
-          (condition as { eq: { value: unknown } }).eq.value === sourceType,
+      expect(hasEqCondition(subConditions, sources.type, sourceType)).toBe(
+        true,
       );
-      expect(hasTypeCondition).toBe(true);
+      expect(hasEqCondition(subConditions, sources.userId, userId)).toBe(true);
     },
   );
 
@@ -249,11 +280,10 @@ describe("GET /api/records", () => {
       (condition) =>
         typeof condition === "object" &&
         condition !== null &&
-        ("like" in condition || "ilike" in condition) &&
-        ((condition as { like?: { column: { name?: string } } }).like?.column
-          ?.name === "source" ||
-          (condition as { ilike?: { column: { name?: string } } }).ilike?.column
-            ?.name === "source"),
+        ((condition as { like?: { column: unknown } }).like?.column ===
+          records.source ||
+          (condition as { ilike?: { column: unknown } }).ilike?.column ===
+            records.source),
     );
     expect(hasSourceNameCondition).toBe(false);
   });
@@ -419,5 +449,65 @@ describe("GET /api/records", () => {
     const whereArg = countWhere.mock.calls[0]?.[0] as { and: unknown[] };
     expect(whereArg.and).toHaveLength(1);
     expect(findQueryCondition(whereArg.and)).toBeUndefined();
+  });
+
+  it("throws 400 when page[after] references a record that is not found", async () => {
+    queryParams = { "page[after]": "missing-uuid" };
+    stubSelectResults({ value: 0 }, [], null);
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 400,
+    });
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 400,
+      data: {
+        errors: [expect.objectContaining({ title: "Invalid cursor" })],
+      },
+    });
+  });
+
+  // The cursor predicate keeps the page moving forward, but the count must
+  // stay the unpaginated total — countFilteredRecords passes cursor: null.
+  // A regression that applied the cursor to the count query would understate
+  // total, so pin it out of count and into page.
+  it("applies the cursor predicate to the page query only, not the count query", async () => {
+    queryParams = { "page[after]": "cursor-uuid" };
+    const cursorRow = {
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+      uuid: "cursor-uuid",
+    };
+    const { countWhere, pageWhere } = stubSelectResults(
+      { value: 3 },
+      [],
+      cursorRow,
+    );
+
+    await handler(buildEvent(userId));
+
+    const countConditions = (
+      countWhere.mock.calls[0]?.[0] as { and: unknown[] }
+    ).and;
+    const pageConditions = (pageWhere.mock.calls[0]?.[0] as { and: unknown[] })
+      .and;
+
+    const hasCursorPredicate = (conditions: unknown[]) =>
+      conditions.some(
+        (condition) =>
+          typeof condition === "object" &&
+          condition !== null &&
+          "or" in condition &&
+          Array.isArray((condition as { or: unknown[] }).or) &&
+          (condition as { or: unknown[] }).or.some(
+            (branch) =>
+              typeof branch === "object" &&
+              branch !== null &&
+              "lt" in branch &&
+              (branch as { lt: { column: unknown } }).lt.column ===
+                records.createdAt,
+          ),
+      );
+
+    expect(hasCursorPredicate(pageConditions)).toBe(true);
+    expect(hasCursorPredicate(countConditions)).toBe(false);
   });
 });
