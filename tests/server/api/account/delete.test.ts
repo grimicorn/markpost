@@ -170,26 +170,53 @@ describe("DELETE /api/account", () => {
     expect(mockCancelSubscription).toHaveBeenCalledWith("sub_dead_1");
   });
 
-  it("aborts the delete when Stripe cancellation genuinely fails", async () => {
+  it("aborts the delete with a 503 (fail closed) when Stripe cancellation genuinely fails", async () => {
     mockFindSubscriptionByUserId.mockResolvedValueOnce({
       status: "active",
       stripeSubscriptionId: "sub_live_1",
     });
     mockCancelSubscription.mockRejectedValueOnce(new Error("stripe down"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await expect(handler(buildEvent("user_123"))).rejects.toMatchObject({
       statusCode: 503,
+      data: {
+        errors: [
+          expect.objectContaining({
+            status: "503",
+            detail: expect.stringContaining("was not deleted"),
+          }),
+        ],
+      },
     });
     expect(deleteMock).not.toHaveBeenCalled();
     expect(mockDeleteClerkUser).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 
-  it("logs for manual reconciliation when the delete fails after a successful cancel", async () => {
+  it("logs for manual reconciliation when the DB delete fails after a successful cancel", async () => {
     mockFindSubscriptionByUserId.mockResolvedValueOnce({
       status: "active",
       stripeSubscriptionId: "sub_live_1",
     });
     usersWhere.mockRejectedValueOnce(new Error("db error"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(handler(buildEvent("user_123"))).rejects.toThrow();
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("reconcile manually"),
+      expect.objectContaining({ canceledSubscriptionId: "sub_live_1" }),
+    );
+    errorSpy.mockRestore();
+  });
+
+  it("logs for manual reconciliation when Clerk deletion fails after a successful cancel", async () => {
+    mockFindSubscriptionByUserId.mockResolvedValueOnce({
+      status: "active",
+      stripeSubscriptionId: "sub_live_1",
+    });
+    mockDeleteClerkUser.mockRejectedValueOnce(new Error("clerk error"));
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await expect(handler(buildEvent("user_123"))).rejects.toThrow();
