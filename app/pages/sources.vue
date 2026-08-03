@@ -139,7 +139,7 @@
       v-if="rotateState"
       :rotate-state="rotateState"
       :submitting="isRotatingSecret"
-      @close="rotateState = null"
+      @close="closeRotateModal"
       @rotate="rotateSource"
     />
   </TheAppShell>
@@ -147,6 +147,8 @@
 
 <script setup lang="ts">
 import { useSources } from "~/composables/useSources";
+import { isRotatableProvider } from "#shared/utils/webhookSecrets";
+import type { RotateState } from "~/types/rotateSecret";
 
 definePageMeta({ middleware: "auth" });
 
@@ -170,18 +172,6 @@ interface ModalState {
   step: "pick" | "config" | "reveal";
   choice: SourceChoice | null;
   folder: string;
-  revealSecret?: string | null;
-}
-
-interface RotateSource {
-  uuid: string;
-  provider: string;
-  name: string;
-}
-
-interface RotateState {
-  step: "confirm" | "reveal" | "done";
-  source: RotateSource;
   revealSecret?: string | null;
 }
 
@@ -313,19 +303,29 @@ const onRotateRequested = (uuid: string) => {
   const source = sources.value.find(
     (candidate) => candidate.attributes.uuid === uuid,
   );
-  if (!source?.attributes.provider) {
+  const provider = source?.attributes.provider;
+  // Mirrors SourceCard's own gate: only a known rotatable provider gets a
+  // modal, so an unknown provider string can't open a flow the server rejects.
+  if (!provider || !isRotatableProvider(provider)) {
     return;
   }
 
   rotateError.value = null;
   rotateState.value = {
     step: "confirm",
-    source: {
-      uuid,
-      provider: source.attributes.provider,
-      name: source.attributes.name,
-    },
+    source: { uuid, provider, name: source.attributes.name },
   };
+};
+
+// Ignored while a rotation is in flight: the server may already have rotated,
+// so tearing the modal down here would drop the unrevealed new secret and
+// leave the source unrecoverable (RotateSecretModal also suppresses its own
+// close affordances while submitting — this is the belt-and-braces guard).
+const closeRotateModal = () => {
+  if (isRotatingSecret.value) {
+    return;
+  }
+  rotateState.value = null;
 };
 
 const rotateSource = async (providerSecret?: string) => {
@@ -342,7 +342,9 @@ const rotateSource = async (providerSecret?: string) => {
     showRotateResult(rotated.attributes.providerSecret);
   } catch (rotationError) {
     console.error("[sources] rotateSource error:", rotationError);
-    rotateState.value = null;
+    // Leave the modal open on its confirm step (mirrors addSource's failure
+    // handling) so a manual-secret provider keeps the value the user pasted;
+    // the banner reports the failure and they can retry.
     rotateError.value = "Failed to rotate secret. Please try again.";
   } finally {
     isRotatingSecret.value = false;

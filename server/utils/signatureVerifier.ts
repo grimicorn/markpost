@@ -5,10 +5,12 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import {
+  GITHUB_PROVIDER,
   MANUAL_SECRET_PROVIDER_IDS,
   SECRET_BACKED_PROVIDER_IDS,
   SHARED_SECRET_HEADER,
   SHARED_SECRET_PROVIDER_IDS,
+  STRIPE_PROVIDER,
 } from "#shared/utils/webhookSecrets";
 
 // Exported so every caller that needs to read/forward these headers (the hooks
@@ -30,8 +32,10 @@ const GITHUB_SIGNATURE_PREFIX = "sha256=";
 // brute-force range for a value transmitted over HTTPS only.
 const PROVIDER_SECRET_BYTE_LENGTH = 24;
 
-export const STRIPE_PROVIDER = "stripe";
-export const GITHUB_PROVIDER = "github";
+// Re-exported from the shared module (the single source of provider ids) so
+// existing importers of these from this file keep working while the HMAC
+// dispatch below and the shared provider lists stay on the same literals.
+export { GITHUB_PROVIDER, STRIPE_PROVIDER };
 
 // Zapier and Apple Shortcuts share the same verification method (a static
 // secret compared via the shared-secret header) since neither can compute an

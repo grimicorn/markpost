@@ -167,6 +167,39 @@ describe("RotateSecretModal", () => {
     expect(wrapper.text()).not.toContain("copy secret");
   });
 
+  it("disables rotate and emits nothing while submitting", async () => {
+    const wrapper = mount(RotateSecretModal, {
+      ...globalConfig,
+      props: { ...confirmState("github", "GitHub"), submitting: true },
+    });
+    const rotateButton = findButton(wrapper, "rotate secret");
+    expect(rotateButton?.attributes("disabled")).toBeDefined();
+
+    await rotateButton?.trigger("click");
+    expect(wrapper.emitted("rotate")).toBeUndefined();
+  });
+
+  it("hides the header close button while submitting so an in-flight rotation can't be dismissed", () => {
+    const wrapper = mount(RotateSecretModal, {
+      ...globalConfig,
+      props: { ...confirmState("github", "GitHub"), submitting: true },
+    });
+    const buttonLabels = wrapper
+      .findAll("button")
+      .map((button) => button.text().trim());
+    expect(buttonLabels).not.toContain("");
+    expect(buttonLabels).toEqual(["cancel", "rotate secret"]);
+  });
+
+  it("does not emit close from the backdrop while submitting", async () => {
+    const wrapper = mount(RotateSecretModal, {
+      ...globalConfig,
+      props: { ...confirmState("github", "GitHub"), submitting: true },
+    });
+    await wrapper.find("div").trigger("click");
+    expect(wrapper.emitted("close")).toBeUndefined();
+  });
+
   it("emits close when done is clicked", async () => {
     const wrapper = mount(RotateSecretModal, {
       ...globalConfig,

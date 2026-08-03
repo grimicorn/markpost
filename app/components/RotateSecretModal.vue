@@ -129,20 +129,7 @@ import {
   PROVIDER_SECRET_LABEL,
 } from "../utils/providerSecretCopy";
 import { isManualSecretProviderId } from "#shared/utils/webhookSecrets";
-
-interface RotateSource {
-  uuid: string;
-  provider: string;
-  name: string;
-}
-
-interface RotateState {
-  step: "confirm" | "reveal" | "done";
-  source: RotateSource;
-  // Set by the parent once rotation succeeds for a generated-secret provider;
-  // drives the one-time reveal step. Manual-secret providers never reveal.
-  revealSecret?: string | null;
-}
+import type { RotateState } from "~/types/rotateSecret";
 
 const props = withDefaults(
   defineProps<{
@@ -218,9 +205,13 @@ function handleRotate(): void {
   emit("rotate", secret);
 }
 
-// The reveal step discloses the freshly-generated secret once; an accidental
-// backdrop/X dismissal there would drop it, so "done" is the only way out.
-const showCloseButton = computed(() => props.rotateState.step !== "reveal");
+// The reveal step discloses the freshly-generated secret once, so "done" is
+// the only way out of it. Dismissal is also blocked while a rotation is in
+// flight: the server may have already rotated, so closing here would strip the
+// unrevealed new secret from the list and leave the source unrecoverable.
+const showCloseButton = computed(
+  () => props.rotateState.step !== "reveal" && !props.submitting,
+);
 
 function handleBackdropClick(): void {
   if (!showCloseButton.value) {

@@ -66,7 +66,7 @@ const globalConfig = {
       },
       RotateSecretModal: {
         template:
-          '<div class="rotate-modal"><button class="rotate-confirm" @click="$emit(\'rotate\', undefined)" /></div>',
+          '<div class="rotate-modal"><button class="rotate-confirm" @click="$emit(\'rotate\', undefined)" /><button class="rotate-close" @click="$emit(\'close\')" /></div>',
         props: ["rotateState", "submitting"],
         emits: ["close", "rotate"],
       },
@@ -274,7 +274,9 @@ describe("sources page", () => {
       expect(modal.props("rotateState")).toMatchObject({ step: "done" });
     });
 
-    it("closes the modal and shows an error banner when rotation fails", async () => {
+    it("keeps the modal open and shows an error banner when rotation fails", async () => {
+      // Mirrors addSource: a transient failure must not tear down the modal, or
+      // a manual-secret provider loses the value the user just pasted.
       sourcesRef.value = [makeProviderSource()];
       mockRotateSecret.mockRejectedValue(new Error("rotate failed"));
       const wrapper = mount(SourcesPage, globalConfig);
@@ -283,8 +285,50 @@ describe("sources page", () => {
       await wrapper.find(".rotate-confirm").trigger("click");
       await flushPromises();
 
-      expect(wrapper.find(".rotate-modal").exists()).toBe(false);
+      expect(wrapper.find(".rotate-modal").exists()).toBe(true);
       expect(wrapper.text()).toContain("Failed to rotate secret");
+    });
+
+    it("ignores a close emitted while a rotation is in flight, still reaching the reveal step", async () => {
+      sourcesRef.value = [makeProviderSource()];
+      const rotated = makeProviderSource();
+      rotated.attributes.providerSecret = "fresh-generated-secret";
+      let resolveRotate: (value: typeof rotated) => void = () => {};
+      mockRotateSecret.mockReturnValue(
+        new Promise((resolve) => {
+          resolveRotate = resolve;
+        }),
+      );
+      const wrapper = mount(SourcesPage, globalConfig);
+
+      await wrapper.find(".rotate-trigger").trigger("click");
+      const modal = wrapper.findComponent(".rotate-modal");
+      wrapper.find(".rotate-confirm").trigger("click");
+      await Promise.resolve();
+
+      // A stray close mid-flight must be a no-op — the server may already have
+      // rotated, so dropping the modal would strip the unrevealed new secret.
+      await wrapper.find(".rotate-close").trigger("click");
+      expect(wrapper.find(".rotate-modal").exists()).toBe(true);
+
+      resolveRotate(rotated);
+      await flushPromises();
+
+      expect(modal.props("rotateState")).toMatchObject({
+        step: "reveal",
+        revealSecret: "fresh-generated-secret",
+      });
+    });
+
+    it("closes the modal on a close emitted when no rotation is in flight", async () => {
+      sourcesRef.value = [makeProviderSource()];
+      const wrapper = mount(SourcesPage, globalConfig);
+
+      await wrapper.find(".rotate-trigger").trigger("click");
+      expect(wrapper.find(".rotate-modal").exists()).toBe(true);
+
+      await wrapper.find(".rotate-close").trigger("click");
+      expect(wrapper.find(".rotate-modal").exists()).toBe(false);
     });
   });
 
