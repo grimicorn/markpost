@@ -211,6 +211,20 @@ describe("DELETE /api/account", () => {
     errorSpy.mockRestore();
   });
 
+  it("does not emit the reconcile log when the delete fails and no subscription was cancelled", async () => {
+    mockFindSubscriptionByUserId.mockResolvedValueOnce(null);
+    usersWhere.mockRejectedValueOnce(new Error("db error"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(handler(buildEvent("user_123"))).rejects.toThrow();
+
+    expect(errorSpy).not.toHaveBeenCalledWith(
+      expect.stringContaining("reconcile manually"),
+      expect.anything(),
+    );
+    errorSpy.mockRestore();
+  });
+
   it("logs for manual reconciliation when Clerk deletion fails after a successful cancel", async () => {
     mockFindSubscriptionByUserId.mockResolvedValueOnce({
       status: "active",

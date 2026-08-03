@@ -77,7 +77,6 @@ export async function createCheckoutSession(
 // that's already gone is a no-op, not a failure — it must not block account
 // deletion.
 const STRIPE_RESOURCE_MISSING_CODE = "resource_missing";
-const STRIPE_NOT_FOUND_STATUS = 404;
 
 // Terminal Stripe statuses can't be cancelled again — attempting it raises a
 // 400. Treat a subscription already in one of these as "nothing live to
@@ -105,6 +104,10 @@ function warnAlreadyGone(
   });
 }
 
+// Match on Stripe's `resource_missing` code specifically, not a bare 404:
+// Stripe always sets this code when a subscription doesn't exist, and keying on
+// the code avoids swallowing an unrelated 404 (proxy/gateway) as "already gone"
+// on the one path that then irreversibly deletes a possibly-still-billed account.
 function isSubscriptionAlreadyGone(
   error: unknown,
 ): error is Stripe.errors.StripeError {
@@ -112,10 +115,7 @@ function isSubscriptionAlreadyGone(
     return false;
   }
 
-  return (
-    error.code === STRIPE_RESOURCE_MISSING_CODE ||
-    error.statusCode === STRIPE_NOT_FOUND_STATUS
-  );
+  return error.code === STRIPE_RESOURCE_MISSING_CODE;
 }
 
 // Resolves true when the subscription is already terminal or no longer exists —
@@ -162,9 +162,15 @@ export async function cancelSubscription(
 
     // Retrieve and cancel aren't atomic: the subscription can reach a terminal
     // state between the two (portal cancel, dunning, trial expiry), and the
-    // repeat-cancel then errors (a 400, not a 404). Re-check state before
-    // treating it as a real failure so the race resolves as the no-op it is.
-    if (await isNothingToCancel(stripe, subscriptionId)) {
+    // repeat-cancel then errors (a 400, not a 404). Re-check strictly — only an
+    // explicitly retrieved terminal status is a no-op. If the re-read itself
+    // fails we don't actually know the state, so surface the ORIGINAL cancel
+    // error rather than letting a transient 404 mask a live subscription.
+    const current = await stripe.subscriptions
+      .retrieve(subscriptionId)
+      .catch(() => null);
+
+    if (current && TERMINAL_SUBSCRIPTION_STATUSES.has(current.status)) {
       return;
     }
 
