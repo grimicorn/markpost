@@ -73,7 +73,15 @@ A generated secret (GitHub/Zapier/Shortcuts) is revealed exactly once, in the re
 
 Sources created before this verification model existed (`provider` left `null`) keep working unauthenticated rather than being retroactively broken — enabling verification is opt-in for new sources, not a forced migration for old ones.
 
-**No secret rotation yet.** There is no endpoint to regenerate a lost or leaked GitHub/Zapier/Shortcuts secret, or to update a Stripe source's secret if it's rotated on Stripe's side — `PATCH /api/sources/:uuid` deliberately ignores `provider`/`providerSecret`. The only recovery today is deleting and recreating the source, which also changes its `endpointSlug` (the provider's webhook URL has to be reconfigured too). A rotate endpoint is a reasonable follow-up if this becomes a real pain point.
+**Rotating a secret.** `POST /api/sources/:uuid/rotate-secret` rotates a leaked or lost secret in place — the `endpointSlug` is preserved, so the provider's existing webhook URL keeps working and only the secret has to be re-pasted. It never changes the source's `provider`; `PATCH /api/sources/:uuid` still deliberately ignores `provider`/`providerSecret` (that endpoint is for `routeFolder`/`fieldMapping` only). Behaviour mirrors source creation per provider:
+
+- **GitHub** — generates a new HMAC secret and reveals the plaintext exactly once in the response (paste it into the GitHub webhook's Secret field). Sending a `providerSecret` is rejected — the value is server-generated.
+- **Zapier / Apple Shortcuts** — generates a new shared secret, stores only its SHA-256 hash, and reveals the plaintext exactly once (update the custom header on that provider). Sending a `providerSecret` is rejected.
+- **Stripe** — the caller supplies the new signing secret in `data.attributes.providerSecret` (Stripe issues it when the endpoint is rotated on Stripe's side). It is stored as-is and never echoed back, since the caller already has it.
+
+A source with no `provider` set has no rotatable secret, so the endpoint returns `422`. As with creation, a generated secret is revealed only in the rotate response itself — never again on `GET`/`PATCH`.
+
+Rotation takes effect immediately and there is no overlap window: the old secret stops verifying the moment the rotation commits, so any delivery that arrives before you paste the new secret into the provider fails signature verification (GitHub does not retry those). Paste the revealed secret into the provider right away. A dual-secret grace window that keeps the previous secret valid for a few minutes is a reasonable follow-up if this gap becomes a problem. The write uses optimistic concurrency (gated on the secret it just read), so two racing rotations can't both "win" — the loser gets a `409` and should retry rather than pasting a secret that was never stored.
 
 RSS/Atom is listed as a preset but marked unavailable in the UI: there is no polling infrastructure (scheduler, dedup, fetch cadence) to back it yet.
 
