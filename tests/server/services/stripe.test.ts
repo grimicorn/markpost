@@ -83,22 +83,42 @@ describe("cancelSubscription", () => {
     expect(mockCancel).not.toHaveBeenCalled();
   });
 
-  it("treats a resource_missing Stripe error as already gone", async () => {
+  it("cancels a live but past_due subscription (past_due is not terminal)", async () => {
+    mockRetrieve.mockResolvedValueOnce({
+      id: SUBSCRIPTION_ID,
+      status: "past_due",
+    });
+    mockCancel.mockResolvedValueOnce({ id: SUBSCRIPTION_ID });
+
+    await cancelSubscription(SUBSCRIPTION_ID);
+
+    expect(mockCancel).toHaveBeenCalledWith(SUBSCRIPTION_ID);
+  });
+
+  it("treats a resource_missing Stripe error as already gone and logs it", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     mockRetrieve.mockRejectedValueOnce(
-      new MockStripeError({ code: "resource_missing" }),
+      new MockStripeError({ code: "resource_missing", statusCode: 404 }),
     );
 
     await expect(cancelSubscription(SUBSCRIPTION_ID)).resolves.toBeUndefined();
+
     expect(mockCancel).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("already gone"),
+      expect.objectContaining({ subscriptionId: SUBSCRIPTION_ID }),
+    );
+    warnSpy.mockRestore();
   });
 
-  it("treats a 404 Stripe error as already gone", async () => {
+  it("does not treat a bare 404 without a resource_missing code as gone", async () => {
     mockRetrieve.mockRejectedValueOnce(
       new MockStripeError({ statusCode: 404 }),
     );
 
-    await expect(cancelSubscription(SUBSCRIPTION_ID)).resolves.toBeUndefined();
-    expect(mockCancel).not.toHaveBeenCalled();
+    await expect(cancelSubscription(SUBSCRIPTION_ID)).rejects.toBeInstanceOf(
+      MockStripeError,
+    );
   });
 
   it("rethrows a real Stripe error from retrieve so the caller never silently succeeds", async () => {
@@ -112,6 +132,7 @@ describe("cancelSubscription", () => {
   });
 
   it("treats a resource_missing error raised by cancel (retrieve/cancel race) as a no-op", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     mockRetrieve.mockResolvedValueOnce({
       id: SUBSCRIPTION_ID,
       status: "active",
@@ -122,6 +143,7 @@ describe("cancelSubscription", () => {
 
     await expect(cancelSubscription(SUBSCRIPTION_ID)).resolves.toBeUndefined();
     expect(mockCancel).toHaveBeenCalledWith(SUBSCRIPTION_ID);
+    warnSpy.mockRestore();
   });
 
   it("treats a 400 repeat-cancel as a no-op when a re-check shows the subscription went terminal", async () => {
@@ -149,8 +171,32 @@ describe("cancelSubscription", () => {
     );
   });
 
-  it("rethrows a non-Stripe error", async () => {
+  it("surfaces the original cancel error when the terminal re-check itself fails (no fail-open)", async () => {
+    const cancelError = new MockStripeError({
+      code: "api_error",
+      statusCode: 500,
+    });
+    mockRetrieve
+      .mockResolvedValueOnce({ id: SUBSCRIPTION_ID, status: "active" })
+      .mockRejectedValueOnce(new MockStripeError({ code: "resource_missing" }));
+    mockCancel.mockRejectedValueOnce(cancelError);
+
+    await expect(cancelSubscription(SUBSCRIPTION_ID)).rejects.toBe(cancelError);
+  });
+
+  it("rethrows a non-Stripe error from retrieve", async () => {
     mockRetrieve.mockRejectedValueOnce(new Error("network down"));
+
+    await expect(cancelSubscription(SUBSCRIPTION_ID)).rejects.toThrow(
+      "network down",
+    );
+  });
+
+  it("rethrows a non-Stripe error raised by cancel", async () => {
+    mockRetrieve
+      .mockResolvedValueOnce({ id: SUBSCRIPTION_ID, status: "active" })
+      .mockResolvedValueOnce({ id: SUBSCRIPTION_ID, status: "active" });
+    mockCancel.mockRejectedValueOnce(new Error("network down"));
 
     await expect(cancelSubscription(SUBSCRIPTION_ID)).rejects.toThrow(
       "network down",
