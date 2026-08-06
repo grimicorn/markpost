@@ -223,4 +223,25 @@ describe("sweepCustomerSubscriptions", () => {
       sweepCustomerSubscriptions(gateway, CUSTOMER_ID),
     ).rejects.toThrow("list exploded");
   });
+
+  it("surfaces partial progress when a later page fails to list", async () => {
+    const errorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const first = page([subscription("sub_1", "active")], true);
+    const list = vi
+      .fn()
+      .mockResolvedValueOnce(first)
+      .mockRejectedValueOnce(new Error("page 2 exploded"));
+    const cancel = vi.fn().mockResolvedValue(subscription("sub_1", "canceled"));
+    const gateway: SubscriptionGateway = { list, cancel };
+
+    await expect(
+      sweepCustomerSubscriptions(gateway, CUSTOMER_ID),
+    ).rejects.toThrow("page 2 exploded");
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("partial progress"),
+      expect.objectContaining({ canceledCount: 1 }),
+    );
+  });
 });

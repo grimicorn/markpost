@@ -81,7 +81,10 @@ describe("DELETE /api/account", () => {
       stripeCustomerId: "cus_test123",
       stripeSubscriptionId: "sub_test123",
     });
-    mockCancelSubscriptionsForCustomer.mockResolvedValue({ canceledCount: 1 });
+    mockCancelSubscriptionsForCustomer.mockResolvedValue({
+      canceledCount: 1,
+      failedSubscriptionIds: [],
+    });
   });
 
   it("throws 401 when the request is unauthenticated", async () => {
@@ -182,5 +185,17 @@ describe("DELETE /api/account", () => {
     await expect(handler(buildEvent("user_123"))).rejects.toThrow();
     expect(deleteMock).not.toHaveBeenCalled();
     expect(mockDeleteClerkUser).not.toHaveBeenCalled();
+  });
+
+  it("flags the canceled-billing-but-still-active state when a later delete fails", async () => {
+    const errorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    mockDeleteClerkUser.mockRejectedValueOnce(new Error("clerk error"));
+    await expect(handler(buildEvent("user_123"))).rejects.toThrow();
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("billing canceled but account delete failed"),
+      expect.objectContaining({ userId: "user_123" }),
+    );
   });
 });

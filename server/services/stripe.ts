@@ -146,7 +146,7 @@ export type CustomerCancelResult = {
 
 type CancelAttempt = {
   canceledCount: number;
-  failedSubscriptionId: string | null;
+  failedSubscriptionIds: string[];
 };
 
 function toSubscriptionGateway(stripe: Stripe): SubscriptionGateway {
@@ -223,13 +223,13 @@ async function attemptCancel(
 ): Promise<CancelAttempt> {
   try {
     const canceledCount = await cancelIfBillable(gateway, subscription);
-    return { canceledCount, failedSubscriptionId: null };
+    return { canceledCount, failedSubscriptionIds: [] };
   } catch (error) {
     console.error("[stripe] cancel failed; continuing sweep", {
       subscriptionId: subscription.id,
       error,
     });
-    return { canceledCount: 0, failedSubscriptionId: subscription.id };
+    return { canceledCount: 0, failedSubscriptionIds: [subscription.id] };
   }
 }
 
@@ -243,9 +243,7 @@ async function cancelPage(
   for (const subscription of page) {
     const attempt = await attemptCancel(gateway, subscription);
     canceledCount += attempt.canceledCount;
-    if (attempt.failedSubscriptionId) {
-      failedSubscriptionIds.push(attempt.failedSubscriptionId);
-    }
+    failedSubscriptionIds.push(...attempt.failedSubscriptionIds);
   }
 
   return { canceledCount, failedSubscriptionIds };
@@ -277,19 +275,31 @@ export async function sweepCustomerSubscriptions(
   const failedSubscriptionIds: string[] = [];
   let startingAfter: string | null = null;
 
-  do {
-    const page = await gateway.list({
-      customer: customerId,
-      status: "all",
-      limit: SUBSCRIPTION_SWEEP_PAGE_SIZE,
-      ...(startingAfter ? { starting_after: startingAfter } : {}),
-    });
+  try {
+    do {
+      const page = await gateway.list({
+        customer: customerId,
+        status: "all",
+        limit: SUBSCRIPTION_SWEEP_PAGE_SIZE,
+        ...(startingAfter ? { starting_after: startingAfter } : {}),
+      });
 
-    const outcome = await cancelPage(gateway, page.data);
-    canceledCount += outcome.canceledCount;
-    failedSubscriptionIds.push(...outcome.failedSubscriptionIds);
-    startingAfter = nextCursor(page);
-  } while (startingAfter);
+      const outcome = await cancelPage(gateway, page.data);
+      canceledCount += outcome.canceledCount;
+      failedSubscriptionIds.push(...outcome.failedSubscriptionIds);
+      startingAfter = nextCursor(page);
+    } while (startingAfter);
+  } catch (error) {
+    // Surface what was already canceled before the pagination/list failure
+    // rather than losing it with the stack.
+    console.error("[stripe] sweep aborted mid-pagination; partial progress", {
+      customerId,
+      canceledCount,
+      failedSubscriptionIds,
+      error,
+    });
+    throw error;
+  }
 
   return { canceledCount, failedSubscriptionIds };
 }
