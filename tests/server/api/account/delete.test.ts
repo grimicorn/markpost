@@ -29,6 +29,20 @@ vi.mock("../../../../server/utils/clerk", () => ({
   deleteClerkUser: mockDeleteClerkUser,
 }));
 
+const mockFindSubscriptionByUserId = vi.fn();
+
+vi.mock("../../../../server/utils/billing", () => ({
+  findSubscriptionByUserId: (...args: unknown[]) =>
+    mockFindSubscriptionByUserId(...args),
+}));
+
+const mockCancelSubscriptionsForCustomer = vi.fn();
+
+vi.mock("../../../../server/services/stripe", () => ({
+  cancelSubscriptionsForCustomer: (...args: unknown[]) =>
+    mockCancelSubscriptionsForCustomer(...args),
+}));
+
 // ── H3 globals ────────────────────────────────────────────────────────────
 
 const mockCreateError = createMockCreateError();
@@ -60,6 +74,11 @@ describe("DELETE /api/account", () => {
     usersWhere.mockResolvedValue([]);
     deleteMock.mockImplementation(() => ({ where: usersWhere }));
     mockDeleteClerkUser.mockResolvedValue(undefined);
+    mockFindSubscriptionByUserId.mockResolvedValue({
+      stripeCustomerId: "cus_test123",
+      stripeSubscriptionId: "sub_test123",
+    });
+    mockCancelSubscriptionsForCustomer.mockResolvedValue({ canceledCount: 1 });
   });
 
   it("throws 401 when the request is unauthenticated", async () => {
@@ -108,5 +127,57 @@ describe("DELETE /api/account", () => {
   it("propagates errors through apiErrorHandler when Clerk deletion throws", async () => {
     mockDeleteClerkUser.mockRejectedValueOnce(new Error("clerk error"));
     await expect(handler(buildEvent("user_123"))).rejects.toThrow();
+  });
+
+  it("sweeps the customer's Stripe subscriptions on the stored customer id", async () => {
+    await handler(buildEvent("user_123"));
+    expect(mockFindSubscriptionByUserId).toHaveBeenCalledWith("user_123");
+    expect(mockCancelSubscriptionsForCustomer).toHaveBeenCalledWith(
+      "cus_test123",
+    );
+  });
+
+  it("cancels by customer even when the local subscription id is missing", async () => {
+    mockFindSubscriptionByUserId.mockResolvedValueOnce({
+      stripeCustomerId: "cus_test123",
+      stripeSubscriptionId: null,
+    });
+    await handler(buildEvent("user_123"));
+    expect(mockCancelSubscriptionsForCustomer).toHaveBeenCalledWith(
+      "cus_test123",
+    );
+  });
+
+  it("cancels Stripe billing before wiping app data", async () => {
+    await handler(buildEvent("user_123"));
+    expect(
+      mockCancelSubscriptionsForCustomer.mock.invocationCallOrder[0],
+    ).toBeLessThan(usersWhere.mock.invocationCallOrder[0]);
+  });
+
+  it("skips Stripe when the user has no subscription row", async () => {
+    mockFindSubscriptionByUserId.mockResolvedValueOnce(null);
+    await handler(buildEvent("user_123"));
+    expect(mockCancelSubscriptionsForCustomer).not.toHaveBeenCalled();
+    expect(deleteMock).toHaveBeenCalled();
+  });
+
+  it("skips Stripe when the subscription row has no customer id", async () => {
+    mockFindSubscriptionByUserId.mockResolvedValueOnce({
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+    });
+    await handler(buildEvent("user_123"));
+    expect(mockCancelSubscriptionsForCustomer).not.toHaveBeenCalled();
+    expect(deleteMock).toHaveBeenCalled();
+  });
+
+  it("does not wipe app data when the Stripe sweep throws", async () => {
+    mockCancelSubscriptionsForCustomer.mockRejectedValueOnce(
+      new Error("stripe error"),
+    );
+    await expect(handler(buildEvent("user_123"))).rejects.toThrow();
+    expect(deleteMock).not.toHaveBeenCalled();
+    expect(mockDeleteClerkUser).not.toHaveBeenCalled();
   });
 });
