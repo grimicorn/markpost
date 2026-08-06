@@ -287,11 +287,12 @@ describe("POST /api/hooks/[slug]", () => {
   describe("invalid body — non-object payload", () => {
     // A non-JSON object body (form-encoded, plain text, JSON scalar/array/null,
     // or empty) must fail loud with a 400 whose message points the operator at
-    // the fix, must NOT create a record or bump source stats, and must record an
-    // err event so senders without a delivery log still see the rejection.
-    // Asserting the message keeps the test honest: blanking NON_OBJECT_BODY_DETAIL
-    // fails it. sampleSource has provider `null`, so the GitHub `payload=` unwrap
-    // never applies — a bare form body is rejected like any other non-object.
+    // the fix, and must NOT create a record or bump source stats. Asserting the
+    // message keeps the test honest: blanking NON_OBJECT_BODY_DETAIL fails it.
+    // sampleSource has provider `null`, so the GitHub `payload=` unwrap never
+    // applies (a bare form body is rejected like any other non-object) and no
+    // err event is written — an unverified, slug-only source must not be able to
+    // drive writes to the events table.
     async function expectNonObjectBodyRejected(rawBody: string): Promise<void> {
       stubSourceOnly([sampleSource]);
       const { values } = stubInsertRecord(sampleRecord);
@@ -303,6 +304,7 @@ describe("POST /api/hooks/[slug]", () => {
 
       expect(values).not.toHaveBeenCalled();
       expect(updateMock).not.toHaveBeenCalled();
+      expect(mockWriteEvent).not.toHaveBeenCalled();
       // Ordering guard: the body is validated after the throttle (so junk
       // deliveries still count against the window) but before the expensive
       // plan-limit COUNT (which a doomed delivery must never pay for).
@@ -311,13 +313,6 @@ describe("POST /api/hooks/[slug]", () => {
       expect(mockSetResponseStatus).not.toHaveBeenCalledWith(
         expect.anything(),
         202,
-      );
-      expect(mockWriteEvent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          kind: "err",
-          userId: USER_ID,
-          sourceId: SOURCE_UUID,
-        }),
       );
       expect(mockCreateError).toHaveBeenCalledWith({
         statusCode: 400,
@@ -672,6 +667,59 @@ describe("POST /api/hooks/[slug]", () => {
         expect202Success(response, mockSetResponseStatus, sampleRecord.uuid);
       },
     );
+
+    // A verified provider that is not GitHub does NOT get the `payload=` unwrap:
+    // a form body is rejected, and — because the source is verified — the
+    // rejection is recorded as an err event for the owner's activity feed.
+    it("returns 400 and records an err event for a signed non-object body", async () => {
+      const source = {
+        ...sampleSource,
+        provider: "zapier",
+        providerSecret: STORED_SECRET_HASH,
+      };
+      const formBody = `payload=${encodeURIComponent(JSON.stringify({ title: "T" }))}`;
+
+      stubSourceOnly([source]);
+      stubInsertRecord(sampleRecord);
+      mockReadRawBody.mockResolvedValue(formBody);
+      stubSharedSecretHeader(SHARED_SECRET);
+
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 400,
+      });
+      expect(insertMock).not.toHaveBeenCalled();
+      expect(mockWriteEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: "err",
+          userId: USER_ID,
+          sourceId: SOURCE_UUID,
+        }),
+      );
+    });
+
+    // The reject event is best-effort: a failed write must not turn the 400 into
+    // a 500 on an already-broken delivery.
+    it("still returns 400 when the reject event fails to write", async () => {
+      const source = {
+        ...sampleSource,
+        provider: "zapier",
+        providerSecret: STORED_SECRET_HASH,
+      };
+
+      stubSourceOnly([source]);
+      stubInsertRecord(sampleRecord);
+      mockReadRawBody.mockResolvedValue("not-json");
+      stubSharedSecretHeader(SHARED_SECRET);
+      mockWriteEvent.mockRejectedValueOnce(new Error("db down"));
+      const consoleErrorSpy = spyConsoleError();
+
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 400,
+      });
+      expect(insertMock).not.toHaveBeenCalled();
+
+      consoleErrorSpy.mockRestore();
+    });
   });
 
   describe("fieldMapping", () => {

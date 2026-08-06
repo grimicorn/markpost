@@ -230,11 +230,20 @@ function parseWebhookBody(
 }
 
 // A rejected body never creates a record, so the sender's 400 is the primary
-// signal — but providers without a delivery log (Zapier, Apple Shortcuts,
-// hand-rolled senders) would otherwise see nothing at all in-app. Write a
-// best-effort err event so the rejection is visible on the source's activity
-// feed. Best-effort: a failure here must not mask the 400 we throw next.
+// signal — but verified providers without a delivery log (Zapier, Apple
+// Shortcuts) would otherwise see nothing at all in-app. Write a best-effort err
+// event so the rejection is visible on the source's activity feed. Best-effort:
+// a failure here must not mask the 400 we throw next.
+//
+// Only for sources with a provider set. An unverified provider-less source needs
+// only its slug to POST, so an attacker could otherwise drive unbounded writes to
+// the (plan-unlimited) events table by flooding it with junk bodies; a verified
+// source required a secret to get this far, so its reject events are bounded.
 async function recordRejectedDelivery(source: SourceRow): Promise<void> {
+  if (!source.provider) {
+    return;
+  }
+
   await writeEvent({
     userId: source.userId,
     kind: EVENT_KIND_ERR,
@@ -430,11 +439,11 @@ export default defineEventHandler(async (event) => {
     // lookup and monthly COUNT that assertWithinRecordLimit runs.
     await enforceThrottle(event, source);
 
-    // Validate the body before the plan-limit check: assertWithinRecordLimit runs
-    // a subscription lookup plus a monthly COUNT, and a malformed delivery will
-    // never create a record — so reject it here rather than paying for that query.
-    // Kept after enforceThrottle so a slug-only flood of junk bodies still counts
-    // against the throttle window (see the reasoning on enforceThrottle above).
+    // Validate the body before the plan-limit check: a malformed delivery will
+    // never create a record, so it must not consume the user's plan-limit budget
+    // (assertWithinRecordLimit's subscription lookup + monthly COUNT). Kept after
+    // enforceThrottle so a slug-only flood of junk bodies still counts against the
+    // throttle window (see the reasoning on enforceThrottle above).
     const payload = await requireJsonObjectBody(source, rawBody);
     await assertWithinRecordLimit(source.userId);
 
