@@ -272,8 +272,10 @@ async function resolveGeneratedFilePath(
     return clientFilePath;
   }
 
+  // Either "" or null here; preserve it as-is to match the prior
+  // `attributes.filePath ?? resolved.filePath` fallback.
   if (!generatedFilePath) {
-    return generatedFilePath ?? null;
+    return generatedFilePath;
   }
 
   return ensureUniqueFilePath(userId, generatedFilePath);

@@ -9,14 +9,14 @@ vi.mock("../../../../server/db", () => ({
   getDb: () => ({ insert: insertMock, select: selectMock }),
 }));
 
-// drizzle-orm eq/and used by validateSourceOwnership; isNotNull/like used by
+// drizzle-orm eq/and used by validateSourceOwnership; isNotNull/ilike used by
 // the filePath collision lookup. Mock them all as pass-throughs.
 vi.mock("drizzle-orm", () => ({
   eq: (column: unknown, value: unknown) => ({ column, value }),
   and: (...conditions: unknown[]) => ({ conditions }),
   isNotNull: (column: unknown) => ({ op: "isNotNull", column }),
-  like: (column: unknown, pattern: unknown) => ({
-    op: "like",
+  ilike: (column: unknown, pattern: unknown) => ({
+    op: "ilike",
     column,
     pattern,
   }),

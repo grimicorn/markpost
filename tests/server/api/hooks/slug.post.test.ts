@@ -26,8 +26,8 @@ vi.mock("drizzle-orm", () => ({
   eq: (column: unknown, value: unknown) => ({ column, value }),
   and: (...conditions: unknown[]) => ({ op: "and", conditions }),
   isNotNull: (column: unknown) => ({ op: "isNotNull", column }),
-  like: (column: unknown, pattern: unknown) => ({
-    op: "like",
+  ilike: (column: unknown, pattern: unknown) => ({
+    op: "ilike",
     column,
     pattern,
   }),

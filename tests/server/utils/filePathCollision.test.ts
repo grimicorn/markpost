@@ -10,7 +10,7 @@ vi.mock("drizzle-orm", () => ({
   and: (...args: unknown[]) => ({ op: "and", args }),
   eq: (...args: unknown[]) => ({ op: "eq", args }),
   isNotNull: (...args: unknown[]) => ({ op: "isNotNull", args }),
-  like: (...args: unknown[]) => ({ op: "like", args }),
+  ilike: (...args: unknown[]) => ({ op: "ilike", args }),
 }));
 
 import {
@@ -67,6 +67,12 @@ describe("resolveUniqueFilePath", () => {
     const taken = new Set(["2026-01-01-notes.tar.gz"]);
     const result = resolveUniqueFilePath("2026-01-01-notes.tar.gz", taken);
     expect(result).toBe("2026-01-01-notes.tar-2.gz");
+  });
+
+  it("treats a case-only difference as a collision", () => {
+    const taken = new Set(["acme/2026-01-01-hello.md"]);
+    const result = resolveUniqueFilePath("Acme/2026-01-01-hello.md", taken);
+    expect(result).toBe("Acme/2026-01-01-hello-2.md");
   });
 });
 
@@ -138,7 +144,7 @@ describe("ensureUniqueFilePath", () => {
     const conditions = conditionsFrom(whereMock);
     const userCondition = conditions.find((condition) => condition.op === "eq");
     const prefixCondition = conditions.find(
-      (condition) => condition.op === "like",
+      (condition) => condition.op === "ilike",
     );
 
     expect(userCondition?.args[1]).toBe("user_abc");
@@ -150,7 +156,7 @@ describe("ensureUniqueFilePath", () => {
     await ensureUniqueFilePath("user_abc", "2026-01-01-50%_off.md");
 
     const prefixCondition = conditionsFrom(whereMock).find(
-      (condition) => condition.op === "like",
+      (condition) => condition.op === "ilike",
     );
 
     expect(prefixCondition?.args[1]).toBe("2026-01-01-50\\%\\_off%");
