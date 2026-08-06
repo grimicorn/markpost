@@ -290,9 +290,7 @@ describe("POST /api/hooks/[slug]", () => {
     // the fix, and must NOT create a record or bump source stats. Asserting the
     // message keeps the test honest: blanking NON_OBJECT_BODY_DETAIL fails it.
     // sampleSource has provider `null`, so the GitHub `payload=` unwrap never
-    // applies (a bare form body is rejected like any other non-object) and no
-    // err event is written — an unverified, slug-only source must not be able to
-    // drive writes to the events table.
+    // applies — a bare form body is rejected like any other non-object.
     async function expectNonObjectBodyRejected(rawBody: string): Promise<void> {
       stubSourceOnly([sampleSource]);
       const { values } = stubInsertRecord(sampleRecord);
@@ -304,7 +302,6 @@ describe("POST /api/hooks/[slug]", () => {
 
       expect(values).not.toHaveBeenCalled();
       expect(updateMock).not.toHaveBeenCalled();
-      expect(mockWriteEvent).not.toHaveBeenCalled();
       // Ordering guard: the body is validated after the throttle (so junk
       // deliveries still count against the window) but before the expensive
       // plan-limit COUNT (which a doomed delivery must never pay for).
@@ -668,10 +665,11 @@ describe("POST /api/hooks/[slug]", () => {
       },
     );
 
-    // A verified provider that is not GitHub does NOT get the `payload=` unwrap:
-    // a form body is rejected, and — because the source is verified — the
-    // rejection is recorded as an err event for the owner's activity feed.
-    it("returns 400 and records an err event for a signed non-object body", async () => {
+    // The GitHub `payload=` form unwrap is gated to GitHub sources: a verified
+    // non-GitHub provider (here Zapier) must still reject a form-encoded body
+    // rather than unwrapping a `payload` field, so this shape is not a smuggling
+    // path around the JSON-object contract for other providers.
+    it("returns 400 for a signed Zapier delivery with a form-encoded `payload` body", async () => {
       const source = {
         ...sampleSource,
         provider: "zapier",
@@ -688,37 +686,6 @@ describe("POST /api/hooks/[slug]", () => {
         statusCode: 400,
       });
       expect(insertMock).not.toHaveBeenCalled();
-      expect(mockWriteEvent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          kind: "err",
-          userId: USER_ID,
-          sourceId: SOURCE_UUID,
-        }),
-      );
-    });
-
-    // The reject event is best-effort: a failed write must not turn the 400 into
-    // a 500 on an already-broken delivery.
-    it("still returns 400 when the reject event fails to write", async () => {
-      const source = {
-        ...sampleSource,
-        provider: "zapier",
-        providerSecret: STORED_SECRET_HASH,
-      };
-
-      stubSourceOnly([source]);
-      stubInsertRecord(sampleRecord);
-      mockReadRawBody.mockResolvedValue("not-json");
-      stubSharedSecretHeader(SHARED_SECRET);
-      mockWriteEvent.mockRejectedValueOnce(new Error("db down"));
-      const consoleErrorSpy = spyConsoleError();
-
-      await expect(handler(buildEvent())).rejects.toMatchObject({
-        statusCode: 400,
-      });
-      expect(insertMock).not.toHaveBeenCalled();
-
-      consoleErrorSpy.mockRestore();
     });
   });
 

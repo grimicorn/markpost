@@ -9,6 +9,7 @@ import { assertWithinRecordLimit } from "../../utils/planLimits";
 import {
   GITHUB_PROVIDER,
   GITHUB_SIGNATURE_HEADER,
+  normalizeProvider,
   STRIPE_SIGNATURE_HEADER,
   verifyProviderSignature,
 } from "../../utils/signatureVerifier";
@@ -222,36 +223,14 @@ function parseWebhookBody(
     return directObject;
   }
 
-  if (source.provider === GITHUB_PROVIDER) {
+  // normalizeProvider is the single normalization boundary for provider identity
+  // (see signatureVerifier.ts) — compare through it so a stored `"GitHub"` still
+  // dispatches to the form-encoded unwrap it just verified the signature against.
+  if (normalizeProvider(source.provider) === GITHUB_PROVIDER) {
     return githubFormPayload(rawBody);
   }
 
   return null;
-}
-
-// A rejected body never creates a record, so the sender's 400 is the primary
-// signal — but verified providers without a delivery log (Zapier, Apple
-// Shortcuts) would otherwise see nothing at all in-app. Write a best-effort err
-// event so the rejection is visible on the source's activity feed. Best-effort:
-// a failure here must not mask the 400 we throw next.
-//
-// Only for sources with a provider set. An unverified provider-less source needs
-// only its slug to POST, so an attacker could otherwise drive unbounded writes to
-// the (plan-unlimited) events table by flooding it with junk bodies; a verified
-// source required a secret to get this far, so its reject events are bounded.
-async function recordRejectedDelivery(source: SourceRow): Promise<void> {
-  if (!source.provider) {
-    return;
-  }
-
-  await writeEvent({
-    userId: source.userId,
-    kind: EVENT_KIND_ERR,
-    message: `Rejected webhook delivery: ${NON_OBJECT_BODY_DETAIL}`,
-    sourceId: source.uuid,
-  }).catch((writeError) => {
-    console.error("[hooks/ingest] failed to write reject event:", writeError);
-  });
 }
 
 // Fail loud on anything that isn't a JSON object. Accepted: a raw JSON object
@@ -262,18 +241,17 @@ async function recordRejectedDelivery(source: SourceRow): Promise<void> {
 // 400; each would otherwise be coerced to {} and ingested as a blank "Untitled"
 // record with a 202, hiding a misconfigured integration. (An empty body throws
 // in JSON.parse, so asJsonObject already returns null for it.)
-async function requireJsonObjectBody(
+function requireJsonObjectBody(
   source: SourceRow,
   rawBody: string,
-): Promise<Record<string, unknown>> {
+): Record<string, unknown> {
   const payload = parseWebhookBody(source, rawBody);
 
-  if (payload) {
-    return payload;
+  if (!payload) {
+    throw badRequestError(NON_OBJECT_BODY_DETAIL);
   }
 
-  await recordRejectedDelivery(source);
-  throw badRequestError(NON_OBJECT_BODY_DETAIL);
+  return payload;
 }
 
 async function resolveAndValidateSource(
@@ -444,7 +422,7 @@ export default defineEventHandler(async (event) => {
     // (assertWithinRecordLimit's subscription lookup + monthly COUNT). Kept after
     // enforceThrottle so a slug-only flood of junk bodies still counts against the
     // throttle window (see the reasoning on enforceThrottle above).
-    const payload = await requireJsonObjectBody(source, rawBody);
+    const payload = requireJsonObjectBody(source, rawBody);
     await assertWithinRecordLimit(source.userId);
 
     const record = await buildAndInsertRecord(source, payload);
