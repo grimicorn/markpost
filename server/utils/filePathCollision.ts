@@ -1,4 +1,4 @@
-import { and, eq, ilike, isNotNull } from "drizzle-orm";
+import { and, eq, ilike } from "drizzle-orm";
 import { getDb } from "../db";
 import { records } from "../db/schema";
 
@@ -98,7 +98,8 @@ async function fetchTakenFilePaths(
     .where(
       and(
         eq(records.userId, userId),
-        isNotNull(records.filePath),
+        // ILIKE never matches a NULL file_path, so no explicit IS NOT NULL is
+        // needed; the guard below keeps TypeScript's nullability narrowing.
         ilike(records.filePath, collisionPrefixPattern(desiredPath)),
       ),
     );
