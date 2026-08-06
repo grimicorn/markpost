@@ -33,6 +33,16 @@ vi.mock("../../app/composables/useRecords", () => ({
   get triggerRecordExportDownload() {
     return mockTriggerRecordExport;
   },
+  RECORD_FILTER_OPTIONS: [
+    { value: "all", label: "all" },
+    { value: "webhook", label: "webhook" },
+    { value: "email", label: "email" },
+    { value: "stripe", label: "stripe" },
+    { value: "github", label: "github" },
+    { value: "zapier", label: "zapier" },
+    { value: "shortcuts", label: "shortcuts" },
+    { value: "errors", label: "errors" },
+  ],
   STATUS_TONE_MAP: { synced: "ok", pending: "warn", error: "err" },
 }));
 

@@ -1,3 +1,8 @@
+import {
+  SOURCE_TYPES,
+  isSourceType,
+  type SourceType,
+} from "#shared/utils/sourceTypes";
 import { computeElapsedBuckets } from "../utils/timeBuckets";
 
 export type RecordStatus = "synced" | "pending" | "error";
@@ -51,7 +56,20 @@ export function triggerRecordExportDownload(): void {
   window.location.href = RECORDS_EXPORT_URL;
 }
 
-export type RecordFilterValue = "all" | "webhook" | "email" | "errors";
+export type RecordFilterValue = "all" | "errors" | SourceType;
+
+type FilterOption = { value: RecordFilterValue; label: string };
+
+// Driven from the shared SOURCE_TYPES contract so every type the API filters on
+// is reachable in the UI and the two lists can never drift apart.
+export const RECORD_FILTER_OPTIONS: FilterOption[] = [
+  { value: "all", label: "all" },
+  ...SOURCE_TYPES.map((sourceType) => ({
+    value: sourceType,
+    label: sourceType,
+  })),
+  { value: "errors", label: "errors" },
+];
 
 type FetchFilters = {
   source?: string;
@@ -63,14 +81,14 @@ function buildQueryParams(filter: RecordFilterValue): FetchFilters {
     return { status: "error" };
   }
 
-  if (filter === "webhook" || filter === "email") {
+  if (isSourceType(filter)) {
     return { source: filter };
   }
 
   return {};
 }
 
-function buildFetchUrl(filter: RecordFilterValue): string {
+export function buildFetchUrl(filter: RecordFilterValue): string {
   const filters = buildQueryParams(filter);
   const params = new URLSearchParams();
 

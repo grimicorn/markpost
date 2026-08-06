@@ -266,6 +266,7 @@ import {
   formatSourceLabel,
   sourceTypeIcon,
   triggerRecordExportDownload,
+  RECORD_FILTER_OPTIONS,
   STATUS_TONE_MAP,
   type RecordResource,
   type RecordStats,
@@ -277,12 +278,7 @@ definePageMeta({ middleware: "auth" });
 const INBOX_PATH = "/inbox";
 const RECORD_QUERY_KEY = "record";
 
-const filterOptions = [
-  { value: "all", label: "all" },
-  { value: "webhook", label: "webhooks" },
-  { value: "email", label: "email" },
-  { value: "errors", label: "errors" },
-];
+const filterOptions = RECORD_FILTER_OPTIONS;
 
 const { records, isLoading, loadError, filter, loadRecords } =
   useRecords("all");
