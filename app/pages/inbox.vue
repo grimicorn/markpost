@@ -83,7 +83,7 @@
 
       <!-- filters -->
       <div class="row between wrap gap-3" style="margin-bottom: 14px">
-        <InputSegmented v-model="filter" :options="filterOptions" />
+        <InputSegmented v-model="filter" :options="RECORD_FILTER_OPTIONS" />
         <span class="mono faint" style="font-size: 12px"
           >{{ records.length }} records</span
         >
@@ -131,16 +131,10 @@
           <AppIcon name="inbox" :size="32" />
           <span
             style="font-size: 15px; font-weight: 500; color: var(--ink-2)"
-            >{{
-              filter === "all" ? "No records yet" : `No ${filter} records`
-            }}</span
+            >{{ emptyStateTitle }}</span
           >
           <span class="mono" style="font-size: 13px">
-            {{
-              filter === "all"
-                ? "Records will appear here once a source delivers them."
-                : "Try a different filter."
-            }}
+            {{ emptyStateHint }}
           </span>
         </div>
 
@@ -285,10 +279,24 @@ definePageMeta({ middleware: "auth" });
 const INBOX_PATH = "/inbox";
 const RECORD_QUERY_KEY = "record";
 
-const filterOptions = RECORD_FILTER_OPTIONS;
-
 const { records, isLoading, loadError, filter, loadRecords } =
   useRecords("all");
+
+const emptyStateTitle = computed(() => {
+  if (filter.value === "all") {
+    return "No records yet";
+  }
+
+  return `No ${filter.value} records`;
+});
+
+const emptyStateHint = computed(() => {
+  if (filter.value === "all") {
+    return "Records will appear here once a source delivers them.";
+  }
+
+  return "Try a different filter.";
+});
 
 const showToast = ref(false);
 const syncError = ref<string | null>(null);

@@ -93,7 +93,7 @@ const globalConfig = {
       },
       InputSegmented: {
         template:
-          '<div class="seg"><button v-for="option in options" :key="option.value" class="seg-option">{{ option.label }}</button></div>',
+          '<div class="seg" role="radiogroup"><button v-for="option in options" :key="option.value" class="seg-option" :class="{ on: modelValue === option.value }" role="radio" :aria-checked="modelValue === option.value" @click="$emit(\'update:modelValue\', option.value)">{{ option.label }}</button></div>',
         props: ["modelValue", "options"],
         emits: ["update:modelValue"],
       },
@@ -167,6 +167,19 @@ describe("inbox page", () => {
     expect(labels).toHaveLength(SOURCE_TYPES.length + 2);
   });
 
+  it.each(SOURCE_TYPES)(
+    "selects the %s filter when its button is clicked",
+    async (sourceType) => {
+      const wrapper = mount(InboxPage, globalConfig);
+      await flushPromises();
+      const button = wrapper
+        .findAll(".seg-option")
+        .find((each) => each.text() === sourceType);
+      await button?.trigger("click");
+      expect(filterRef.value).toBe(sourceType);
+    },
+  );
+
   it("calls loadRecords on mount", async () => {
     mount(InboxPage, globalConfig);
     await flushPromises();
@@ -234,6 +247,15 @@ describe("inbox page", () => {
     const wrapper = mount(InboxPage, globalConfig);
     await flushPromises();
     expect(wrapper.text()).toContain("No stripe records");
+    expect(wrapper.text()).toContain("Try a different filter.");
+  });
+
+  it("shows a filter-specific empty state for the errors filter", async () => {
+    recordsRef.value = [];
+    filterRef.value = "errors";
+    const wrapper = mount(InboxPage, globalConfig);
+    await flushPromises();
+    expect(wrapper.text()).toContain("No errors records");
     expect(wrapper.text()).toContain("Try a different filter.");
   });
 
