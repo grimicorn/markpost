@@ -35,59 +35,33 @@ type UserSettingsRow = {
   filenameTemplate: string;
 };
 
-function notFoundError(): ApiError {
+const NON_OBJECT_BODY_DETAIL =
+  "Webhook body must be a JSON object. Send a JSON object payload (Content-Type: application/json); GitHub's form-encoded `payload` field is also accepted.";
+
+function apiError(httpStatus: number, title: string, detail: string): ApiError {
   return new ApiError(
-    [
-      {
-        status: "404",
-        title: "Not Found",
-        detail: "No source was found for the given slug.",
-      },
-    ],
-    404,
+    [{ status: String(httpStatus), title, detail }],
+    httpStatus,
   );
+}
+
+function notFoundError(): ApiError {
+  return apiError(404, "Not Found", "No source was found for the given slug.");
 }
 
 function signatureError(reason: string): ApiError {
-  return new ApiError(
-    [
-      {
-        status: "401",
-        title: "Unauthorized",
-        detail: reason,
-      },
-    ],
-    401,
-  );
+  return apiError(401, "Unauthorized", reason);
 }
 
-const NON_OBJECT_BODY_DETAIL =
-  "Webhook body must be a JSON object. Set the Content-Type to application/json and send a JSON object payload.";
-
 function badRequestError(detail: string): ApiError {
-  return new ApiError(
-    [
-      {
-        status: "400",
-        title: "Bad Request",
-        detail,
-      },
-    ],
-    400,
-  );
+  return apiError(400, "Bad Request", detail);
 }
 
 function throttledError(): ApiError {
-  return new ApiError(
-    [
-      {
-        status: "429",
-        title: "Too Many Requests",
-        detail:
-          "This webhook source is receiving too many requests. Slow down and try again shortly.",
-      },
-    ],
+  return apiError(
     429,
+    "Too Many Requests",
+    "This webhook source is receiving too many requests. Slow down and try again shortly.",
   );
 }
 
@@ -208,7 +182,7 @@ function buildProviderHeaders(
   };
 }
 
-function parseJsonObject(rawBody: string): Record<string, unknown> | null {
+function asJsonObject(rawBody: string): Record<string, unknown> | null {
   try {
     const parsed: unknown = JSON.parse(rawBody);
 
@@ -226,20 +200,31 @@ function parseJsonObject(rawBody: string): Record<string, unknown> | null {
   }
 }
 
-// Fail loud on anything that isn't a JSON object: a non-JSON body (plain text /
-// form-encoded), a JSON scalar/array/null, or an empty body would otherwise be
-// silently coerced to {} and ingested as a blank "Untitled" record with a 202,
-// hiding a misconfigured integration. Every supported provider (Stripe, GitHub,
-// Zapier, Apple Shortcuts) delivers a JSON object, so this is the real contract.
-// (An empty body throws in JSON.parse, so parseJsonObject already returns null.)
-function requireJsonObjectBody(rawBody: string): Record<string, unknown> {
-  const parsed = parseJsonObject(rawBody);
+// GitHub's webhook "Content type" defaults to application/x-www-form-urlencoded,
+// which delivers the JSON payload URL-encoded under a `payload` form field. The
+// HMAC in X-Hub-Signature-256 is computed over that raw form body, so the
+// signature still verifies — we only have to unwrap `payload` before parsing.
+function githubFormPayload(rawBody: string): Record<string, unknown> | null {
+  const encoded = new URLSearchParams(rawBody).get("payload");
+  return encoded ? asJsonObject(encoded) : null;
+}
 
-  if (!parsed) {
+// Fail loud on anything that isn't a JSON object. Accepted: a raw JSON object
+// body (Stripe, Zapier, Apple Shortcuts, and GitHub when set to
+// Content-Type: application/json) or GitHub's default form-encoded `payload`
+// wrapper. Rejected with a 400: a plain-text/other form-encoded body, a JSON
+// scalar/array, or an empty body — each would otherwise be silently coerced to
+// {} and ingested as a blank "Untitled" record with a 202, hiding a
+// misconfigured integration. (An empty body throws in JSON.parse, so
+// asJsonObject already returns null for it.)
+function requireJsonObjectBody(rawBody: string): Record<string, unknown> {
+  const payload = asJsonObject(rawBody) ?? githubFormPayload(rawBody);
+
+  if (!payload) {
     throw badRequestError(NON_OBJECT_BODY_DETAIL);
   }
 
-  return parsed;
+  return payload;
 }
 
 async function resolveAndValidateSource(

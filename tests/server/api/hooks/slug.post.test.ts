@@ -300,6 +300,11 @@ describe("POST /api/hooks/[slug]", () => {
 
       expect(values).not.toHaveBeenCalled();
       expect(updateMock).not.toHaveBeenCalled();
+      // Ordering guard: the body is validated after the throttle (so junk
+      // deliveries still count against the window) but before the expensive
+      // plan-limit COUNT (which a doomed delivery must never pay for).
+      expect(mockRecordWebhookHit).toHaveBeenCalledWith(SOURCE_UUID);
+      expect(mockAssertWithinRecordLimit).not.toHaveBeenCalled();
       expect(mockSetResponseStatus).not.toHaveBeenCalledWith(
         expect.anything(),
         202,
@@ -336,6 +341,26 @@ describe("POST /api/hooks/[slug]", () => {
 
     it("rejects an empty body with 400", async () => {
       await expectNonObjectBodyRejected("");
+    });
+
+    // GitHub's webhook default content type is form-encoded with the JSON under a
+    // `payload` field; that shape must be unwrapped and ingested, not rejected.
+    it("accepts GitHub's form-encoded `payload` body and returns 202", async () => {
+      const githubJson = JSON.stringify({ title: "Push", content: "to main" });
+      const formBody = `payload=${encodeURIComponent(githubJson)}`;
+
+      stubSourceAndSettings([sampleSource]);
+      const { values } = stubInsertRecord(sampleRecord);
+      stubUpdateStats();
+      mockReadRawBody.mockResolvedValue(formBody);
+
+      const response = await handler(buildEvent());
+
+      expect202Success(response, mockSetResponseStatus, sampleRecord.uuid);
+      const insertedValues = (
+        values.mock.calls[0] as [Record<string, unknown>]
+      )[0];
+      expect(insertedValues.title).toBe("Push");
     });
   });
 
