@@ -282,11 +282,16 @@ describe("POST /api/hooks/[slug]", () => {
       expect(insertedValues.sourceId).toBe(SOURCE_UUID);
       expect(insertedValues.status).toBe("pending");
     });
+  });
 
+  describe("invalid body — non-object payload", () => {
+    // A non-JSON object body (form-encoded, plain text, JSON scalar/array/null,
+    // or empty) must fail loud with a 400 whose message points the operator at
+    // the fix, and must NOT create a record or bump source stats. Asserting the
+    // message keeps the test honest: blanking NON_OBJECT_BODY_DETAIL fails it.
     async function expectNonObjectBodyRejected(rawBody: string): Promise<void> {
       stubSourceAndSettings([sampleSource]);
       const { values } = stubInsertRecord(sampleRecord);
-      stubUpdateStats();
       mockReadRawBody.mockResolvedValue(rawBody);
 
       await expect(handler(buildEvent())).rejects.toMatchObject({
@@ -294,16 +299,26 @@ describe("POST /api/hooks/[slug]", () => {
       });
 
       expect(values).not.toHaveBeenCalled();
+      expect(updateMock).not.toHaveBeenCalled();
       expect(mockSetResponseStatus).not.toHaveBeenCalledWith(
         expect.anything(),
         202,
       );
-      expect(mockCreateError).toHaveBeenCalledWith(
-        expect.objectContaining({ statusCode: 400 }),
-      );
+      expect(mockCreateError).toHaveBeenCalledWith({
+        statusCode: 400,
+        data: {
+          errors: [
+            expect.objectContaining({
+              status: "400",
+              title: "Bad Request",
+              detail: expect.stringContaining("application/json"),
+            }),
+          ],
+        },
+      });
     }
 
-    it("rejects a non-JSON body with 400 instead of ingesting a blank record", async () => {
+    it("rejects a form-encoded body with 400 instead of ingesting a blank record", async () => {
       await expectNonObjectBodyRejected("title=hello&body=world");
     });
 
@@ -360,6 +375,23 @@ describe("POST /api/hooks/[slug]", () => {
       mockGetHeader.mockReturnValue(
         buildValidStripeHeader(rawBody, "wrong_secret"),
       );
+
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 401,
+      });
+      expect(mockCreateError).toHaveBeenCalledWith(
+        expect.objectContaining({ statusCode: 401 }),
+      );
+    });
+
+    // Signature verification must run before body validation: an unsigned caller
+    // sending garbage should see 401 (auth failure), never 400 (which would leak
+    // that the slug exists and reveal how the body is parsed). Guards the ordering
+    // against a future refactor hoisting the parse above checkSignature.
+    it("returns 401 (not 400) for an unsigned request with a non-JSON body", async () => {
+      stubSourceOnly([stripeSource]);
+      mockReadRawBody.mockResolvedValue("not-json");
+      mockGetHeader.mockReturnValue(undefined);
 
       await expect(handler(buildEvent())).rejects.toMatchObject({
         statusCode: 401,

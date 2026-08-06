@@ -231,8 +231,9 @@ function parseJsonObject(rawBody: string): Record<string, unknown> | null {
 // silently coerced to {} and ingested as a blank "Untitled" record with a 202,
 // hiding a misconfigured integration. Every supported provider (Stripe, GitHub,
 // Zapier, Apple Shortcuts) delivers a JSON object, so this is the real contract.
-function parseBodyToPayload(rawBody: string): Record<string, unknown> {
-  const parsed = rawBody ? parseJsonObject(rawBody) : null;
+// (An empty body throws in JSON.parse, so parseJsonObject already returns null.)
+function requireJsonObjectBody(rawBody: string): Record<string, unknown> {
+  const parsed = parseJsonObject(rawBody);
 
   if (!parsed) {
     throw badRequestError(NON_OBJECT_BODY_DETAIL);
@@ -300,8 +301,10 @@ async function enforceThrottle(
   throw throttledError();
 }
 
-async function buildAndInsertRecord(source: SourceRow, rawBody: string) {
-  const payload = parseBodyToPayload(rawBody);
+async function buildAndInsertRecord(
+  source: SourceRow,
+  payload: Record<string, unknown>,
+) {
   const webhookPayload = applyFieldMapping(
     payload,
     source.fieldMapping,
@@ -401,9 +404,16 @@ export default defineEventHandler(async (event) => {
     // It is also the cheaper guard, so it sheds load before the subscription
     // lookup and monthly COUNT that assertWithinRecordLimit runs.
     await enforceThrottle(event, source);
+
+    // Validate the body before the plan-limit check: assertWithinRecordLimit runs
+    // a subscription lookup plus a monthly COUNT, and a malformed delivery will
+    // never create a record — so reject it here rather than paying for that query.
+    // Kept after enforceThrottle so a slug-only flood of junk bodies still counts
+    // against the throttle window (see the reasoning on enforceThrottle above).
+    const payload = requireJsonObjectBody(rawBody);
     await assertWithinRecordLimit(source.userId);
 
-    const record = await buildAndInsertRecord(source, rawBody);
+    const record = await buildAndInsertRecord(source, payload);
     await writeBestEffortSideEffects(source, record);
 
     setResponseStatus(event, 202);
