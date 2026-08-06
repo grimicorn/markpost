@@ -116,6 +116,17 @@ const TERMINAL_SUBSCRIPTION_STATUSES: ReadonlySet<Stripe.Subscription.Status> =
 // Page size for the customer subscription sweep. Stripe caps list at 100.
 const SUBSCRIPTION_SWEEP_PAGE_SIZE = 100;
 
+// Stripe's wording when a subscription reached the canceled state between the
+// list and the cancel call. Anchored on "status ...canceled" so it doesn't
+// also swallow invalid_request errors that mean the cancel was *refused*
+// (e.g. "managed by a schedule and cannot be canceled").
+const ALREADY_CANCELED_MESSAGE = /status ['"]?canceled/i;
+
+// Generic message surfaced when the sweep fails. Stripe errors carry a numeric
+// statusCode, which apiErrorHandler treats as client-facing and would leak
+// verbatim (see utils/errors.ts); this keeps the raw Stripe text off the wire.
+const STRIPE_SWEEP_FAILED_MESSAGE = "Stripe subscription sweep failed";
+
 // The narrow slice of the Stripe subscriptions API the sweep depends on, so the
 // cancellation logic can be unit-tested with a fake in place of a live client.
 export type SubscriptionGateway = {
@@ -154,19 +165,27 @@ function isAlreadyCanceledError(error: unknown): boolean {
 
   const message = error.message ?? "";
   return (
-    error.type === "StripeInvalidRequestError" && message.includes("canceled")
+    error.type === "StripeInvalidRequestError" &&
+    ALREADY_CANCELED_MESSAGE.test(message)
   );
 }
 
+// Returns true when this call canceled the subscription, false when it was
+// already terminal (raced by a webhook/portal cancellation) — so the caller's
+// count reflects only subscriptions this sweep actually canceled.
 async function cancelSubscription(
   gateway: SubscriptionGateway,
   subscriptionId: string,
-): Promise<void> {
+): Promise<boolean> {
   try {
     await gateway.cancel(subscriptionId);
+    return true;
   } catch (error) {
     if (isAlreadyCanceledError(error)) {
-      return;
+      console.warn("[stripe] cancel skipped; subscription already terminal", {
+        subscriptionId,
+      });
+      return false;
     }
     throw error;
   }
@@ -180,8 +199,8 @@ async function cancelIfBillable(
     return 0;
   }
 
-  await cancelSubscription(gateway, subscription.id);
-  return 1;
+  const canceled = await cancelSubscription(gateway, subscription.id);
+  return canceled ? 1 : 0;
 }
 
 async function cancelPage(
@@ -238,7 +257,13 @@ export async function cancelSubscriptionsForCustomer(
   customerId: string,
 ): Promise<CustomerCancelResult> {
   const gateway = toSubscriptionGateway(getStripeClient());
-  return sweepCustomerSubscriptions(gateway, customerId);
+
+  try {
+    return await sweepCustomerSubscriptions(gateway, customerId);
+  } catch (error) {
+    console.error("[stripe] subscription sweep failed", { customerId, error });
+    throw new Error(STRIPE_SWEEP_FAILED_MESSAGE);
+  }
 }
 
 export type SubscriptionEventData = {

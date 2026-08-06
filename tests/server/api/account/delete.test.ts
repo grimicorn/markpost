@@ -66,6 +66,9 @@ function buildEvent(userId: string | undefined): H3Event {
 describe("DELETE /api/account", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.spyOn(console, "info").mockImplementation(() => undefined);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
     mockCreateError.mockImplementation((options: object) => {
       const error = new Error("createError");
       Object.assign(error, options);

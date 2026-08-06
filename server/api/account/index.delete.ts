@@ -13,19 +13,30 @@ async function deleteAllUserData(userId: string): Promise<void> {
   await getDb().delete(users).where(eq(users.userId, userId));
 }
 
-// Cancel billing by Stripe customer, not the stored subscription id: a
-// subscription created outside checkout or a stale row after a missed webhook
-// would otherwise keep billing after the account is gone. Runs before the DB
-// delete so the customer id is still on the row (it cascades away with it); the
-// sweep is idempotent, so a retry after a later failure is safe.
+// Cancel billing by Stripe customer, not the stored subscription id: an extra
+// subscription created outside checkout, or a stale local row after a missed
+// webhook, would otherwise keep billing after the account is gone. Runs before
+// the DB delete so the customer id is still on the row (it cascades away with
+// it); the sweep is idempotent, so a retry after a later failure is safe.
 async function cancelBillingForUser(userId: string): Promise<void> {
   const subscription = await findSubscriptionByUserId(userId);
   const customerId = subscription?.stripeCustomerId ?? null;
+  // No row / no customer id means checkout never linked a Stripe customer to
+  // this user, so there's nothing to sweep by. Log the skip rather than swallow
+  // it: if a webhook was missed entirely, billing could still be live under a
+  // customer id we can no longer recover locally.
   if (!customerId) {
+    console.warn("[account] no Stripe customer on file; skipping sweep", {
+      userId,
+    });
     return;
   }
 
-  await cancelSubscriptionsForCustomer(customerId);
+  const { canceledCount } = await cancelSubscriptionsForCustomer(customerId);
+  console.info("[account] canceled Stripe subscriptions on account delete", {
+    userId,
+    canceledCount,
+  });
 }
 
 export default defineEventHandler(

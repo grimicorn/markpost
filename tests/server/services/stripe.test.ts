@@ -42,6 +42,7 @@ function buildGateway(pages: Stripe.ApiList<Stripe.Subscription>[]): {
 describe("sweepCustomerSubscriptions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
   });
 
   it("queries all subscriptions for the customer regardless of status", async () => {
@@ -135,7 +136,7 @@ describe("sweepCustomerSubscriptions", () => {
 
     const result = await sweepCustomerSubscriptions(gateway, CUSTOMER_ID);
 
-    expect(result.canceledCount).toBe(1);
+    expect(result.canceledCount).toBe(0);
   });
 
   it("tolerates a subscription canceled between list and cancel", async () => {
@@ -151,7 +152,24 @@ describe("sweepCustomerSubscriptions", () => {
 
     const result = await sweepCustomerSubscriptions(gateway, CUSTOMER_ID);
 
-    expect(result.canceledCount).toBe(1);
+    expect(result.canceledCount).toBe(0);
+  });
+
+  it("rethrows an invalid_request that refuses the cancel (schedule-managed)", async () => {
+    const { gateway, cancel } = buildGateway([
+      page([subscription("sub_scheduled", "active")]),
+    ]);
+    cancel.mockRejectedValueOnce(
+      new Stripe.errors.StripeInvalidRequestError({
+        message:
+          "This subscription is managed by a schedule and cannot be canceled",
+        type: "invalid_request_error",
+      }),
+    );
+
+    await expect(
+      sweepCustomerSubscriptions(gateway, CUSTOMER_ID),
+    ).rejects.toThrow("cannot be canceled");
   });
 
   it("rethrows unexpected Stripe failures", async () => {
