@@ -60,14 +60,16 @@ export function resolveUniqueFilePath(
 }
 
 // Prefix pattern matching the desired name and every numbered variant of it
-// ("2026-01-01-hello.md" and "2026-01-01-hello-2.md"). It intentionally
-// over-matches (e.g. "2026-01-01-hello-world.md"); an unrelated row in the
-// taken set never equals a generated candidate, so a superset is harmless and
-// keeps the query a single indexed range scan.
+// ("2026-01-01-hello.md" and "2026-01-01-hello-2.md"). The user-editable
+// filenameTemplate can leave LIKE metacharacters in the path, so `\`, `%` and
+// `_` are escaped (Postgres LIKE treats `\` as the default escape character, so
+// no explicit ESCAPE clause is needed). An unrelated row that still slips into
+// the taken set is harmless: it never equals a generated candidate.
 function collisionPrefixPattern(desiredPath: string): string {
   const { dir, filename } = splitDirectory(desiredPath);
   const { base } = splitExtension(filename);
-  return `${dir}${base}%`;
+  const escaped = `${dir}${base}`.replace(/[\\%_]/g, "\\$&");
+  return `${escaped}%`;
 }
 
 async function fetchTakenFilePaths(
@@ -103,6 +105,12 @@ export async function ensureUniqueFilePath(
   userId: string,
   desiredPath: string,
 ): Promise<string> {
+  // An empty path can never collide and would degrade the lookup to `LIKE '%'`,
+  // pulling every one of the user's paths into memory. Nothing to disambiguate.
+  if (!desiredPath.trim()) {
+    return desiredPath;
+  }
+
   const takenPaths = await fetchTakenFilePaths(userId, desiredPath);
   return resolveUniqueFilePath(desiredPath, takenPaths);
 }

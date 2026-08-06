@@ -70,10 +70,21 @@ describe("resolveUniqueFilePath", () => {
   });
 });
 
+type Condition = { op: string; args: unknown[] };
+
 function mockTakenRows(rows: Array<{ filePath: string | null }>) {
   const whereMock = vi.fn(() => Promise.resolve(rows));
   const fromMock = vi.fn(() => ({ where: whereMock }));
   selectMock.mockReturnValue({ from: fromMock });
+  return whereMock;
+}
+
+function conditionsFrom(whereMock: ReturnType<typeof vi.fn>): Condition[] {
+  const andExpression = whereMock.mock.calls[0][0] as {
+    op: string;
+    args: Condition[];
+  };
+  return andExpression.args;
 }
 
 describe("ensureUniqueFilePath", () => {
@@ -118,5 +129,38 @@ describe("ensureUniqueFilePath", () => {
       "2026-01-01-hello.md",
     );
     expect(result).toBe("2026-01-01-hello.md");
+  });
+
+  it("scopes the lookup to the user and the collision prefix", async () => {
+    const whereMock = mockTakenRows([]);
+    await ensureUniqueFilePath("user_abc", "2026-01-01-hello.md");
+
+    const conditions = conditionsFrom(whereMock);
+    const userCondition = conditions.find((condition) => condition.op === "eq");
+    const prefixCondition = conditions.find(
+      (condition) => condition.op === "like",
+    );
+
+    expect(userCondition?.args[1]).toBe("user_abc");
+    expect(prefixCondition?.args[1]).toBe("2026-01-01-hello%");
+  });
+
+  it("escapes LIKE metacharacters in the collision prefix", async () => {
+    const whereMock = mockTakenRows([]);
+    await ensureUniqueFilePath("user_abc", "2026-01-01-50%_off.md");
+
+    const prefixCondition = conditionsFrom(whereMock).find(
+      (condition) => condition.op === "like",
+    );
+
+    expect(prefixCondition?.args[1]).toBe("2026-01-01-50\\%\\_off%");
+  });
+
+  it("skips the query entirely for an empty path", async () => {
+    const whereMock = mockTakenRows([]);
+    const result = await ensureUniqueFilePath("user_abc", "");
+
+    expect(result).toBe("");
+    expect(whereMock).not.toHaveBeenCalled();
   });
 });
