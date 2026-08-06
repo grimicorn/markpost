@@ -138,6 +138,15 @@ export type SubscriptionGateway = {
 
 export type CustomerCancelResult = {
   canceledCount: number;
+  // Ids the sweep tried but could not cancel (e.g. schedule-managed, transient
+  // Stripe error). Non-empty means billing may still be live; the caller fails
+  // loud rather than deleting the account on top of it.
+  failedSubscriptionIds: string[];
+};
+
+type CancelAttempt = {
+  canceledCount: number;
+  failedSubscriptionId: string | null;
 };
 
 function toSubscriptionGateway(stripe: Stripe): SubscriptionGateway {
@@ -163,9 +172,11 @@ function isAlreadyCanceledError(error: unknown): boolean {
     return true;
   }
 
+  // rawType comes from the API payload (survives a minifying bundle); type is
+  // the class name, which does not.
   const message = error.message ?? "";
   return (
-    error.type === "StripeInvalidRequestError" &&
+    error.rawType === "invalid_request_error" &&
     ALREADY_CANCELED_MESSAGE.test(message)
   );
 }
@@ -203,17 +214,41 @@ async function cancelIfBillable(
   return canceled ? 1 : 0;
 }
 
+// One cancel failing must not abandon the rest of the sweep (that would leave
+// the exact orphaned billing this exists to stop). Record the failure and keep
+// going; the caller surfaces it after the whole customer is swept.
+async function attemptCancel(
+  gateway: SubscriptionGateway,
+  subscription: Stripe.Subscription,
+): Promise<CancelAttempt> {
+  try {
+    const canceledCount = await cancelIfBillable(gateway, subscription);
+    return { canceledCount, failedSubscriptionId: null };
+  } catch (error) {
+    console.error("[stripe] cancel failed; continuing sweep", {
+      subscriptionId: subscription.id,
+      error,
+    });
+    return { canceledCount: 0, failedSubscriptionId: subscription.id };
+  }
+}
+
 async function cancelPage(
   gateway: SubscriptionGateway,
   page: Stripe.Subscription[],
-): Promise<number> {
+): Promise<CustomerCancelResult> {
   let canceledCount = 0;
+  const failedSubscriptionIds: string[] = [];
 
   for (const subscription of page) {
-    canceledCount += await cancelIfBillable(gateway, subscription);
+    const attempt = await attemptCancel(gateway, subscription);
+    canceledCount += attempt.canceledCount;
+    if (attempt.failedSubscriptionId) {
+      failedSubscriptionIds.push(attempt.failedSubscriptionId);
+    }
   }
 
-  return canceledCount;
+  return { canceledCount, failedSubscriptionIds };
 }
 
 function nextCursor(page: Stripe.ApiList<Stripe.Subscription>): string | null {
@@ -221,7 +256,14 @@ function nextCursor(page: Stripe.ApiList<Stripe.Subscription>): string | null {
     return null;
   }
 
-  return page.data[page.data.length - 1]?.id ?? null;
+  const lastId = page.data[page.data.length - 1]?.id;
+  // has_more with an empty page would silently cap the sweep; fail loud instead
+  // of returning a partial success.
+  if (!lastId) {
+    throw new Error("Stripe reported has_more with an empty subscription page");
+  }
+
+  return lastId;
 }
 
 // Sweep every subscription Stripe holds for the customer and cancel each
@@ -232,6 +274,7 @@ export async function sweepCustomerSubscriptions(
   customerId: string,
 ): Promise<CustomerCancelResult> {
   let canceledCount = 0;
+  const failedSubscriptionIds: string[] = [];
   let startingAfter: string | null = null;
 
   do {
@@ -242,11 +285,13 @@ export async function sweepCustomerSubscriptions(
       ...(startingAfter ? { starting_after: startingAfter } : {}),
     });
 
-    canceledCount += await cancelPage(gateway, page.data);
+    const outcome = await cancelPage(gateway, page.data);
+    canceledCount += outcome.canceledCount;
+    failedSubscriptionIds.push(...outcome.failedSubscriptionIds);
     startingAfter = nextCursor(page);
   } while (startingAfter);
 
-  return { canceledCount };
+  return { canceledCount, failedSubscriptionIds };
 }
 
 // Cancel every billable subscription for a Stripe customer, not just a stored
@@ -258,12 +303,24 @@ export async function cancelSubscriptionsForCustomer(
 ): Promise<CustomerCancelResult> {
   const gateway = toSubscriptionGateway(getStripeClient());
 
+  let result: CustomerCancelResult;
   try {
-    return await sweepCustomerSubscriptions(gateway, customerId);
+    result = await sweepCustomerSubscriptions(gateway, customerId);
   } catch (error) {
     console.error("[stripe] subscription sweep failed", { customerId, error });
     throw new Error(STRIPE_SWEEP_FAILED_MESSAGE);
   }
+
+  if (result.failedSubscriptionIds.length > 0) {
+    console.error("[stripe] subscription sweep incomplete", {
+      customerId,
+      canceledCount: result.canceledCount,
+      failedSubscriptionIds: result.failedSubscriptionIds,
+    });
+    throw new Error(STRIPE_SWEEP_FAILED_MESSAGE);
+  }
+
+  return result;
 }
 
 export type SubscriptionEventData = {

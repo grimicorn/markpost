@@ -8,6 +8,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const listMock = vi.fn();
 const cancelMock = vi.fn();
 
+// No thrown error in this file extends StripeErrorStub, so isAlreadyCanceledError
+// always returns false here. That is intentional: these tests exercise the live
+// wiring and error sanitization, not the already-canceled classification (that
+// lives in stripe.test.ts against the real Stripe error classes).
 class StripeErrorStub extends Error {}
 
 vi.mock("stripe", () => {
@@ -63,5 +67,24 @@ describe("cancelSubscriptionsForCustomer (live wiring)", () => {
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toBe("Stripe subscription sweep failed");
     expect((error as { statusCode?: number }).statusCode).toBeUndefined();
+  });
+
+  it("attempts every subscription then fails loud when one cancel fails", async () => {
+    listMock.mockResolvedValue({
+      data: [
+        { id: "sub_bad", status: "active" },
+        { id: "sub_good", status: "active" },
+      ],
+      has_more: false,
+    });
+    cancelMock.mockRejectedValueOnce(new Error("cancel boom"));
+    cancelMock.mockResolvedValueOnce({ id: "sub_good", status: "canceled" });
+
+    const error = await cancelSubscriptionsForCustomer(CUSTOMER_ID).catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(cancelMock).toHaveBeenCalledWith("sub_good");
+    expect((error as Error).message).toBe("Stripe subscription sweep failed");
   });
 });

@@ -43,6 +43,7 @@ describe("sweepCustomerSubscriptions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
   });
 
   it("queries all subscriptions for the customer regardless of status", async () => {
@@ -137,6 +138,7 @@ describe("sweepCustomerSubscriptions", () => {
     const result = await sweepCustomerSubscriptions(gateway, CUSTOMER_ID);
 
     expect(result.canceledCount).toBe(0);
+    expect(result.failedSubscriptionIds).toEqual([]);
   });
 
   it("tolerates a subscription canceled between list and cancel", async () => {
@@ -153,13 +155,14 @@ describe("sweepCustomerSubscriptions", () => {
     const result = await sweepCustomerSubscriptions(gateway, CUSTOMER_ID);
 
     expect(result.canceledCount).toBe(0);
+    expect(result.failedSubscriptionIds).toEqual([]);
   });
 
-  it("rethrows an invalid_request that refuses the cancel (schedule-managed)", async () => {
-    const { gateway, cancel } = buildGateway([
+  it("records — not rethrows — a cancel Stripe refuses (schedule-managed)", async () => {
+    const { gateway } = buildGateway([
       page([subscription("sub_scheduled", "active")]),
     ]);
-    cancel.mockRejectedValueOnce(
+    gateway.cancel = vi.fn().mockRejectedValueOnce(
       new Stripe.errors.StripeInvalidRequestError({
         message:
           "This subscription is managed by a schedule and cannot be canceled",
@@ -167,19 +170,57 @@ describe("sweepCustomerSubscriptions", () => {
       }),
     );
 
-    await expect(
-      sweepCustomerSubscriptions(gateway, CUSTOMER_ID),
-    ).rejects.toThrow("cannot be canceled");
+    const result = await sweepCustomerSubscriptions(gateway, CUSTOMER_ID);
+
+    expect(result.canceledCount).toBe(0);
+    expect(result.failedSubscriptionIds).toEqual(["sub_scheduled"]);
   });
 
-  it("rethrows unexpected Stripe failures", async () => {
-    const { gateway, cancel } = buildGateway([
+  it("records an unexpected cancel failure instead of aborting", async () => {
+    const { gateway } = buildGateway([
       page([subscription("sub_active", "active")]),
     ]);
-    cancel.mockRejectedValueOnce(new Error("network down"));
+    gateway.cancel = vi.fn().mockRejectedValueOnce(new Error("network down"));
+
+    const result = await sweepCustomerSubscriptions(gateway, CUSTOMER_ID);
+
+    expect(result.failedSubscriptionIds).toEqual(["sub_active"]);
+  });
+
+  it("keeps canceling later subscriptions after one fails", async () => {
+    const { gateway } = buildGateway([
+      page([
+        subscription("sub_bad", "active"),
+        subscription("sub_good", "active"),
+      ]),
+    ]);
+    const cancel = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValueOnce(subscription("sub_good", "canceled"));
+    gateway.cancel = cancel;
+
+    const result = await sweepCustomerSubscriptions(gateway, CUSTOMER_ID);
+
+    expect(cancel).toHaveBeenCalledWith("sub_good");
+    expect(result.canceledCount).toBe(1);
+    expect(result.failedSubscriptionIds).toEqual(["sub_bad"]);
+  });
+
+  it("fails loud when Stripe reports has_more with an empty page", async () => {
+    const { gateway } = buildGateway([page([], true)]);
 
     await expect(
       sweepCustomerSubscriptions(gateway, CUSTOMER_ID),
-    ).rejects.toThrow("network down");
+    ).rejects.toThrow("has_more with an empty");
+  });
+
+  it("propagates a failure listing subscriptions", async () => {
+    const list = vi.fn().mockRejectedValueOnce(new Error("list exploded"));
+    const gateway: SubscriptionGateway = { list, cancel: vi.fn() };
+
+    await expect(
+      sweepCustomerSubscriptions(gateway, CUSTOMER_ID),
+    ).rejects.toThrow("list exploded");
   });
 });

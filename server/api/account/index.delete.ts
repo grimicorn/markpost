@@ -18,6 +18,9 @@ async function deleteAllUserData(userId: string): Promise<void> {
 // webhook, would otherwise keep billing after the account is gone. Runs before
 // the DB delete so the customer id is still on the row (it cascades away with
 // it); the sweep is idempotent, so a retry after a later failure is safe.
+// Scope: sweeps the one customer id on record. A user who somehow has multiple
+// Stripe customers (an older id overwritten locally before its webhook landed)
+// is not fully covered — resolving customers by identity is a separate change.
 async function cancelBillingForUser(userId: string): Promise<void> {
   const subscription = await findSubscriptionByUserId(userId);
   const customerId = subscription?.stripeCustomerId ?? null;
