@@ -13,9 +13,11 @@ const mockLoadRecords = vi.fn();
 const mockFetchRecordStats = vi.fn();
 const mockTriggerRecordExport = vi.fn();
 
-vi.mock("../../app/composables/useRecords", async () => {
-  const { SOURCE_TYPES } = await import("../../shared/utils/sourceTypes");
+vi.mock("../../app/composables/useRecords", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../app/composables/useRecords")>();
   return {
+    ...actual,
     useRecords: () => ({
       records: recordsRef,
       isLoading: isLoadingRef,
@@ -36,15 +38,6 @@ vi.mock("../../app/composables/useRecords", async () => {
     get triggerRecordExportDownload() {
       return mockTriggerRecordExport;
     },
-    RECORD_FILTER_OPTIONS: [
-      { value: "all", label: "all" },
-      ...SOURCE_TYPES.map((sourceType) => ({
-        value: sourceType,
-        label: sourceType,
-      })),
-      { value: "errors", label: "errors" },
-    ],
-    STATUS_TONE_MAP: { synced: "ok", pending: "warn", error: "err" },
   };
 });
 
@@ -233,6 +226,15 @@ describe("inbox page", () => {
     const wrapper = mount(InboxPage, globalConfig);
     await flushPromises();
     expect(wrapper.text()).toContain("No records yet");
+  });
+
+  it("shows a filter-specific empty state when a source filter matches nothing", async () => {
+    recordsRef.value = [];
+    filterRef.value = "stripe";
+    const wrapper = mount(InboxPage, globalConfig);
+    await flushPromises();
+    expect(wrapper.text()).toContain("No stripe records");
+    expect(wrapper.text()).toContain("Try a different filter.");
   });
 
   it("renders a badge for each record", async () => {

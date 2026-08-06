@@ -33,6 +33,13 @@ describe("RECORD_FILTER_OPTIONS", () => {
       expect(option.label.length).toBeGreaterThan(0);
     }
   });
+
+  it("keeps source type values disjoint from the pseudo-filters", () => {
+    const optionValues = RECORD_FILTER_OPTIONS.map((option) => option.value);
+    expect(new Set(optionValues).size).toBe(optionValues.length);
+    expect(SOURCE_TYPES).not.toContain("all");
+    expect(SOURCE_TYPES).not.toContain("errors");
+  });
 });
 
 describe("buildFetchUrl", () => {

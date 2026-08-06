@@ -35,7 +35,7 @@ exports[`inbox page > matches snapshot in empty state 1`] = `
     </div><!-- loading state -->
     <!-- table -->
     <!-- empty state -->
-    <div class="col" style="align-items: center; padding: 60px 0px; color: var(--ink-3); gap: 12px; text-align: center;"><span name="inbox" size="32"></span><span style="font-size: 15px; font-weight: 500; color: var(--ink-2);">No records yet</span><span class="mono" style="font-size: 13px;"> Records will appear here once a source delivers them. </span></div>
+    <div class="col" style="align-items: center; padding: 60px 0px; color: var(--ink-3); gap: 12px; text-align: center;"><span name="inbox" size="32"></span><span style="font-size: 15px; font-weight: 500; color: var(--ink-2);">No records yet</span><span class="mono" style="font-size: 13px;">Records will appear here once a source delivers them.</span></div>
   </div>
   <!--v-if-->
 </div>"

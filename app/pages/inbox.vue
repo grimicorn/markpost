@@ -129,11 +129,18 @@
           "
         >
           <AppIcon name="inbox" :size="32" />
-          <span style="font-size: 15px; font-weight: 500; color: var(--ink-2)"
-            >No records yet</span
+          <span
+            style="font-size: 15px; font-weight: 500; color: var(--ink-2)"
+            >{{
+              filter === "all" ? "No records yet" : `No ${filter} records`
+            }}</span
           >
           <span class="mono" style="font-size: 13px">
-            Records will appear here once a source delivers them.
+            {{
+              filter === "all"
+                ? "Records will appear here once a source delivers them."
+                : "Try a different filter."
+            }}
           </span>
         </div>
 
