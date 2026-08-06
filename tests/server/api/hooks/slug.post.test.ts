@@ -287,10 +287,13 @@ describe("POST /api/hooks/[slug]", () => {
   describe("invalid body — non-object payload", () => {
     // A non-JSON object body (form-encoded, plain text, JSON scalar/array/null,
     // or empty) must fail loud with a 400 whose message points the operator at
-    // the fix, and must NOT create a record or bump source stats. Asserting the
-    // message keeps the test honest: blanking NON_OBJECT_BODY_DETAIL fails it.
+    // the fix, must NOT create a record or bump source stats, and must record an
+    // err event so senders without a delivery log still see the rejection.
+    // Asserting the message keeps the test honest: blanking NON_OBJECT_BODY_DETAIL
+    // fails it. sampleSource has provider `null`, so the GitHub `payload=` unwrap
+    // never applies — a bare form body is rejected like any other non-object.
     async function expectNonObjectBodyRejected(rawBody: string): Promise<void> {
-      stubSourceAndSettings([sampleSource]);
+      stubSourceOnly([sampleSource]);
       const { values } = stubInsertRecord(sampleRecord);
       mockReadRawBody.mockResolvedValue(rawBody);
 
@@ -309,6 +312,13 @@ describe("POST /api/hooks/[slug]", () => {
         expect.anything(),
         202,
       );
+      expect(mockWriteEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: "err",
+          userId: USER_ID,
+          sourceId: SOURCE_UUID,
+        }),
+      );
       expect(mockCreateError).toHaveBeenCalledWith({
         statusCode: 400,
         data: {
@@ -323,8 +333,15 @@ describe("POST /api/hooks/[slug]", () => {
       });
     }
 
-    it("rejects a form-encoded body with 400 instead of ingesting a blank record", async () => {
+    it("rejects a form-encoded body from a non-GitHub source with 400", async () => {
       await expectNonObjectBodyRejected("title=hello&body=world");
+    });
+
+    it("rejects a non-GitHub source's `payload=` form body with 400", async () => {
+      const githubJson = JSON.stringify({ title: "Push" });
+      await expectNonObjectBodyRejected(
+        `payload=${encodeURIComponent(githubJson)}`,
+      );
     });
 
     it("rejects a plain-text body with 400", async () => {
@@ -343,24 +360,18 @@ describe("POST /api/hooks/[slug]", () => {
       await expectNonObjectBodyRejected("");
     });
 
-    // GitHub's webhook default content type is form-encoded with the JSON under a
-    // `payload` field; that shape must be unwrapped and ingested, not rejected.
-    it("accepts GitHub's form-encoded `payload` body and returns 202", async () => {
-      const githubJson = JSON.stringify({ title: "Push", content: "to main" });
-      const formBody = `payload=${encodeURIComponent(githubJson)}`;
-
+    // The contract is the object shape, not its contents: an empty JSON object is
+    // a valid object and is ingested (field mapping / source name may still fill
+    // the title). Pinned so this boundary is intentional, not an accident.
+    it("accepts an empty JSON object and returns 202", async () => {
       stubSourceAndSettings([sampleSource]);
-      const { values } = stubInsertRecord(sampleRecord);
+      stubInsertRecord(sampleRecord);
       stubUpdateStats();
-      mockReadRawBody.mockResolvedValue(formBody);
+      mockReadRawBody.mockResolvedValue("{}");
 
       const response = await handler(buildEvent());
 
       expect202Success(response, mockSetResponseStatus, sampleRecord.uuid);
-      const insertedValues = (
-        values.mock.calls[0] as [Record<string, unknown>]
-      )[0];
-      expect(insertedValues.title).toBe("Push");
     });
   });
 
@@ -540,6 +551,57 @@ describe("POST /api/hooks/[slug]", () => {
       await expect(handler(buildEvent())).rejects.toMatchObject({
         statusCode: 401,
       });
+    });
+
+    // GitHub's default content type is form-encoded: the JSON is URL-encoded under
+    // a `payload` field (spaces as `+`), and the HMAC is over that raw form body.
+    // Signature verification and payload unwrap must compose end to end.
+    it("returns 202 for a signed form-encoded GitHub delivery", async () => {
+      const formBody = new URLSearchParams({
+        payload: JSON.stringify({ title: "Push", content: "to main" }),
+      }).toString();
+
+      stubSourceAndSettings([githubSource]);
+      const { values } = stubInsertRecord(sampleRecord);
+      stubUpdateStats();
+      mockReadRawBody.mockResolvedValue(formBody);
+      stubGithubHeader(formBody, GITHUB_SECRET);
+
+      const response = await handler(buildEvent());
+
+      expect202Success(response, mockSetResponseStatus, sampleRecord.uuid);
+      const insertedValues = (
+        values.mock.calls[0] as [Record<string, unknown>]
+      )[0];
+      expect(insertedValues.title).toBe("Push");
+    });
+
+    it("returns 400 for a signed GitHub form body whose payload is not a JSON object", async () => {
+      const formBody = "payload=null";
+
+      stubSourceOnly([githubSource]);
+      stubInsertRecord(sampleRecord);
+      mockReadRawBody.mockResolvedValue(formBody);
+      stubGithubHeader(formBody, GITHUB_SECRET);
+
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 400,
+      });
+      expect(insertMock).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 for a signed GitHub body with an empty payload field", async () => {
+      const formBody = "payload=";
+
+      stubSourceOnly([githubSource]);
+      stubInsertRecord(sampleRecord);
+      mockReadRawBody.mockResolvedValue(formBody);
+      stubGithubHeader(formBody, GITHUB_SECRET);
+
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 400,
+      });
+      expect(insertMock).not.toHaveBeenCalled();
     });
   });
 

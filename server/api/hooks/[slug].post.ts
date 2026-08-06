@@ -7,6 +7,7 @@ import { applyFieldMapping } from "../../utils/fieldMapper";
 import { parseWebhookPayload, type UserSettings } from "../../utils/markdown";
 import { assertWithinRecordLimit } from "../../utils/planLimits";
 import {
+  GITHUB_PROVIDER,
   GITHUB_SIGNATURE_HEADER,
   STRIPE_SIGNATURE_HEADER,
   verifyProviderSignature,
@@ -36,7 +37,7 @@ type UserSettingsRow = {
 };
 
 const NON_OBJECT_BODY_DETAIL =
-  "Webhook body must be a JSON object. Send a JSON object payload (Content-Type: application/json); GitHub's form-encoded `payload` field is also accepted.";
+  "Webhook body must be a JSON object. Send a JSON object payload with Content-Type: application/json.";
 
 function apiError(httpStatus: number, title: string, detail: string): ApiError {
   return new ApiError(
@@ -204,27 +205,66 @@ function asJsonObject(rawBody: string): Record<string, unknown> | null {
 // which delivers the JSON payload URL-encoded under a `payload` form field. The
 // HMAC in X-Hub-Signature-256 is computed over that raw form body, so the
 // signature still verifies — we only have to unwrap `payload` before parsing.
+// Gated to GitHub sources so a generic form-encoded body from any other source
+// is still rejected rather than silently unwrapping a `payload` field.
 function githubFormPayload(rawBody: string): Record<string, unknown> | null {
   const encoded = new URLSearchParams(rawBody).get("payload");
   return encoded ? asJsonObject(encoded) : null;
 }
 
-// Fail loud on anything that isn't a JSON object. Accepted: a raw JSON object
-// body (Stripe, Zapier, Apple Shortcuts, and GitHub when set to
-// Content-Type: application/json) or GitHub's default form-encoded `payload`
-// wrapper. Rejected with a 400: a plain-text/other form-encoded body, a JSON
-// scalar/array, or an empty body — each would otherwise be silently coerced to
-// {} and ingested as a blank "Untitled" record with a 202, hiding a
-// misconfigured integration. (An empty body throws in JSON.parse, so
-// asJsonObject already returns null for it.)
-function requireJsonObjectBody(rawBody: string): Record<string, unknown> {
-  const payload = asJsonObject(rawBody) ?? githubFormPayload(rawBody);
+function parseWebhookBody(
+  source: SourceRow,
+  rawBody: string,
+): Record<string, unknown> | null {
+  const directObject = asJsonObject(rawBody);
 
-  if (!payload) {
-    throw badRequestError(NON_OBJECT_BODY_DETAIL);
+  if (directObject) {
+    return directObject;
   }
 
-  return payload;
+  if (source.provider === GITHUB_PROVIDER) {
+    return githubFormPayload(rawBody);
+  }
+
+  return null;
+}
+
+// A rejected body never creates a record, so the sender's 400 is the primary
+// signal — but providers without a delivery log (Zapier, Apple Shortcuts,
+// hand-rolled senders) would otherwise see nothing at all in-app. Write a
+// best-effort err event so the rejection is visible on the source's activity
+// feed. Best-effort: a failure here must not mask the 400 we throw next.
+async function recordRejectedDelivery(source: SourceRow): Promise<void> {
+  await writeEvent({
+    userId: source.userId,
+    kind: EVENT_KIND_ERR,
+    message: `Rejected webhook delivery: ${NON_OBJECT_BODY_DETAIL}`,
+    sourceId: source.uuid,
+  }).catch((writeError) => {
+    console.error("[hooks/ingest] failed to write reject event:", writeError);
+  });
+}
+
+// Fail loud on anything that isn't a JSON object. Accepted: a raw JSON object
+// body (Stripe, Zapier, Apple Shortcuts, and GitHub when set to
+// Content-Type: application/json) or, for GitHub sources, its default
+// form-encoded `payload` wrapper. Everything else — a plain-text/other
+// form-encoded body, a JSON scalar/array, or an empty body — is rejected with a
+// 400; each would otherwise be coerced to {} and ingested as a blank "Untitled"
+// record with a 202, hiding a misconfigured integration. (An empty body throws
+// in JSON.parse, so asJsonObject already returns null for it.)
+async function requireJsonObjectBody(
+  source: SourceRow,
+  rawBody: string,
+): Promise<Record<string, unknown>> {
+  const payload = parseWebhookBody(source, rawBody);
+
+  if (payload) {
+    return payload;
+  }
+
+  await recordRejectedDelivery(source);
+  throw badRequestError(NON_OBJECT_BODY_DETAIL);
 }
 
 async function resolveAndValidateSource(
@@ -395,7 +435,7 @@ export default defineEventHandler(async (event) => {
     // never create a record — so reject it here rather than paying for that query.
     // Kept after enforceThrottle so a slug-only flood of junk bodies still counts
     // against the throttle window (see the reasoning on enforceThrottle above).
-    const payload = requireJsonObjectBody(rawBody);
+    const payload = await requireJsonObjectBody(source, rawBody);
     await assertWithinRecordLimit(source.userId);
 
     const record = await buildAndInsertRecord(source, payload);
