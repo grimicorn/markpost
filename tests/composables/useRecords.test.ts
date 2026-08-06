@@ -27,6 +27,12 @@ describe("RECORD_FILTER_OPTIONS", () => {
     expect(optionValues).toContain("errors");
     expect(optionValues).toHaveLength(SOURCE_TYPES.length + 2);
   });
+
+  it("gives every option a non-empty label", () => {
+    for (const option of RECORD_FILTER_OPTIONS) {
+      expect(option.label.length).toBeGreaterThan(0);
+    }
+  });
 });
 
 describe("buildFetchUrl", () => {
@@ -48,6 +54,14 @@ describe("buildFetchUrl", () => {
       );
     },
   );
+
+  it("falls back to an unfiltered list and logs for an unknown filter", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    // Cast past the type system to exercise the runtime guard.
+    expect(buildFetchUrl("bogus" as never)).toBe("/api/records");
+    expect(errorSpy).toHaveBeenCalledOnce();
+    errorSpy.mockRestore();
+  });
 });
 
 describe("sourceTypeIcon", () => {

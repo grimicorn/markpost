@@ -13,38 +13,40 @@ const mockLoadRecords = vi.fn();
 const mockFetchRecordStats = vi.fn();
 const mockTriggerRecordExport = vi.fn();
 
-vi.mock("../../app/composables/useRecords", () => ({
-  useRecords: () => ({
-    records: recordsRef,
-    isLoading: isLoadingRef,
-    loadError: loadErrorRef,
-    filter: filterRef,
-    loadRecords: mockLoadRecords,
-  }),
-  get fetchRecordStats() {
-    return mockFetchRecordStats;
-  },
-  formatRelativeTime: (isoString: string) => {
-    void isoString;
-    return "2m ago";
-  },
-  formatSourceLabel: (source: string | null) => `label:${source ?? "unknown"}`,
-  sourceTypeIcon: () => "zap",
-  get triggerRecordExportDownload() {
-    return mockTriggerRecordExport;
-  },
-  RECORD_FILTER_OPTIONS: [
-    { value: "all", label: "all" },
-    { value: "webhook", label: "webhook" },
-    { value: "email", label: "email" },
-    { value: "stripe", label: "stripe" },
-    { value: "github", label: "github" },
-    { value: "zapier", label: "zapier" },
-    { value: "shortcuts", label: "shortcuts" },
-    { value: "errors", label: "errors" },
-  ],
-  STATUS_TONE_MAP: { synced: "ok", pending: "warn", error: "err" },
-}));
+vi.mock("../../app/composables/useRecords", async () => {
+  const { SOURCE_TYPES } = await import("../../shared/utils/sourceTypes");
+  return {
+    useRecords: () => ({
+      records: recordsRef,
+      isLoading: isLoadingRef,
+      loadError: loadErrorRef,
+      filter: filterRef,
+      loadRecords: mockLoadRecords,
+    }),
+    get fetchRecordStats() {
+      return mockFetchRecordStats;
+    },
+    formatRelativeTime: (isoString: string) => {
+      void isoString;
+      return "2m ago";
+    },
+    formatSourceLabel: (source: string | null) =>
+      `label:${source ?? "unknown"}`,
+    sourceTypeIcon: () => "zap",
+    get triggerRecordExportDownload() {
+      return mockTriggerRecordExport;
+    },
+    RECORD_FILTER_OPTIONS: [
+      { value: "all", label: "all" },
+      ...SOURCE_TYPES.map((sourceType) => ({
+        value: sourceType,
+        label: sourceType,
+      })),
+      { value: "errors", label: "errors" },
+    ],
+    STATUS_TONE_MAP: { synced: "ok", pending: "warn", error: "err" },
+  };
+});
 
 const detailRecordRef = ref<object | null>(null);
 const detailLoadingRef = ref(false);
@@ -74,6 +76,7 @@ const mockNavigateTo = vi.fn();
 vi.stubGlobal("navigateTo", mockNavigateTo);
 
 import InboxPage from "../../app/pages/inbox.vue";
+import { SOURCE_TYPES } from "../../shared/utils/sourceTypes";
 
 const globalConfig = {
   global: {
@@ -96,7 +99,8 @@ const globalConfig = {
         props: ["tone", "dot"],
       },
       InputSegmented: {
-        template: "<div />",
+        template:
+          '<div class="seg"><button v-for="option in options" :key="option.value" class="seg-option">{{ option.label }}</button></div>',
         props: ["modelValue", "options"],
         emits: ["update:modelValue"],
       },
@@ -154,6 +158,20 @@ describe("inbox page", () => {
     mockOpenDetail.mockReset();
     mockCloseDetail.mockReset();
     mockNavigateTo.mockReset();
+  });
+
+  it("renders a filter button for every source type plus all/errors", async () => {
+    const wrapper = mount(InboxPage, globalConfig);
+    await flushPromises();
+    const labels = wrapper
+      .findAll(".seg-option")
+      .map((button) => button.text());
+    for (const sourceType of SOURCE_TYPES) {
+      expect(labels).toContain(sourceType);
+    }
+    expect(labels).toContain("all");
+    expect(labels).toContain("errors");
+    expect(labels).toHaveLength(SOURCE_TYPES.length + 2);
   });
 
   it("calls loadRecords on mount", async () => {
