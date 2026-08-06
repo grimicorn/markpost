@@ -61,6 +61,22 @@ function signatureError(reason: string): ApiError {
   );
 }
 
+const NON_OBJECT_BODY_DETAIL =
+  "Webhook body must be a JSON object. Set the Content-Type to application/json and send a JSON object payload.";
+
+function badRequestError(detail: string): ApiError {
+  return new ApiError(
+    [
+      {
+        status: "400",
+        title: "Bad Request",
+        detail,
+      },
+    ],
+    400,
+  );
+}
+
 function throttledError(): ApiError {
   return new ApiError(
     [
@@ -192,11 +208,7 @@ function buildProviderHeaders(
   };
 }
 
-function parseBodyToPayload(rawBody: string): Record<string, unknown> {
-  if (!rawBody) {
-    return {};
-  }
-
+function parseJsonObject(rawBody: string): Record<string, unknown> | null {
   try {
     const parsed: unknown = JSON.parse(rawBody);
 
@@ -205,14 +217,28 @@ function parseBodyToPayload(rawBody: string): Record<string, unknown> {
       typeof parsed !== "object" ||
       Array.isArray(parsed)
     ) {
-      return {};
+      return null;
     }
 
     return parsed as Record<string, unknown>;
   } catch {
-    // Non-JSON body: treat as empty payload; the parser will use defaults
-    return {};
+    return null;
   }
+}
+
+// Fail loud on anything that isn't a JSON object: a non-JSON body (plain text /
+// form-encoded), a JSON scalar/array/null, or an empty body would otherwise be
+// silently coerced to {} and ingested as a blank "Untitled" record with a 202,
+// hiding a misconfigured integration. Every supported provider (Stripe, GitHub,
+// Zapier, Apple Shortcuts) delivers a JSON object, so this is the real contract.
+function parseBodyToPayload(rawBody: string): Record<string, unknown> {
+  const parsed = rawBody ? parseJsonObject(rawBody) : null;
+
+  if (!parsed) {
+    throw badRequestError(NON_OBJECT_BODY_DETAIL);
+  }
+
+  return parsed;
 }
 
 async function resolveAndValidateSource(

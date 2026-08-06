@@ -283,37 +283,44 @@ describe("POST /api/hooks/[slug]", () => {
       expect(insertedValues.status).toBe("pending");
     });
 
-    it("handles a non-JSON body without crashing", async () => {
+    async function expectNonObjectBodyRejected(rawBody: string): Promise<void> {
       stubSourceAndSettings([sampleSource]);
-      stubInsertRecord(sampleRecord);
+      const { values } = stubInsertRecord(sampleRecord);
       stubUpdateStats();
-      mockReadRawBody.mockResolvedValue("not-json");
+      mockReadRawBody.mockResolvedValue(rawBody);
 
-      const response = await handler(buildEvent());
+      await expect(handler(buildEvent())).rejects.toMatchObject({
+        statusCode: 400,
+      });
 
-      expect202Success(response, mockSetResponseStatus, sampleRecord.uuid);
+      expect(values).not.toHaveBeenCalled();
+      expect(mockSetResponseStatus).not.toHaveBeenCalledWith(
+        expect.anything(),
+        202,
+      );
+      expect(mockCreateError).toHaveBeenCalledWith(
+        expect.objectContaining({ statusCode: 400 }),
+      );
+    }
+
+    it("rejects a non-JSON body with 400 instead of ingesting a blank record", async () => {
+      await expectNonObjectBodyRejected("title=hello&body=world");
     });
 
-    it("handles a valid-JSON non-object body (null) without crashing", async () => {
-      stubSourceAndSettings([sampleSource]);
-      stubInsertRecord(sampleRecord);
-      stubUpdateStats();
-      mockReadRawBody.mockResolvedValue("null");
-
-      const response = await handler(buildEvent());
-
-      expect202Success(response, mockSetResponseStatus, sampleRecord.uuid);
+    it("rejects a plain-text body with 400", async () => {
+      await expectNonObjectBodyRejected("not-json");
     });
 
-    it("handles a valid-JSON array body without crashing", async () => {
-      stubSourceAndSettings([sampleSource]);
-      stubInsertRecord(sampleRecord);
-      stubUpdateStats();
-      mockReadRawBody.mockResolvedValue(JSON.stringify([1, 2, 3]));
+    it("rejects a valid-JSON non-object body (null) with 400", async () => {
+      await expectNonObjectBodyRejected("null");
+    });
 
-      const response = await handler(buildEvent());
+    it("rejects a valid-JSON array body with 400", async () => {
+      await expectNonObjectBodyRejected(JSON.stringify([1, 2, 3]));
+    });
 
-      expect202Success(response, mockSetResponseStatus, sampleRecord.uuid);
+    it("rejects an empty body with 400", async () => {
+      await expectNonObjectBodyRejected("");
     });
   });
 
