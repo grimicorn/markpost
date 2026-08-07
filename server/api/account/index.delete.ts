@@ -5,18 +5,35 @@ import { cancelSubscriptionsForCustomer } from "../../services/stripe";
 import { requireUser } from "../../utils/auth";
 import { findSubscriptionByUserId } from "../../utils/billing";
 import { deleteClerkUser } from "../../utils/clerk";
-import { apiErrorHandler } from "../../utils/errors";
+import { apiErrorHandler, ApiError } from "../../utils/errors";
+
+function billingUnavailableError(): ApiError {
+  return new ApiError(
+    [
+      {
+        status: "503",
+        title: "Service Unavailable",
+        detail:
+          "Could not cancel your subscription, so your account was not deleted. Please try again.",
+      },
+    ],
+    503,
+  );
+}
 
 async function deleteAllUserData(userId: string): Promise<void> {
   // Deleting the users row cascades to every user-owned table (api_tokens,
-  // sources, records, events, user_settings) via their ON DELETE cascade FKs.
+  // sources, records, events, user_settings, subscriptions) via their
+  // ON DELETE cascade FKs.
   await getDb().delete(users).where(eq(users.userId, userId));
 }
 
 // Cancel Stripe billing for the account (see cancelSubscriptionsForCustomer for
 // why by-customer, not by-stored-id). Runs before the DB delete so the customer
-// id is still on the row — it cascades away with it. Returns whether a sweep
-// actually ran, so the caller can flag the (irreversible) canceled-billing but
+// id is still on the row — it cascades away with it. A sweep failure fails the
+// whole delete closed (503) so we never remove the account while billing may
+// still be live; the user is told to retry. Returns whether a sweep actually
+// ran, so the caller can flag the (irreversible) canceled-billing but
 // account-not-deleted state if a later delete step fails.
 async function cancelBillingForUser(userId: string): Promise<boolean> {
   const subscription = await findSubscriptionByUserId(userId);
@@ -39,13 +56,22 @@ async function cancelBillingForUser(userId: string): Promise<boolean> {
     return false;
   }
 
-  const { canceledCount } = await cancelSubscriptionsForCustomer(
-    subscription.stripeCustomerId,
-  );
-  console.info("[account] canceled Stripe subscriptions on account delete", {
-    userId,
-    canceledCount,
-  });
+  try {
+    const { canceledCount } = await cancelSubscriptionsForCustomer(
+      subscription.stripeCustomerId,
+    );
+    console.info("[account] canceled Stripe subscriptions on account delete", {
+      userId,
+      canceledCount,
+    });
+  } catch (error) {
+    console.error("[account] Stripe subscription sweep failed", {
+      userId,
+      error,
+    });
+    throw billingUnavailableError();
+  }
+
   return true;
 }
 

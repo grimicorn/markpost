@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { H3Event } from "h3";
 import { SOURCE_TYPES } from "../../../../shared/utils/sourceTypes";
+import { records, sources } from "../../../../server/db/schema";
 
 const selectMock = vi.fn();
 
@@ -16,6 +17,12 @@ vi.mock("drizzle-orm", () => ({
   ilike: (column: unknown, pattern: unknown) => ({
     ilike: { column, pattern },
   }),
+  inArray: (column: unknown, subquery: unknown) => ({
+    inArray: { column, subquery },
+  }),
+  // Kept in the factory (even though the handler no longer calls it) so the
+  // "does not filter on records.source" regression guard can detect a
+  // reintroduced like(records.source, …) instead of throwing on undefined.
   like: (column: unknown, pattern: unknown) => ({ like: { column, pattern } }),
   lt: (column: unknown, value: unknown) => ({ lt: { column, value } }),
   or: (...conditions: unknown[]) => ({ or: conditions }),
@@ -42,7 +49,11 @@ function buildEvent(contextUserId: string | undefined): H3Event {
   return { context: { userId: contextUserId } } as unknown as H3Event;
 }
 
-function stubSelectResults(countRow: unknown, pageRows: unknown[]) {
+function stubSelectResults(
+  countRow: unknown,
+  pageRows: unknown[],
+  cursorRow: unknown = null,
+) {
   const countWhere = vi.fn(() => Promise.resolve([countRow]));
   const countFrom = vi.fn(() => ({ where: countWhere }));
 
@@ -51,17 +62,39 @@ function stubSelectResults(countRow: unknown, pageRows: unknown[]) {
   const pageWhere = vi.fn(() => ({ orderBy: pageOrderBy }));
   const pageFrom = vi.fn(() => ({ where: pageWhere }));
 
-  let callCount = 0;
-  selectMock.mockImplementation(() => {
-    callCount++;
-    if (callCount === 1) {
+  // Cursor lookup selects { createdAt, uuid }; keep it distinct from the
+  // source subquery (which selects { uuid } only) by checking createdAt first.
+  const cursorLimit = vi.fn(() =>
+    Promise.resolve(cursorRow ? [cursorRow] : []),
+  );
+  const cursorWhere = vi.fn(() => ({ limit: cursorLimit }));
+  const cursorFrom = vi.fn(() => ({ where: cursorWhere }));
+
+  // The source-type filter builds a subquery via db.select({ uuid }); it is
+  // passed to inArray, never awaited, so it only needs to be chainable.
+  const sourceSubWhere = vi.fn(() => ({ __sourceSubquery: true }));
+  const sourceSubFrom = vi.fn(() => ({ where: sourceSubWhere }));
+
+  // Route by the selected columns instead of call order: the source-type
+  // subquery and cursor lookup add extra db.select() calls, so a call-count
+  // heuristic would misroute the count/page queries.
+  selectMock.mockImplementation((columns?: Record<string, unknown>) => {
+    if (columns && "createdAt" in columns) {
+      return { from: cursorFrom };
+    }
+
+    if (columns && "uuid" in columns) {
+      return { from: sourceSubFrom };
+    }
+
+    if (columns && "value" in columns) {
       return { from: countFrom };
     }
 
     return { from: pageFrom };
   });
 
-  return { countWhere, pageWhere };
+  return { countWhere, pageWhere, sourceSubFrom, sourceSubWhere, cursorWhere };
 }
 
 function stubRequireUser(returnedUserId: string | undefined) {
@@ -148,6 +181,69 @@ describe("GET /api/records", () => {
     ]);
   });
 
+  type SourceIdInArrayCondition = {
+    inArray: { column: unknown; subquery: unknown };
+  };
+
+  // The source-type filter must key off records.sourceId (a FK into sources),
+  // never the free-text records.source display name. Find the inArray
+  // condition and confirm it targets the sourceId column (compared by column
+  // object, not name, so a schema rename can't silently pass this).
+  function findSourceIdInArray(
+    conditions: unknown[],
+  ): SourceIdInArrayCondition | undefined {
+    return conditions.find((condition) => {
+      if (typeof condition !== "object" || condition === null) {
+        return false;
+      }
+      if (!("inArray" in condition)) {
+        return false;
+      }
+
+      return (
+        (condition as SourceIdInArrayCondition).inArray.column ===
+        records.sourceId
+      );
+    }) as SourceIdInArrayCondition | undefined;
+  }
+
+  function hasEqCondition(
+    conditions: unknown[],
+    column: unknown,
+    value: unknown,
+  ): boolean {
+    return conditions.some(
+      (condition) =>
+        typeof condition === "object" &&
+        condition !== null &&
+        "eq" in condition &&
+        (condition as { eq: { column: unknown; value: unknown } }).eq.column ===
+          column &&
+        (condition as { eq: { value: unknown } }).eq.value === value,
+    );
+  }
+
+  // The cursor predicate is `or(lt(createdAt), and(...))`; detect it by the
+  // lt(records.createdAt) branch so a change that drops the cursor from a
+  // query fails loudly.
+  function hasCursorPredicate(conditions: unknown[]): boolean {
+    return conditions.some(
+      (condition) =>
+        typeof condition === "object" &&
+        condition !== null &&
+        "or" in condition &&
+        Array.isArray((condition as { or: unknown[] }).or) &&
+        (condition as { or: unknown[] }).or.some(
+          (branch) =>
+            typeof branch === "object" &&
+            branch !== null &&
+            "lt" in branch &&
+            (branch as { lt: { column: unknown } }).lt.column ===
+              records.createdAt,
+        ),
+    );
+  }
+
   it("uses the first value when filter[source] is repeated in the query string", async () => {
     queryParams = { "filter[source]": ["webhook", "email"] };
     const { countWhere } = stubSelectResults({ value: 0 }, []);
@@ -155,39 +251,74 @@ describe("GET /api/records", () => {
     await handler(buildEvent(userId));
 
     const whereArg = countWhere.mock.calls[0]?.[0] as { and: unknown[] };
-    const conditions = whereArg.and;
-    const hasWebhookLikeCondition = conditions.some(
-      (condition) =>
-        typeof condition === "object" &&
-        condition !== null &&
-        "like" in condition &&
-        (condition as { like: { pattern: unknown } }).like.pattern ===
-          "webhook/%",
-    );
-    expect(hasWebhookLikeCondition).toBe(true);
+    expect(findSourceIdInArray(whereArg.and)).toBeDefined();
   });
 
   it.each(SOURCE_TYPES)(
-    "applies a LIKE filter when filter[source]=%s",
+    "filters by sources.type via records.sourceId when filter[source]=%s",
     async (sourceType) => {
       queryParams = { "filter[source]": sourceType };
-      const { countWhere } = stubSelectResults({ value: 0 }, []);
+      const { countWhere, sourceSubFrom, sourceSubWhere } = stubSelectResults(
+        { value: 0 },
+        [],
+      );
 
       await handler(buildEvent(userId));
 
       const whereArg = countWhere.mock.calls[0]?.[0] as { and: unknown[] };
-      const conditions = whereArg.and;
-      const hasLikeCondition = conditions.some(
-        (condition) =>
-          typeof condition === "object" &&
-          condition !== null &&
-          "like" in condition &&
-          (condition as { like: { pattern: unknown } }).like.pattern ===
-            `${sourceType}/%`,
+      expect(findSourceIdInArray(whereArg.and)).toBeDefined();
+
+      // The subquery must read from the sources table and project its uuid —
+      // reading records or projecting a different column would break the IN.
+      expect(sourceSubFrom).toHaveBeenCalledWith(sources);
+      expect(selectMock).toHaveBeenCalledWith({ uuid: sources.uuid });
+
+      // The subquery that resolves matching source uuids must constrain
+      // sources.type to the requested type AND scope to the requesting user,
+      // so it never leaks another user's source uuids into the IN clause.
+      const subConditions = (
+        sourceSubWhere.mock.calls[0]?.[0] as { and: unknown[] }
+      ).and;
+      expect(hasEqCondition(subConditions, sources.type, sourceType)).toBe(
+        true,
       );
-      expect(hasLikeCondition).toBe(true);
+      expect(hasEqCondition(subConditions, sources.userId, userId)).toBe(true);
     },
   );
+
+  it("applies the source-type filter to the page query, not just the count query", async () => {
+    queryParams = { "filter[source]": "webhook" };
+    const { pageWhere } = stubSelectResults({ value: 0 }, []);
+
+    await handler(buildEvent(userId));
+
+    const pageWhereArg = pageWhere.mock.calls[0]?.[0] as { and: unknown[] };
+    expect(findSourceIdInArray(pageWhereArg.and)).toBeDefined();
+  });
+
+  // Regression guard for the original bug: type filtering matched
+  // `like(records.source, "webhook/%")`, but ingest stores the source's
+  // display name in records.source (no type prefix), so it matched nothing.
+  it("does not filter on the free-text records.source column", async () => {
+    queryParams = { "filter[source]": "webhook" };
+    const { countWhere } = stubSelectResults({ value: 0 }, []);
+
+    await handler(buildEvent(userId));
+
+    const whereArg = countWhere.mock.calls[0]?.[0] as { and: unknown[] };
+    const hasSourceNameCondition = whereArg.and.some(
+      (condition) =>
+        typeof condition === "object" &&
+        condition !== null &&
+        ((condition as { like?: { column: unknown } }).like?.column ===
+          records.source ||
+          (condition as { ilike?: { column: unknown } }).ilike?.column ===
+            records.source ||
+          (condition as { eq?: { column: unknown } }).eq?.column ===
+            records.source),
+    );
+    expect(hasSourceNameCondition).toBe(false);
+  });
 
   it("ignores an empty filter[source] value rather than treating it as invalid", async () => {
     queryParams = { "filter[source]": "" };
@@ -350,5 +481,78 @@ describe("GET /api/records", () => {
     const whereArg = countWhere.mock.calls[0]?.[0] as { and: unknown[] };
     expect(whereArg.and).toHaveLength(1);
     expect(findQueryCondition(whereArg.and)).toBeUndefined();
+  });
+
+  it("throws 400 when page[after] references a record that is not found", async () => {
+    queryParams = { "page[after]": "missing-uuid" };
+    stubSelectResults({ value: 0 }, [], null);
+
+    await expect(handler(buildEvent(userId))).rejects.toMatchObject({
+      statusCode: 400,
+    });
+    expect(mockCreateError).toHaveBeenCalledWith({
+      statusCode: 400,
+      data: {
+        errors: [expect.objectContaining({ title: "Invalid cursor" })],
+      },
+    });
+  });
+
+  // The cursor predicate keeps the page moving forward, but the count must
+  // stay the unpaginated total — countFilteredRecords passes cursor: null.
+  // A regression that applied the cursor to the count query would understate
+  // total, so pin it out of count and into page.
+  it("applies the cursor predicate to the page query only, not the count query", async () => {
+    queryParams = { "page[after]": "cursor-uuid" };
+    const cursorRow = {
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+      uuid: "cursor-uuid",
+    };
+    const { countWhere, pageWhere } = stubSelectResults(
+      { value: 3 },
+      [],
+      cursorRow,
+    );
+
+    await handler(buildEvent(userId));
+
+    const countConditions = (
+      countWhere.mock.calls[0]?.[0] as { and: unknown[] }
+    ).and;
+    const pageConditions = (pageWhere.mock.calls[0]?.[0] as { and: unknown[] })
+      .and;
+
+    expect(hasCursorPredicate(pageConditions)).toBe(true);
+    expect(hasCursorPredicate(countConditions)).toBe(false);
+  });
+
+  // Page 2 of a filtered list is the realistic case: the page query must carry
+  // BOTH the source-type filter and the cursor, while the count query carries
+  // the filter (for an accurate unpaginated total) but not the cursor.
+  it("combines the source-type filter with the cursor on the page query", async () => {
+    queryParams = { "filter[source]": "webhook", "page[after]": "cursor-uuid" };
+    const cursorRow = {
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+      uuid: "cursor-uuid",
+    };
+    const { countWhere, pageWhere } = stubSelectResults(
+      { value: 5 },
+      [],
+      cursorRow,
+    );
+
+    await handler(buildEvent(userId));
+
+    const countConditions = (
+      countWhere.mock.calls[0]?.[0] as { and: unknown[] }
+    ).and;
+    const pageConditions = (pageWhere.mock.calls[0]?.[0] as { and: unknown[] })
+      .and;
+
+    expect(findSourceIdInArray(pageConditions)).toBeDefined();
+    expect(hasCursorPredicate(pageConditions)).toBe(true);
+
+    expect(findSourceIdInArray(countConditions)).toBeDefined();
+    expect(hasCursorPredicate(countConditions)).toBe(false);
   });
 });

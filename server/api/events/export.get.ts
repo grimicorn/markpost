@@ -3,9 +3,11 @@ import { getDb } from "../../db";
 import { events } from "../../db/schema";
 import { requireUser } from "../../utils/auth";
 import { apiErrorHandler } from "../../utils/errors";
-
-const EXPORT_LIMIT = 10_000;
-const EXPORT_FILENAME = "markpost-activity.json";
+import {
+  ACTIVITY_EXPORT_FILENAME,
+  EXPORT_ROW_LIMIT,
+  EXPORT_TRUNCATED_HEADER,
+} from "#shared/utils/export";
 
 type ExportRow = {
   id: string;
@@ -39,19 +41,22 @@ export default defineEventHandler(async (event) => {
       .from(events)
       .where(eq(events.userId, userId))
       .orderBy(desc(events.ts), desc(events.id))
-      .limit(EXPORT_LIMIT + 1);
+      .limit(EXPORT_ROW_LIMIT + 1);
 
-    const isTruncated = rows.length > EXPORT_LIMIT;
-    const visibleRows = isTruncated ? rows.slice(0, EXPORT_LIMIT) : rows;
+    const isTruncated = rows.length > EXPORT_ROW_LIMIT;
+    const visibleRows = isTruncated ? rows.slice(0, EXPORT_ROW_LIMIT) : rows;
     const exportRows = visibleRows.map(serializeExportRow);
 
     setHeader(event, "Content-Type", "application/json");
     setHeader(
       event,
       "Content-Disposition",
-      `attachment; filename="${EXPORT_FILENAME}"`,
+      `attachment; filename="${ACTIVITY_EXPORT_FILENAME}"`,
     );
-    setHeader(event, "X-Export-Truncated", String(isTruncated));
+    // A full dump of the user's private activity; keep it out of shared
+    // browser/proxy caches so it isn't recoverable after logout.
+    setHeader(event, "Cache-Control", "no-store, private");
+    setHeader(event, EXPORT_TRUNCATED_HEADER, String(isTruncated));
 
     return exportRows;
   } catch (error) {

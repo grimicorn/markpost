@@ -126,6 +126,32 @@ async function deleteSource(uuid: string): Promise<void> {
   await $fetch(`/api/sources/${uuid}`, { method: "DELETE" });
 }
 
+// Rotates a source's provider secret. For generated-secret providers
+// (github/zapier/shortcuts) no body is sent and the response reveals the fresh
+// secret exactly once; for manual-secret providers (stripe) the caller passes
+// the new value the provider issued. Mirrors createSource: the response is the
+// one and only place the revealed secret appears.
+async function rotateSourceSecret(
+  uuid: string,
+  providerSecret?: string,
+): Promise<SourceResource> {
+  const body =
+    providerSecret === undefined
+      ? undefined
+      : { data: { type: "sources", attributes: { providerSecret } } };
+
+  const response = await $fetch<SourceResponse>(
+    `/api/sources/${uuid}/rotate-secret`,
+    { method: "POST", body },
+  );
+
+  if (!response.data) {
+    throw new Error("Server returned no data for the rotated source");
+  }
+
+  return response.data;
+}
+
 export function useSources() {
   const sources = ref<SourceResource[]>([]);
   const isLoading = ref(false);
@@ -166,11 +192,41 @@ export function useSources() {
     );
   }
 
+  async function rotateSecret(
+    uuid: string,
+    providerSecret?: string,
+  ): Promise<SourceResource> {
+    const rotated = await rotateSourceSecret(uuid, providerSecret);
+    // Fail loud rather than reporting a rotation the list never reflected: if
+    // the entry vanished between opening the flow and the response (a parallel
+    // loadSources replacing the array, a delete in another tab), the caller
+    // would otherwise advance to the reveal step over stale state.
+    const index = sources.value.findIndex(
+      (source) => source.attributes.uuid === uuid,
+    );
+    if (index === -1) {
+      throw new Error(`Rotated source ${uuid} is no longer in the list`);
+    }
+    // Same rule as addSource: the reactive list backs SourceCard, which must
+    // never retain the one-time revealed secret. Refresh the entry from the
+    // response but null the secret out.
+    sources.value = sources.value.map((source) =>
+      source.attributes.uuid === uuid
+        ? {
+            ...rotated,
+            attributes: { ...rotated.attributes, providerSecret: null },
+          }
+        : source,
+    );
+    return rotated;
+  }
+
   return {
     sources,
     isLoading,
     loadSources,
     addSource,
     removeSource,
+    rotateSecret,
   };
 }

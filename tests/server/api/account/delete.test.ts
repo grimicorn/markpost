@@ -178,11 +178,21 @@ describe("DELETE /api/account", () => {
     expect(deleteMock).toHaveBeenCalled();
   });
 
-  it("does not wipe app data when the Stripe sweep throws", async () => {
+  it("aborts the delete with a 503 (fail closed) and does not wipe app data when the Stripe sweep throws", async () => {
     mockCancelSubscriptionsForCustomer.mockRejectedValueOnce(
       new Error("stripe error"),
     );
-    await expect(handler(buildEvent("user_123"))).rejects.toThrow();
+    await expect(handler(buildEvent("user_123"))).rejects.toMatchObject({
+      statusCode: 503,
+      data: {
+        errors: [
+          expect.objectContaining({
+            status: "503",
+            detail: expect.stringContaining("was not deleted"),
+          }),
+        ],
+      },
+    });
     expect(deleteMock).not.toHaveBeenCalled();
     expect(mockDeleteClerkUser).not.toHaveBeenCalled();
   });
@@ -196,6 +206,19 @@ describe("DELETE /api/account", () => {
     expect(errorSpy).toHaveBeenCalledWith(
       expect.stringContaining("billing canceled but account delete failed"),
       expect.objectContaining({ userId: "user_123" }),
+    );
+  });
+
+  it("does not flag canceled-billing when the delete fails and nothing was swept", async () => {
+    mockFindSubscriptionByUserId.mockResolvedValueOnce(null);
+    usersWhere.mockRejectedValueOnce(new Error("db error"));
+    const errorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    await expect(handler(buildEvent("user_123"))).rejects.toThrow();
+    expect(errorSpy).not.toHaveBeenCalledWith(
+      expect.stringContaining("billing canceled but account delete failed"),
+      expect.anything(),
     );
   });
 });
