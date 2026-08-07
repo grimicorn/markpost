@@ -223,4 +223,133 @@ describe("useSources", () => {
       );
     });
   });
+
+  describe("rotateSecret", () => {
+    it("POSTs to the rotate-secret endpoint with no body for generated providers", async () => {
+      const rotated = makeSourceResource({
+        attributes: {
+          uuid: "attributes-uuid",
+          userId: "user-1",
+          createdAt: "2025-01-01T00:00:00Z",
+          type: "github",
+          name: "GitHub",
+          provider: "github",
+          providerSecret: "fresh-generated-secret",
+          endpointSlug: "wh_ghub01ab",
+          routeFolder: "99-incoming/",
+          fieldMapping: null,
+          lastHitAt: null,
+          recordCount: 0,
+        },
+      });
+      mockFetch.mockResolvedValue({ data: rotated });
+      const { sources, rotateSecret } = useSources();
+      sources.value = [makeSourceResource({ id: "attributes-uuid" })];
+
+      const result = await rotateSecret("attributes-uuid");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/sources/attributes-uuid/rotate-secret",
+        { method: "POST", body: undefined },
+      );
+      expect(result.attributes.providerSecret).toBe("fresh-generated-secret");
+    });
+
+    it("sends the supplied secret in the body for manual providers", async () => {
+      const rotated = makeSourceResource({
+        attributes: {
+          uuid: "attributes-uuid",
+          userId: "user-1",
+          createdAt: "2025-01-01T00:00:00Z",
+          type: "stripe",
+          name: "Stripe",
+          provider: "stripe",
+          providerSecret: null,
+          endpointSlug: "wh_stripe01",
+          routeFolder: "99-incoming/",
+          fieldMapping: null,
+          lastHitAt: null,
+          recordCount: 0,
+        },
+      });
+      mockFetch.mockResolvedValue({ data: rotated });
+      const { sources, rotateSecret } = useSources();
+      sources.value = [makeSourceResource({ id: "attributes-uuid" })];
+
+      await rotateSecret("attributes-uuid", "whsec_new_value");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/sources/attributes-uuid/rotate-secret",
+        {
+          method: "POST",
+          body: {
+            data: {
+              type: "sources",
+              attributes: { providerSecret: "whsec_new_value" },
+            },
+          },
+        },
+      );
+    });
+
+    it("never retains the revealed secret in the reactive list", async () => {
+      const existing = makeSourceResource({
+        attributes: {
+          uuid: "attributes-uuid",
+          userId: "user-1",
+          createdAt: "2025-01-01T00:00:00Z",
+          type: "github",
+          name: "GitHub",
+          provider: "github",
+          providerSecret: null,
+          endpointSlug: "wh_ghub01ab",
+          routeFolder: "99-incoming/",
+          fieldMapping: null,
+          lastHitAt: null,
+          recordCount: 0,
+        },
+      });
+      const rotated = {
+        ...existing,
+        attributes: {
+          ...existing.attributes,
+          providerSecret: "fresh-generated-secret",
+        },
+      };
+      mockFetch.mockResolvedValue({ data: rotated });
+      const { sources, rotateSecret } = useSources();
+      sources.value = [existing];
+
+      await rotateSecret("attributes-uuid");
+
+      expect(sources.value[0].attributes.providerSecret).toBeNull();
+    });
+
+    it("throws when the server returns no data", async () => {
+      mockFetch.mockResolvedValue({ data: null });
+      const { rotateSecret } = useSources();
+      await expect(rotateSecret("attributes-uuid")).rejects.toThrow(
+        "Server returned no data",
+      );
+    });
+
+    it("throws when the rotated source is no longer in the list", async () => {
+      const rotated = makeSourceResource({ id: "gone" });
+      rotated.attributes.uuid = "gone";
+      mockFetch.mockResolvedValue({ data: rotated });
+      const { sources, rotateSecret } = useSources();
+      sources.value = [];
+      await expect(rotateSecret("gone")).rejects.toThrow(
+        "no longer in the list",
+      );
+    });
+
+    it("propagates rotate errors to the caller", async () => {
+      mockFetch.mockRejectedValue(new Error("rotate failed"));
+      const { rotateSecret } = useSources();
+      await expect(rotateSecret("attributes-uuid")).rejects.toThrow(
+        "rotate failed",
+      );
+    });
+  });
 });

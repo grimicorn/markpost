@@ -224,22 +224,12 @@
         </div>
 
         <div v-if="requiresManualSecret" style="margin-top: 16px">
-          <AppField
+          <ManualSecretField
+            v-model="providerSecretInput"
             num="01"
             :label="manualSecretLabel"
-            :msg="manualSecretHint"
-            req
-          >
-            <div class="input-wrap">
-              <span class="lead-addon"><AppIcon name="key" :size="16" /></span>
-              <input
-                v-model="providerSecretInput"
-                class="input has-lead mono"
-                style="font-size: 13.5px"
-                type="password"
-              />
-            </div>
-          </AppField>
+            :hint="manualSecretHint"
+          />
         </div>
 
         <div style="margin-top: 18px">
@@ -287,23 +277,12 @@
           again.
         </AppAlert>
 
-        <div class="code" style="margin-top: 16px">
-          <div class="code-head">
-            <span class="lang">{{ revealSecretLabel }}</span>
-            <AppCopyBtn
-              :text="modalState.revealSecret ?? ''"
-              label="copy secret"
-            />
-          </div>
-          <div
-            class="code-body mono"
-            style="font-size: 12.5px; word-break: break-all"
-          >
-            {{ modalState.revealSecret }}
-          </div>
-        </div>
-        <div class="muted" style="font-size: 11px; margin-top: 8px">
-          {{ revealSecretHint }}
+        <div style="margin-top: 16px">
+          <SecretRevealPanel
+            :label="revealSecretLabel"
+            :secret="modalState.revealSecret ?? ''"
+            :hint="revealSecretHint"
+          />
         </div>
 
         <div
@@ -321,6 +300,8 @@
 
 <script setup lang="ts">
 import {
+  MANUAL_SECRET_HINT,
+  MANUAL_SECRET_LABEL,
   PROVIDER_SECRET_HINT,
   PROVIDER_SECRET_LABEL,
 } from "../utils/providerSecretCopy";
@@ -359,15 +340,6 @@ const STEP_LABEL_BY_STEP: Record<ModalState["step"], string> = {
   pick: "step 1 / 2",
   config: "step 2 / 2",
   reveal: "step 2 / 2",
-};
-
-const MANUAL_SECRET_LABEL_BY_ID: Record<string, string> = {
-  stripe: "Stripe webhook signing secret",
-};
-
-const MANUAL_SECRET_HINT_BY_ID: Record<string, string> = {
-  stripe:
-    "From your Stripe Dashboard -> Webhooks -> your endpoint -> Signing secret.",
 };
 
 const props = withDefaults(
@@ -489,12 +461,11 @@ const requiresManualSecret = computed(
 );
 
 const manualSecretLabel = computed(
-  () =>
-    MANUAL_SECRET_LABEL_BY_ID[props.modalState.choice?.id ?? ""] ?? "secret",
+  () => MANUAL_SECRET_LABEL[props.modalState.choice?.id ?? ""] ?? "secret",
 );
 
 const manualSecretHint = computed(
-  () => MANUAL_SECRET_HINT_BY_ID[props.modalState.choice?.id ?? ""] ?? "",
+  () => MANUAL_SECRET_HINT[props.modalState.choice?.id ?? ""] ?? "",
 );
 
 const canSubmit = computed(() => {

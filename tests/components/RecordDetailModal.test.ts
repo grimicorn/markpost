@@ -3,6 +3,11 @@ import { mount } from "@vue/test-utils";
 
 import RecordDetailModal from "../../app/components/RecordDetailModal.vue";
 
+// makeRecord() stamps createdAt at 2026-06-27T10:00:00Z; freezing "now" here
+// keeps formatRelativeTime()'s output ("35d ago") deterministic so the snapshot
+// can't drift by a day against the real clock.
+const FROZEN_NOW = "2026-08-01T10:00:00Z";
+
 function makeRecord(overrides: Record<string, unknown> = {}) {
   return {
     type: "records" as const,
@@ -169,7 +174,14 @@ describe("RecordDetailModal", () => {
   });
 
   it("matches the snapshot for a loaded record", () => {
-    const wrapper = mountModal();
-    expect(wrapper.html()).toMatchSnapshot();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(FROZEN_NOW));
+
+    try {
+      const wrapper = mountModal();
+      expect(wrapper.html()).toMatchSnapshot();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
