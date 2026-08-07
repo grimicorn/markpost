@@ -147,6 +147,44 @@ describe("SourceCard", () => {
     expect(wrapper.emitted("remove")?.[0]).toEqual(["test-uuid-1"]);
   });
 
+  it.each(["stripe", "github", "zapier", "shortcuts"])(
+    "shows a rotate-secret button for provider-backed source %s",
+    (provider) => {
+      const wrapper = mount(SourceCard, {
+        ...globalConfig,
+        props: { source: makeSource({ type: provider, provider }) },
+      });
+      expect(wrapper.find("button[title='Rotate secret']").exists()).toBe(true);
+    },
+  );
+
+  it("does not show a rotate-secret button for a plain webhook source (no provider)", () => {
+    const wrapper = mount(SourceCard, {
+      ...globalConfig,
+      props: { source: makeSource() },
+    });
+    expect(wrapper.find("button[title='Rotate secret']").exists()).toBe(false);
+  });
+
+  it("does not show a rotate-secret button for an email source", () => {
+    const wrapper = mount(SourceCard, {
+      ...globalConfig,
+      props: { source: makeSource({ type: "email", provider: null }) },
+    });
+    expect(wrapper.find("button[title='Rotate secret']").exists()).toBe(false);
+  });
+
+  it("emits rotate with the source uuid when the rotate button is clicked", async () => {
+    const wrapper = mount(SourceCard, {
+      ...globalConfig,
+      props: {
+        source: makeSource({ type: "github", provider: "github" }),
+      },
+    });
+    await wrapper.find("button[title='Rotate secret']").trigger("click");
+    expect(wrapper.emitted("rotate")?.[0]).toEqual(["test-uuid-1"]);
+  });
+
   it("shows 'active' badge for old sources", () => {
     const wrapper = mount(SourceCard, {
       ...globalConfig,

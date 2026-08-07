@@ -7,10 +7,21 @@ import AppField from "../../app/components/AppField.vue";
 import AppChip from "../../app/components/AppChip.vue";
 import AppBtn from "../../app/components/AppBtn.vue";
 import AppCopyBtn from "../../app/components/AppCopyBtn.vue";
+import SecretRevealPanel from "../../app/components/SecretRevealPanel.vue";
+import ManualSecretField from "../../app/components/ManualSecretField.vue";
 
 const globalConfig = {
   global: {
-    components: { AppIcon, AppAlert, AppField, AppChip, AppBtn, AppCopyBtn },
+    components: {
+      AppIcon,
+      AppAlert,
+      AppField,
+      AppChip,
+      AppBtn,
+      AppCopyBtn,
+      SecretRevealPanel,
+      ManualSecretField,
+    },
   },
 };
 

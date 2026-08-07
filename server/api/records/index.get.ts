@@ -1,6 +1,6 @@
-import { and, count, desc, eq, ilike, like, lt, or, SQL } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, lt, or, SQL } from "drizzle-orm";
 import { getDb } from "../../db";
-import { records, RECORD_STATUSES } from "../../db/schema";
+import { records, RECORD_STATUSES, sources } from "../../db/schema";
 import { ApiError, apiErrorHandler } from "../../utils/errors";
 import { buildRecordListResponse, parsePageSize } from "../../utils/pagination";
 import type { RecordListApiResponse } from "../../utils/response";
@@ -115,7 +115,28 @@ function validateSourceFilter(
   return filterSource;
 }
 
+// Type filtering keys off the source a record was ingested from, not the
+// free-text `records.source` display name (which stores the source's name,
+// e.g. "My Zapier hook", never a "webhook/…" prefix). We match records whose
+// `sourceId` points to a source of the requested `type`, scoping the subquery
+// to the same user so it is self-contained. A record with a NULL `sourceId`
+// (e.g. created directly via the records API without a source) matches no
+// type, which is correct.
+export function sourceTypeCondition(
+  db: Database,
+  userId: string,
+  sourceType: SourceType,
+): SQL {
+  const matchingSourceIds = db
+    .select({ uuid: sources.uuid })
+    .from(sources)
+    .where(and(eq(sources.userId, userId), eq(sources.type, sourceType)));
+
+  return inArray(records.sourceId, matchingSourceIds);
+}
+
 function buildFilterConditions(
+  db: Database,
   userId: string,
   cursor: CursorPosition | null,
   filters: RecordFilters,
@@ -123,7 +144,7 @@ function buildFilterConditions(
   const conditions: (SQL | undefined)[] = [eq(records.userId, userId)];
 
   if (filters.source) {
-    conditions.push(like(records.source, `${filters.source}/%`));
+    conditions.push(sourceTypeCondition(db, userId, filters.source));
   }
 
   if (filters.status) {
@@ -159,7 +180,7 @@ async function countFilteredRecords(
   const [totalRow] = await db
     .select({ value: count() })
     .from(records)
-    .where(buildFilterConditions(userId, null, filters));
+    .where(buildFilterConditions(db, userId, null, filters));
 
   return totalRow?.value ?? 0;
 }
@@ -174,7 +195,7 @@ function fetchRecordsPage(
   return db
     .select()
     .from(records)
-    .where(buildFilterConditions(userId, cursor, filters))
+    .where(buildFilterConditions(db, userId, cursor, filters))
     .orderBy(desc(records.createdAt), desc(records.uuid))
     .limit(size + 1);
 }

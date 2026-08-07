@@ -7,14 +7,25 @@
     <template #actions>
       <AppBtn
         size="sm"
-        icon="download"
-        :disabled="isLoading || !!loadError || log.length === 0"
-        @click="triggerExportDownload"
-        >export log</AppBtn
+        :icon="isExporting ? 'refresh' : 'download'"
+        :disabled="isLoading || !!loadError || log.length === 0 || isExporting"
+        @click="exportLog"
+        >{{ isExporting ? "exporting…" : "export log" }}</AppBtn
       >
     </template>
 
     <div style="padding: 22px 26px 40px; max-width: 920px">
+      <div v-if="exportNotice" style="margin-bottom: 18px">
+        <AppAlert
+          :tone="exportNotice.tone"
+          :title="exportNotice.title"
+          :closeable="true"
+          @close="exportNotice = null"
+        >
+          {{ exportNotice.message }}
+        </AppAlert>
+      </div>
+
       <!-- loading state -->
       <div
         v-if="isLoading"
@@ -111,10 +122,17 @@
 
 <script setup lang="ts">
 import { useEvents, triggerExportDownload } from "~/composables/useEvents";
+import { useExportNotice } from "~/composables/useExportNotice";
 
 definePageMeta({ middleware: "auth" });
 
 const { log, isLoading, loadError, loadEvents } = useEvents();
+
+const {
+  notice: exportNotice,
+  isExporting,
+  run: exportLog,
+} = useExportNotice(triggerExportDownload);
 
 onMounted(loadEvents);
 </script>

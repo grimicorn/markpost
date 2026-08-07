@@ -8,6 +8,7 @@ vi.stubGlobal("onMounted", (fn: () => void) => fn());
 const mockLoadSources = vi.fn();
 const mockAddSource = vi.fn();
 const mockRemoveSource = vi.fn();
+const mockRotateSecret = vi.fn();
 
 const sourcesRef = ref<object[]>([]);
 const isLoadingRef = ref(false);
@@ -19,6 +20,7 @@ vi.mock("../../app/composables/useSources", () => ({
     loadSources: mockLoadSources,
     addSource: mockAddSource,
     removeSource: mockRemoveSource,
+    rotateSecret: mockRotateSecret,
   }),
   buildEndpointUrl: (type: string, slug: string) => {
     if (type === "email") {
@@ -47,9 +49,9 @@ const globalConfig = {
       AppIcon: { template: "<span />" },
       SourceCard: {
         template:
-          '<div class="source-card" @click="$emit(\'remove\', source.attributes.uuid)" />',
+          '<div class="source-card" @click="$emit(\'remove\', source.attributes.uuid)"><button class="rotate-trigger" @click.stop="$emit(\'rotate\', source.attributes.uuid)" /></div>',
         props: ["source"],
-        emits: ["remove"],
+        emits: ["remove", "rotate"],
       },
       AddSourceModal: {
         template: '<div class="add-source-modal" />',
@@ -61,6 +63,12 @@ const globalConfig = {
           '<div class="confirm-dialog"><button class="confirm-btn" @click="$emit(\'confirm\')" /><button class="cancel-btn" @click="$emit(\'cancel\')" /></div>',
         props: ["title", "message", "confirmLabel"],
         emits: ["confirm", "cancel"],
+      },
+      RotateSecretModal: {
+        template:
+          '<div class="rotate-modal"><button class="rotate-confirm" @click="$emit(\'rotate\', undefined)" /><button class="rotate-confirm-secret" @click="$emit(\'rotate\', \'whsec_new\')" /><button class="rotate-close" @click="$emit(\'close\')" /></div>',
+        props: ["rotateState", "submitting", "error"],
+        emits: ["close", "rotate"],
       },
     },
   },
@@ -95,6 +103,7 @@ describe("sources page", () => {
     mockLoadSources.mockReset();
     mockAddSource.mockReset();
     mockRemoveSource.mockReset();
+    mockRotateSecret.mockReset();
   });
 
   it("calls loadSources on mount", () => {
@@ -197,6 +206,161 @@ describe("sources page", () => {
     await wrapper.find(".cancel-btn").trigger("click");
     expect(mockRemoveSource).not.toHaveBeenCalled();
     expect(wrapper.find(".confirm-dialog").exists()).toBe(false);
+  });
+
+  describe("rotate secret flow", () => {
+    function makeProviderSource(provider = "github", id = "uuid-gh") {
+      const source = makeSource(id);
+      source.attributes.type = provider;
+      source.attributes.provider = provider;
+      source.attributes.name = "GitHub";
+      return source;
+    }
+
+    it("opens the rotate modal when a provider-backed card requests rotation", async () => {
+      sourcesRef.value = [makeProviderSource()];
+      const wrapper = mount(SourcesPage, globalConfig);
+      await wrapper.find(".rotate-trigger").trigger("click");
+      expect(wrapper.find(".rotate-modal").exists()).toBe(true);
+    });
+
+    it("does not open the rotate modal for a source with no provider", async () => {
+      sourcesRef.value = [makeSource("uuid-plain")];
+      const wrapper = mount(SourcesPage, globalConfig);
+      await wrapper.find(".rotate-trigger").trigger("click");
+      expect(wrapper.find(".rotate-modal").exists()).toBe(false);
+    });
+
+    it("calls rotateSecret with the source uuid when the modal confirms", async () => {
+      sourcesRef.value = [makeProviderSource()];
+      mockRotateSecret.mockResolvedValue(makeProviderSource());
+      const wrapper = mount(SourcesPage, globalConfig);
+      await wrapper.find(".rotate-trigger").trigger("click");
+      await wrapper.find(".rotate-confirm").trigger("click");
+      await flushPromises();
+      expect(mockRotateSecret).toHaveBeenCalledWith("uuid-gh", undefined);
+    });
+
+    it("moves to the reveal step when the rotated source carries a new secret", async () => {
+      sourcesRef.value = [makeProviderSource()];
+      const rotated = makeProviderSource();
+      rotated.attributes.providerSecret = "fresh-generated-secret";
+      mockRotateSecret.mockResolvedValue(rotated);
+      const wrapper = mount(SourcesPage, globalConfig);
+
+      await wrapper.find(".rotate-trigger").trigger("click");
+      const modal = wrapper.findComponent(".rotate-modal");
+      await wrapper.find(".rotate-confirm").trigger("click");
+      await flushPromises();
+
+      expect(modal.props("rotateState")).toMatchObject({
+        step: "reveal",
+        revealSecret: "fresh-generated-secret",
+      });
+    });
+
+    it("passes a manual secret through to rotateSecret", async () => {
+      sourcesRef.value = [makeProviderSource("stripe", "uuid-stripe")];
+      mockRotateSecret.mockResolvedValue(
+        makeProviderSource("stripe", "uuid-stripe"),
+      );
+      const wrapper = mount(SourcesPage, globalConfig);
+      await wrapper.find(".rotate-trigger").trigger("click");
+      await wrapper.find(".rotate-confirm-secret").trigger("click");
+      await flushPromises();
+      expect(mockRotateSecret).toHaveBeenCalledWith("uuid-stripe", "whsec_new");
+    });
+
+    it("surfaces an error instead of a false success when a generated provider reveals nothing", async () => {
+      sourcesRef.value = [makeProviderSource()];
+      const rotated = makeProviderSource();
+      rotated.attributes.providerSecret = null;
+      mockRotateSecret.mockResolvedValue(rotated);
+      const wrapper = mount(SourcesPage, globalConfig);
+
+      await wrapper.find(".rotate-trigger").trigger("click");
+      const modal = wrapper.findComponent(".rotate-modal");
+      await wrapper.find(".rotate-confirm").trigger("click");
+      await flushPromises();
+
+      // Stays on confirm (never reveal/done) with the error shown inline.
+      expect(modal.props("rotateState")).toMatchObject({ step: "confirm" });
+      expect(modal.props("error")).toContain("new value was not returned");
+    });
+
+    it("moves to the done step when the rotation reveals nothing (manual provider)", async () => {
+      sourcesRef.value = [makeProviderSource("stripe", "uuid-stripe")];
+      const rotated = makeProviderSource("stripe", "uuid-stripe");
+      rotated.attributes.providerSecret = null;
+      mockRotateSecret.mockResolvedValue(rotated);
+      const wrapper = mount(SourcesPage, globalConfig);
+
+      await wrapper.find(".rotate-trigger").trigger("click");
+      const modal = wrapper.findComponent(".rotate-modal");
+      await wrapper.find(".rotate-confirm").trigger("click");
+      await flushPromises();
+
+      expect(modal.props("rotateState")).toMatchObject({ step: "done" });
+    });
+
+    it("keeps the modal open and routes the failure into the modal's error prop", async () => {
+      // Mirrors addSource: a transient failure must not tear down the modal, or
+      // a manual-secret provider loses the value the user just pasted. The error
+      // goes into the modal (not a page banner the modal's scrim would bury).
+      sourcesRef.value = [makeProviderSource()];
+      mockRotateSecret.mockRejectedValue(new Error("rotate failed"));
+      const wrapper = mount(SourcesPage, globalConfig);
+
+      await wrapper.find(".rotate-trigger").trigger("click");
+      const modal = wrapper.findComponent(".rotate-modal");
+      await wrapper.find(".rotate-confirm").trigger("click");
+      await flushPromises();
+
+      expect(wrapper.find(".rotate-modal").exists()).toBe(true);
+      expect(modal.props("error")).toContain("Failed to rotate secret");
+    });
+
+    it("ignores a close emitted while a rotation is in flight, still reaching the reveal step", async () => {
+      sourcesRef.value = [makeProviderSource()];
+      const rotated = makeProviderSource();
+      rotated.attributes.providerSecret = "fresh-generated-secret";
+      let resolveRotate: (value: typeof rotated) => void = () => {};
+      mockRotateSecret.mockReturnValue(
+        new Promise((resolve) => {
+          resolveRotate = resolve;
+        }),
+      );
+      const wrapper = mount(SourcesPage, globalConfig);
+
+      await wrapper.find(".rotate-trigger").trigger("click");
+      const modal = wrapper.findComponent(".rotate-modal");
+      wrapper.find(".rotate-confirm").trigger("click");
+      await Promise.resolve();
+
+      // A stray close mid-flight must be a no-op — the server may already have
+      // rotated, so dropping the modal would strip the unrevealed new secret.
+      await wrapper.find(".rotate-close").trigger("click");
+      expect(wrapper.find(".rotate-modal").exists()).toBe(true);
+
+      resolveRotate(rotated);
+      await flushPromises();
+
+      expect(modal.props("rotateState")).toMatchObject({
+        step: "reveal",
+        revealSecret: "fresh-generated-secret",
+      });
+    });
+
+    it("closes the modal on a close emitted when no rotation is in flight", async () => {
+      sourcesRef.value = [makeProviderSource()];
+      const wrapper = mount(SourcesPage, globalConfig);
+
+      await wrapper.find(".rotate-trigger").trigger("click");
+      expect(wrapper.find(".rotate-modal").exists()).toBe(true);
+
+      await wrapper.find(".rotate-close").trigger("click");
+      expect(wrapper.find(".rotate-modal").exists()).toBe(false);
+    });
   });
 
   describe("addSource reveal step", () => {

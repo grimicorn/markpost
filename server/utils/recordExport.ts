@@ -1,8 +1,9 @@
-export const RECORD_EXPORT_LIMIT = 10_000;
+import { EXPORT_ROW_LIMIT } from "#shared/utils/export";
+
+export const RECORD_EXPORT_LIMIT = EXPORT_ROW_LIMIT;
 // Callers fetch one row beyond the limit so buildRecordExport can detect
 // truncation; exported so the fetch size can't drift from the check.
 export const RECORD_EXPORT_FETCH_LIMIT = RECORD_EXPORT_LIMIT + 1;
-export const RECORD_EXPORT_FILENAME = "markpost-records.json";
 
 export type RecordExportRow = {
   uuid: string;
