@@ -165,6 +165,18 @@ describe("GET /api/records/export", () => {
     );
   });
 
+  it("sets cache-control to no-store, private", async () => {
+    stubSelectChain([makeRecordRow(1)]);
+
+    await handler(buildEvent(userId));
+
+    expect(mockSetHeader).toHaveBeenCalledWith(
+      expect.anything(),
+      "Cache-Control",
+      "no-store, private",
+    );
+  });
+
   it("includes title, content, and status in each row", async () => {
     stubSelectChain([makeRecordRow(1)]);
 
