@@ -1,3 +1,6 @@
+import { downloadExport, type ExportOutcome } from "../utils/exportDownload";
+import { ACTIVITY_EXPORT_FILENAME } from "#shared/utils/export";
+
 export type EventKind = "ok" | "dim" | "warn" | "err";
 
 export type EventAttributes = {
@@ -73,8 +76,8 @@ async function fetchEventList(): Promise<EventResource[]> {
   return allEvents;
 }
 
-export function triggerExportDownload(): void {
-  window.location.href = EXPORT_URL;
+export function triggerExportDownload(): Promise<ExportOutcome> {
+  return downloadExport(EXPORT_URL, ACTIVITY_EXPORT_FILENAME);
 }
 
 export function useEvents() {

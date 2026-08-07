@@ -4,6 +4,8 @@ import {
   type SourceType,
 } from "#shared/utils/sourceTypes";
 import { computeElapsedBuckets } from "../utils/timeBuckets";
+import { downloadExport, type ExportOutcome } from "../utils/exportDownload";
+import { RECORDS_EXPORT_FILENAME } from "#shared/utils/export";
 
 export type RecordStatus = "synced" | "pending" | "error";
 
@@ -52,8 +54,8 @@ type StatsResponse = {
 
 const RECORDS_EXPORT_URL = "/api/records/export";
 
-export function triggerRecordExportDownload(): void {
-  window.location.href = RECORDS_EXPORT_URL;
+export function triggerRecordExportDownload(): Promise<ExportOutcome> {
+  return downloadExport(RECORDS_EXPORT_URL, RECORDS_EXPORT_FILENAME);
 }
 
 export type RecordFilterValue = "all" | "errors" | SourceType;

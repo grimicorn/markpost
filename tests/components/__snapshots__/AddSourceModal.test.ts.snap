@@ -142,14 +142,18 @@ exports[`AddSourceModal > reveal step > matches snapshot for the reveal step (gi
         </div>
         <!--v-if-->
       </div>
-      <div class="code" style="margin-top: 16px;">
-        <div class="code-head"><span class="lang">webhook secret</span><button class="icon-btn mono" style="font-size: 11px; gap: 5px; display: inline-flex; align-items: center; color: var(--ink-3);"><svg class="ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="9" y="9" width="13" height="13" rx="2"></rect>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-            </svg> copy secret</button></div>
-        <div class="code-body mono" style="font-size: 12.5px; word-break: break-all;">generated-secret-value</div>
+      <div style="margin-top: 16px;">
+        <div>
+          <div class="code">
+            <div class="code-head"><span class="lang">webhook secret</span><button class="icon-btn mono" style="font-size: 11px; gap: 5px; display: inline-flex; align-items: center; color: var(--ink-3);"><svg class="ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg> copy secret</button></div>
+            <div class="code-body mono" style="font-size: 12.5px; word-break: break-all;">generated-secret-value</div>
+          </div>
+          <div class="muted" style="font-size: 11px; margin-top: 8px;">Paste this into the GitHub repo's Settings -&gt; Webhooks -&gt; Secret field.</div>
+        </div>
       </div>
-      <div class="muted" style="font-size: 11px; margin-top: 8px;">Paste this into the GitHub repo's Settings -&gt; Webhooks -&gt; Secret field.</div>
       <div class="row gap-3" style="justify-content: flex-end; margin-top: 22px;"><button class="btn btn-accent"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="20 6 9 17 4 12"></polyline>
           </svg>done
@@ -202,7 +206,7 @@ exports[`AddSourceModal > stripe manual secret entry > matches snapshot for the 
       <div style="margin-top: 16px;">
         <div class="field"><span class="field-label"><span class="num">01</span><span>Stripe webhook signing secret</span><span class="req">*</span>
           <!--v-if--></span>
-          <div class="input-wrap"><span class="lead-addon"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"></circle><path d="m10.5 12.5 8-8"></path><path d="m16 6 2 2"></path><path d="m18.5 4.5 2 2"></path></svg></span><input class="input has-lead mono" style="font-size: 13.5px;" type="password"></div><span class="field-msg"><!--v-if--><!--v-if--> From your Stripe Dashboard -&gt; Webhooks -&gt; your endpoint -&gt; Signing secret.</span>
+          <div class="input-wrap"><span class="lead-addon"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"></circle><path d="m10.5 12.5 8-8"></path><path d="m16 6 2 2"></path><path d="m18.5 4.5 2 2"></path></svg></span><input class="input has-lead mono" style="font-size: 13.5px;" type="password" value=""></div><span class="field-msg"><!--v-if--><!--v-if--> From your Stripe Dashboard -&gt; Webhooks -&gt; your endpoint -&gt; Signing secret.</span>
         </div>
       </div>
       <div style="margin-top: 18px;">
