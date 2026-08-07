@@ -61,6 +61,7 @@ describe("activity page", () => {
     mockLoadEvents.mockReset();
     mockLoadEvents.mockResolvedValue(undefined);
     mockTriggerExportDownload.mockReset();
+    mockTriggerExportDownload.mockResolvedValue({ status: "success" });
   });
 
   it("calls loadEvents on mount", async () => {
@@ -131,6 +132,39 @@ describe("activity page", () => {
     await flushPromises();
     await wrapper.find(".app-btn").trigger("click");
     expect(mockTriggerExportDownload).toHaveBeenCalledOnce();
+  });
+
+  it("shows a truncation warning when the export is capped", async () => {
+    mockTriggerExportDownload.mockResolvedValue({ status: "truncated" });
+    logRef.value = sampleRows;
+    const wrapper = mount(ActivityPage, globalConfig);
+    await flushPromises();
+    await wrapper.find(".app-btn").trigger("click");
+    await flushPromises();
+    expect(wrapper.find(".app-alert[data-tone='warn']").exists()).toBe(true);
+    expect(wrapper.text()).toContain("left out");
+  });
+
+  it("shows an error alert when the export fails", async () => {
+    mockTriggerExportDownload.mockResolvedValue({ status: "error" });
+    logRef.value = sampleRows;
+    const wrapper = mount(ActivityPage, globalConfig);
+    await flushPromises();
+    await wrapper.find(".app-btn").trigger("click");
+    await flushPromises();
+    expect(wrapper.find(".app-alert[data-tone='err']").exists()).toBe(true);
+    expect(wrapper.text()).toContain("couldn't be generated");
+  });
+
+  it("shows no export alert when the export completes in full", async () => {
+    mockTriggerExportDownload.mockResolvedValue({ status: "success" });
+    logRef.value = sampleRows;
+    const wrapper = mount(ActivityPage, globalConfig);
+    await flushPromises();
+    await wrapper.find(".app-btn").trigger("click");
+    await flushPromises();
+    expect(wrapper.find(".app-alert[data-tone='warn']").exists()).toBe(false);
+    expect(wrapper.find(".app-alert[data-tone='err']").exists()).toBe(false);
   });
 
   it("does not show terminal when loading", async () => {

@@ -3,11 +3,20 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const mockFetch = vi.fn();
 vi.stubGlobal("$fetch", mockFetch);
 
+const { mockDownloadExport } = vi.hoisted(() => ({
+  mockDownloadExport: vi.fn(),
+}));
+
+vi.mock("../../app/utils/exportDownload", () => ({
+  downloadExport: mockDownloadExport,
+}));
+
 import {
   formatRelativeTime,
   formatSourceLabel,
   sourceTypeIcon,
   fetchRecordStats,
+  triggerRecordExportDownload,
 } from "../../app/composables/useRecords";
 
 describe("sourceTypeIcon", () => {
@@ -85,6 +94,24 @@ describe("formatRelativeTime", () => {
 
   it("returns em-dash for an empty string", () => {
     expect(formatRelativeTime("")).toBe("—");
+  });
+});
+
+describe("triggerRecordExportDownload", () => {
+  beforeEach(() => {
+    mockDownloadExport.mockReset();
+  });
+
+  it("downloads the records export and returns the outcome", async () => {
+    mockDownloadExport.mockResolvedValue({ status: "success" });
+
+    const outcome = await triggerRecordExportDownload();
+
+    expect(mockDownloadExport).toHaveBeenCalledWith(
+      "/api/records/export",
+      "markpost-records.json",
+    );
+    expect(outcome).toEqual({ status: "success" });
   });
 });
 
