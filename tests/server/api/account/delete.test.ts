@@ -168,14 +168,42 @@ describe("DELETE /api/account", () => {
     expect(deleteMock).toHaveBeenCalled();
   });
 
-  it("skips Stripe when the subscription row has no customer id", async () => {
+  it("skips Stripe and logs when the row has neither a customer nor a subscription id", async () => {
     mockFindSubscriptionByUserId.mockResolvedValueOnce({
       stripeCustomerId: null,
       stripeSubscriptionId: null,
     });
+    const errorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
     await handler(buildEvent("user_123"));
     expect(mockCancelSubscriptionsForCustomer).not.toHaveBeenCalled();
     expect(deleteMock).toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("missing Stripe customer id"),
+      expect.objectContaining({ userId: "user_123" }),
+    );
+  });
+
+  it("fails closed (503) without deleting when the row has a subscription id but no customer id", async () => {
+    mockFindSubscriptionByUserId.mockResolvedValueOnce({
+      stripeCustomerId: null,
+      stripeSubscriptionId: "sub_live_1",
+    });
+    await expect(handler(buildEvent("user_123"))).rejects.toMatchObject({
+      statusCode: 503,
+      data: {
+        errors: [
+          expect.objectContaining({
+            status: "503",
+            detail: expect.stringContaining("was not deleted"),
+          }),
+        ],
+      },
+    });
+    expect(mockCancelSubscriptionsForCustomer).not.toHaveBeenCalled();
+    expect(deleteMock).not.toHaveBeenCalled();
+    expect(mockDeleteClerkUser).not.toHaveBeenCalled();
   });
 
   it("aborts the delete with a 503 (fail closed) and does not wipe app data when the Stripe sweep throws", async () => {

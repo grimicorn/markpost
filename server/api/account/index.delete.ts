@@ -46,20 +46,34 @@ async function cancelBillingForUser(userId: string): Promise<boolean> {
     return false;
   }
 
-  // A row with no customer id should not happen (upsertSubscription always sets
-  // it). Log at error so the broken row is visible rather than swallowed.
-  if (!subscription.stripeCustomerId) {
+  const { stripeCustomerId, stripeSubscriptionId } = subscription;
+
+  // A row missing its customer id should not happen (upsertSubscription always
+  // sets it). If it also carries a subscription id the row is corrupt and we
+  // can't sweep by customer — and the by-id cancel path is gone — so we can't
+  // confirm billing is dead. Fail closed rather than delete over possibly-live
+  // billing.
+  if (!stripeCustomerId && stripeSubscriptionId) {
     console.error(
-      "[account] subscription row missing Stripe customer id; skipping sweep",
+      "[account] subscription row missing Stripe customer id; failing closed",
+      { userId },
+    );
+    throw billingUnavailableError();
+  }
+
+  // No customer id and no subscription id: nothing billable to sweep. Log at
+  // error so the broken row is visible rather than swallowed.
+  if (!stripeCustomerId) {
+    console.error(
+      "[account] subscription row missing Stripe customer id; nothing to sweep",
       { userId },
     );
     return false;
   }
 
   try {
-    const { canceledCount } = await cancelSubscriptionsForCustomer(
-      subscription.stripeCustomerId,
-    );
+    const { canceledCount } =
+      await cancelSubscriptionsForCustomer(stripeCustomerId);
     console.info("[account] canceled Stripe subscriptions on account delete", {
       userId,
       canceledCount,
