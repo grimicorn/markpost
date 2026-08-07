@@ -5,6 +5,7 @@ exports[`inbox page > matches snapshot in empty state 1`] = `
   <div style="padding: 22px 26px 40px; max-width: 1080px;">
     <!--v-if-->
     <!--v-if-->
+    <!--v-if-->
     <!-- stat row -->
     <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px;">
       <div class="card" style="padding: 16px;">
@@ -44,6 +45,7 @@ exports[`inbox page > matches snapshot in empty state 1`] = `
 exports[`inbox page > matches snapshot in error state 1`] = `
 "<div active="inbox" crumb="WORKSPACE / DAN'S VAULT" title="Inbox"><button class="app-btn">sync now</button><button class="app-btn" disabled="">export all records</button>
   <div style="padding: 22px 26px 40px; max-width: 1080px;">
+    <!--v-if-->
     <!--v-if-->
     <!--v-if-->
     <!-- stat row -->
@@ -86,6 +88,7 @@ exports[`inbox page > matches snapshot in loading state 1`] = `
   <div style="padding: 22px 26px 40px; max-width: 1080px;">
     <!--v-if-->
     <!--v-if-->
+    <!--v-if-->
     <!-- stat row -->
     <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px;">
       <div class="card" style="padding: 16px;">
@@ -123,6 +126,7 @@ exports[`inbox page > matches snapshot in loading state 1`] = `
 exports[`inbox page > matches snapshot with records 1`] = `
 "<div active="inbox" crumb="WORKSPACE / DAN'S VAULT" title="Inbox"><button class="app-btn">sync now</button><button class="app-btn">export all records</button>
   <div style="padding: 22px 26px 40px; max-width: 1080px;">
+    <!--v-if-->
     <!--v-if-->
     <!--v-if-->
     <!-- stat row -->

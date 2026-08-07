@@ -54,6 +54,15 @@
           {{ isNewSource ? "ready" : "active" }}
         </AppBadge>
         <button
+          v-if="isRotatable"
+          class="icon-btn"
+          title="Rotate secret"
+          style="color: var(--ink-3)"
+          @click="emit('rotate', source.attributes.uuid)"
+        >
+          <AppIcon name="refresh" :size="16" />
+        </button>
+        <button
           class="icon-btn"
           title="Remove source"
           style="color: var(--ink-3)"
@@ -105,7 +114,10 @@
 import { buildEndpointUrl, buildSourceMeta } from "~/composables/useSources";
 import type { SourceResource } from "~/composables/useSources";
 import { PROVIDER_SECRET_HINT } from "../utils/providerSecretCopy";
-import { SHARED_SECRET_PROVIDER_IDS } from "#shared/utils/webhookSecrets";
+import {
+  isRotatableProvider,
+  SHARED_SECRET_PROVIDER_IDS,
+} from "#shared/utils/webhookSecrets";
 
 const ICON_BY_TYPE: Record<string, string> = {
   webhook: "zap",
@@ -153,7 +165,14 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   remove: [uuid: string];
+  rotate: [uuid: string];
 }>();
+
+// Only provider-backed sources have a rotatable secret; a plain webhook or
+// email-in source has none, so the action is hidden for them.
+const isRotatable = computed(() =>
+  isRotatableProvider(props.source.attributes.provider ?? ""),
+);
 
 const sourceType = computed(() => props.source.attributes.type);
 

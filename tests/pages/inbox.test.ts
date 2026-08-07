@@ -137,6 +137,7 @@ describe("inbox page", () => {
     mockFetchRecordStats.mockReset();
     mockFetchRecordStats.mockResolvedValue(defaultStats);
     mockTriggerRecordExport.mockReset();
+    mockTriggerRecordExport.mockResolvedValue({ status: "success" });
     detailRecordRef.value = null;
     detailLoadingRef.value = false;
     detailErrorRef.value = null;
@@ -222,6 +223,45 @@ describe("inbox page", () => {
       .find((button) => button.text() === "export all records");
     await exportButton?.trigger("click");
     expect(mockTriggerRecordExport).toHaveBeenCalledOnce();
+  });
+
+  it("shows a truncation warning when the export is capped", async () => {
+    mockTriggerRecordExport.mockResolvedValue({ status: "truncated" });
+    const wrapper = mount(InboxPage, globalConfig);
+    await flushPromises();
+    const exportButton = wrapper
+      .findAll(".app-btn")
+      .find((button) => button.text() === "export all records");
+    await exportButton?.trigger("click");
+    await flushPromises();
+    expect(wrapper.find(".app-alert[data-tone='warn']").exists()).toBe(true);
+    expect(wrapper.text()).toContain("left out");
+  });
+
+  it("shows an error alert when the export fails", async () => {
+    mockTriggerRecordExport.mockResolvedValue({ status: "error" });
+    const wrapper = mount(InboxPage, globalConfig);
+    await flushPromises();
+    const exportButton = wrapper
+      .findAll(".app-btn")
+      .find((button) => button.text() === "export all records");
+    await exportButton?.trigger("click");
+    await flushPromises();
+    expect(wrapper.find(".app-alert[data-tone='err']").exists()).toBe(true);
+    expect(wrapper.text()).toContain("couldn't be generated");
+  });
+
+  it("shows no export alert when the export completes in full", async () => {
+    mockTriggerRecordExport.mockResolvedValue({ status: "success" });
+    const wrapper = mount(InboxPage, globalConfig);
+    await flushPromises();
+    const exportButton = wrapper
+      .findAll(".app-btn")
+      .find((button) => button.text() === "export all records");
+    await exportButton?.trigger("click");
+    await flushPromises();
+    expect(wrapper.find(".app-alert[data-tone='warn']").exists()).toBe(false);
+    expect(wrapper.find(".app-alert[data-tone='err']").exists()).toBe(false);
   });
 
   it("shows success toast after sync now when no load error", async () => {

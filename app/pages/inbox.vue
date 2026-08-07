@@ -11,10 +11,10 @@
       >
       <AppBtn
         size="sm"
-        icon="download"
-        :disabled="isLoading || !!loadError"
-        @click="triggerRecordExportDownload"
-        >export all records</AppBtn
+        :icon="isExporting ? 'refresh' : 'download'"
+        :disabled="isLoading || !!loadError || isExporting"
+        @click="exportRecords"
+        >{{ isExporting ? "exporting…" : "export all records" }}</AppBtn
       >
     </template>
 
@@ -27,6 +27,17 @@
           @close="showToast = false"
         >
           Records refreshed successfully.
+        </AppAlert>
+      </div>
+
+      <div v-if="exportNotice" style="margin-bottom: 18px">
+        <AppAlert
+          :tone="exportNotice.tone"
+          :title="exportNotice.title"
+          :closeable="true"
+          @close="exportNotice = null"
+        >
+          {{ exportNotice.message }}
         </AppAlert>
       </div>
 
@@ -271,6 +282,7 @@ import {
   type RecordStats,
 } from "~/composables/useRecords";
 import { useRecordDetail } from "~/composables/useRecordDetail";
+import { useExportNotice } from "~/composables/useExportNotice";
 
 definePageMeta({ middleware: "auth" });
 
@@ -289,6 +301,12 @@ const { records, isLoading, loadError, filter, loadRecords } =
 
 const showToast = ref(false);
 const syncError = ref<string | null>(null);
+
+const {
+  notice: exportNotice,
+  isExporting,
+  run: exportRecords,
+} = useExportNotice(triggerRecordExportDownload);
 const isSyncing = ref(false);
 const stats = ref<RecordStats | null>(null);
 

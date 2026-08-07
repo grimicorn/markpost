@@ -120,6 +120,18 @@ describe("GET /api/events/export", () => {
     );
   });
 
+  it("sets cache-control to no-store, private", async () => {
+    stubSelectChain([makeEventRow(1)]);
+
+    await handler(buildEvent(userId));
+
+    expect(mockSetHeader).toHaveBeenCalledWith(
+      expect.anything(),
+      "Cache-Control",
+      "no-store, private",
+    );
+  });
+
   it("includes recordUuid and sourceId in each row", async () => {
     const row = {
       id: "id-1",
